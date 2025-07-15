@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Licitaciones DOTA</title>
+
+    <link rel="stylesheet" href="/css/layout.css" />
+    <link rel="stylesheet" href="/css/dashboard.css" />
+    <link rel="stylesheet" href="/css/main.css" />
+    <link rel="stylesheet" href="/css/tablas.css" />
+    <link rel="stylesheet" href="/css/modales.css" />
+    <link rel="stylesheet" href="/css/botones.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+
+<body class="main-dashboard">
+
+    <!-- HEADER -->
+    <header class="main-header">
+        <div class="logo">
+            <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header" />
+        </div>
+        <div class="user-info">
+            <i class="fas fa-user-circle"></i>
+            <span id="user-name">Bienvenido, Usuario</span>
+            <button class="logout-button" onclick="logout()">Salir</button>
+        </div>
+    </header>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <nav>
+            <ul>
+                <li>
+                    <button class="sidebar-btn destacado" onclick="irA('dota-inicio')">
+                        <i class="fas fa-home"></i> Inicio
+                    </button>
+                </li>
+                <li>
+                    <button class="sidebar-btn destacado" onclick="irA('dota-licitacion')">
+                        <i class="fas fa-file-contract"></i> Licitación
+                    </button>
+                </li>
+                <li>
+                    <button class="sidebar-btn destacado" onclick="irA('dota-reparaciones')">
+                        <i class="fas fa-tools"></i> Reparaciones
+                    </button>
+                </li>
+                <li>
+                    <button class="sidebar-btn destacado" onclick="irA('dota-garantias')">
+                        <i class="fas fa-shield-alt"></i> Garantías
+                    </button>
+                </li>
+                <hr>
+                <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
+                <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
+                <li><a href="/configuracion"><i class="fas fa-cog"></i> Configuración</a></li>
+            </ul>
+        </nav>
+    </aside>
+
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="content">
+        <section style="margin-top:32px;">
+            <h2 class="titulo-dota">Reparaciones DOTA</h2>
+            <div style="overflow-x:auto; width:100%;">
+                <table class="tabla-licitaciones" id="tabla-reparaciones-dota"
+                    style="max-width:900px; margin:0 auto; min-width:700px;">
+                    <thead>
+                        <tr>
+                            <th>Nº Pedido</th>
+                            <th>Código</th>
+                            <th>Descripción</th>
+                            <th>Cant.</th>
+                            <th>Destino</th>
+                            <th>Razón Social</th>
+                            <th>Entrega Parcial</th>
+                            <th>Pendientes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-reparaciones-dota">
+                        <!-- JS carga aquí -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- SCRIPTS -->
+    <script src="/scripts/reparaciones_dota.js"></script>
+    <script src="/scripts/sidebar.js"></script>
+    <script>
+        function logout() {
+            if (confirm('¿Seguro que deseas salir?')) {
+                window.location.href = '/';
+            }
+        }
+    </script>
+</body>
+
+</html>

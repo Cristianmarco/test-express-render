@@ -1,0 +1,102 @@
+/* ======= [MAIN CSS CARGADO] ======= */
+/* Centraliza la carga de todos los estilos CSS del proyecto */
+
+@import url('/css/layout.css');
+@import url('/css/tablas.css');
+@import url('/css/modales.css');
+@import url('/css/botones.css');
+@import url('/css/animaciones.css');
+@import url('/css/dashboard.css');
+
+.logo-centrado-principal {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  margin-top: 30px;
+  margin-bottom: 24px;
+  min-height: 100px;
+}
+.logo-centrado-principal img,
+.logo-centrado-principal object,
+.logo-centrado-principal svg {
+  max-width: 120px;
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.dashboard-cards-principal {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+.dashboard-row {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  gap: 24px;
+  justify-content: center;
+}
+.dashboard-row-center {
+  justify-content: center;
+  margin-top: 8px;
+}
+.dashboard-card {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0,32,72,0.10);
+  padding: 30px 38px;
+  min-width: 220px;
+  min-height: 135px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: box-shadow 0.2s, transform 0.2s;
+  margin-bottom: 0;
+}
+.dashboard-card h3 {
+  margin: 0 0 12px;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #154872;
+  letter-spacing: 1px;
+}
+.dashboard-card .stats {
+  display: flex;
+  flex-direction: row;
+  gap: 28px;
+  margin-top: 8px;
+}
+.dashboard-card .stats-large {
+  gap: 38px;
+}
+.dashboard-card .stats div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+.stats-label {
+  font-size: 13px;
+  color: #6d7b93;
+  font-weight: 400;
+  margin-top: 4px;
+}
+.dashboard-card-large {
+  min-width: 330px;
+  padding: 42px 54px;
+  font-size: 1.18rem;
+}
+
+@media (max-width: 900px) {
+  .dashboard-row { flex-direction: column; align-items: center; }
+  .dashboard-card { min-width: 180px; }
+  .dashboard-card-large { min-width: 200px; }
+}
+
+

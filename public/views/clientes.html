@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ABM de Clientes</title>
+
+    <!-- Estilos -->
+    <link rel="stylesheet" href="/css/layout.css" />
+    <link rel="stylesheet" href="/css/tablas.css" />
+    <link rel="stylesheet" href="/css/modales.css" />
+    <link rel="stylesheet" href="/css/botones.css" />
+    <link rel="stylesheet" href="/css/animaciones.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+
+<body class="main-dashboard">
+
+    <!-- HEADER -->
+    <header class="main-header">
+        <div class="logo">
+            <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header" />
+        </div>
+        <div class="user-info">
+            <i class="fas fa-user-circle"></i>
+            <span id="user-name">Bienvenido, Usuario</span>
+            <button class="logout-button" onclick="logout()">Salir</button>
+        </div>
+    </header>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <nav>
+            <ul>
+                <li><button class="sidebar-btn" onclick="irA('main')"><i class="fas fa-home"></i> Inicio</button></li>
+                <li><button class="sidebar-btn" onclick="irA('clientes')"><i class="fas fa-users"></i> Clientes</button>
+                </li>
+                <li><button class="sidebar-btn" onclick="irA('reparaciones-vigentes')"><i class="fas fa-tools"></i> R.
+                        Vigentes</button></li>
+                <li><button class="sidebar-btn" onclick="irA('historial')"><i class="fas fa-history"></i>
+                        Historial</button></li>
+                <hr>
+                <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
+                <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
+                <li><a href="/configuracion"><i class="fas fa-cog"></i> Configuración</a></li>
+            </ul>
+        </nav>
+    </aside>
+
+
+
+
+    <!-- CONTENT -->
+    <main class="content">
+        <h2>Gestión de Clientes</h2>
+
+        <!-- Tabla de Clientes -->
+        <section class="table-section">
+            <table class="tabla-clientes">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Razón Social</th>
+                        <th>Nombre de Fantasía</th>
+                        <th>Domicilio</th>
+                        <th>Localidad</th>
+                        <th>Provincia</th>
+                        <th>Teléfono</th>
+                        <th>Mail</th>
+                        <th>DNI/CUIT</th>
+                    </tr>
+                </thead>
+                <tbody id="clientes-tbody">
+                    <!-- Datos de clientes dinámicos con JS -->
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Iconos de Acciones -->
+        <section class="acciones-clientes">
+            <button class="icon-button visualizar" onclick="visualizarCliente()"><i class="fas fa-eye"></i></button>
+            <button class="icon-button agregar" onclick="abrirModalAgregar()"><i class="fas fa-plus"></i></button>
+            <button class="icon-button modificar" onclick="abrirModalModificar()"><i class="fas fa-edit"></i></button>
+            <button class="icon-button eliminar" onclick="eliminarCliente()"><i class="fas fa-trash"></i></button>
+        </section>
+    </main>
+
+    <!-- MODALES (Agregar y Modificar Cliente) -->
+    <div id="modal-agregar" class="modal">
+        <div class="modal-contenido">
+            <span class="cerrar" onclick="cerrarModalAgregar()">&times;</span>
+            <h2>Agregar Cliente</h2>
+            <form id="form-agregar">
+                <input type="text" name="codigo" placeholder="Código" required />
+                <input type="text" name="razon_social" placeholder="Razón Social" required />
+                <input type="text" name="fantasia" placeholder="Nombre de Fantasía" />
+                <input type="text" name="domicilio" placeholder="Domicilio" />
+                <input type="text" name="localidad" placeholder="Localidad" />
+                <input type="text" name="provincia" placeholder="Provincia" />
+                <input type="text" name="telefono" placeholder="Teléfono" />
+                <input type="email" name="mail" placeholder="Mail" />
+                <input type="text" name="documento" placeholder="DNI/CUIT" />
+                <button type="submit" class="btn-guardar">Guardar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-modificar" class="modal">
+        <div class="modal-contenido">
+            <span class="cerrar" onclick="cerrarModalModificar()">&times;</span>
+            <h2>Modificar Cliente</h2>
+            <form id="form-modificar">
+                <input type="text" name="codigo" placeholder="Código" readonly />
+                <input type="text" name="razon_social" placeholder="Razón Social" required />
+                <input type="text" name="fantasia" placeholder="Nombre de Fantasía" />
+                <input type="text" name="domicilio" placeholder="Domicilio" />
+                <input type="text" name="localidad" placeholder="Localidad" />
+                <input type="text" name="provincia" placeholder="Provincia" />
+                <input type="text" name="telefono" placeholder="Teléfono" />
+                <input type="email" name="mail" placeholder="Mail" />
+                <input type="text" name="documento" placeholder="DNI/CUIT" />
+                <button type="submit" class="btn-guardar">Guardar Cambios</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Visualización de Cliente -->
+    <div id="modal-visualizar" class="modal">
+        <div class="modal-contenido">
+            <span class="cerrar" onclick="cerrarModalVisualizar()">&times;</span>
+            <h2>Detalles del Cliente</h2>
+            <div id="datos-cliente"></div>
+            <button class="btn-guardar" onclick="cerrarModalVisualizar()">Cerrar</button>
+        </div>
+    </div>
+
+
+    <!-- SCRIPTS -->
+    <script src="/scripts/abm_clientes.js"></script>
+    <script src="/scripts/sidebar.js"></script>
+    <script>
+        function logout() {
+            if (confirm('¿Seguro que deseas salir?')) {
+                window.location.href = '/';
+            }
+        }
+    </script>
+</body>
+
+</html>

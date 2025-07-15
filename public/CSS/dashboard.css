@@ -1,0 +1,451 @@
+/* ==== NUEVO LAYOUT DASHBOARD ===== */
+.dashboard-cards-modern {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 8px;   
+  gap: 38px;
+}
+
+.fila-cards {
+  display: flex;
+  flex-direction: row;
+  gap: 32px;
+  width: 100%;
+  max-width: 950px;
+  justify-content: center;
+}
+
+.tarjeta-modern {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 6px 28px rgba(0,0,0,0.10);
+  padding: 38px 44px 32px 44px;
+  min-width: 280px;
+  min-height: 130px;
+  max-width: 370px;
+  flex: 1 1 330px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transition: box-shadow 0.18s, transform 0.18s;
+  text-align: left;
+}
+
+.tarjeta-modern h3 {
+  font-size: 1.19rem;
+  margin-bottom: 16px;
+  color: #1566b1;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.tarjeta-modern .estadisticas-card {
+  font-size: 1.11rem;
+  color: #2b2b2b;
+  font-weight: 500;
+}
+
+.tarjeta-modern.externos h3 { color: #0072ff; }
+.tarjeta-modern.dota h3 { color: #28b37e; }
+
+.tarjeta-modern:hover {
+  box-shadow: 0 12px 40px rgba(0,60,255,0.09), 0 1px 1.5px #ffd60033;
+  transform: translateY(-4px) scale(1.025);
+}
+
+.tarjeta-modern.totales {
+  width: 680px;
+  min-height: 172px;
+  max-width: 97vw;
+  margin: 0 auto;
+  background: #f8fafb;
+  border-radius: 26px;
+  box-shadow: 0 7px 38px rgba(0,0,0,0.11);
+  padding: 40px 54px 38px 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-size: 1.16rem;
+}
+
+.tarjeta-modern.totales h3 {
+  color: #ff9900;
+  font-size: 1.39rem;
+  margin-bottom: 18px;
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .fila-cards {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .tarjeta-modern,
+  .tarjeta-modern.totales {
+    max-width: 96vw;
+    width: 95vw;
+    min-width: unset;
+    padding: 22px 5vw 22px 5vw;
+  }
+  .tarjeta-modern.totales {
+    margin-top: 24px;
+    padding: 24px 4vw 24px 4vw;
+  }
+}
+
+.tarjeta-modern {
+  opacity: 0;
+  transform: translateY(36px) scale(0.98);
+  animation: dashFadeUp 0.7s cubic-bezier(.29,.72,.4,1) 0.16s forwards;
+}
+@keyframes dashFadeUp {
+  to { opacity: 1; transform: none; }
+}
+
+/* === DASHBOARD CARDS PRINCIPALES === */
+.dashboard-cards {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  margin-top: 48px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.card {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.11);
+  padding: 38px 38px 28px 32px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  min-width: 260px;
+  max-width: 350px;
+  cursor: pointer;
+  transition: box-shadow 0.24s, transform 0.19s;
+  border: 1.5px solid #f0f4f9;
+}
+.card:hover {
+  box-shadow: 0 12px 32px rgba(0,50,180,0.16), 0 2px 8px rgba(0,0,0,0.06);
+  transform: translateY(-6px) scale(1.024);
+  border: 1.5px solid #8bc3ff;
+  background: #f7fbff;
+}
+.card-icon {
+  background: #eaf5ff;
+  color: #2072da;
+  border-radius: 50%;
+  padding: 16px 19px 16px 19px;
+  font-size: 2.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card-info h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.36rem;
+  font-weight: 700;
+  color: #202942;
+  letter-spacing: 0.5px;
+}
+.card-info p {
+  margin: 0;
+  font-size: 1.06rem;
+  color: #7a849a;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+/* === SUBMENÚ TARJETAS === */
+.submenu-reparaciones {
+  display: flex;
+  gap: 30px;
+  justify-content: center;
+  align-items: flex-start;
+  margin-top: 24px;
+  margin-bottom: 18px;
+  animation: fadeIn 0.27s;
+}
+.small-card {
+  background: #f7fbff;
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.09);
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 110px;
+  cursor: pointer;
+  transition: box-shadow 0.19s, background 0.18s;
+  border: 1px solid #e2edfa;
+}
+.small-card:hover {
+  background: #eaf5ff;
+  box-shadow: 0 4px 16px rgba(32,114,218,0.12);
+}
+.small-card i {
+  font-size: 2.2rem;
+  color: #3386e4;
+  margin-bottom: 10px;
+}
+.small-card span {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #252d39;
+}
+.btn-volver {
+  margin-left: 24px;
+  padding: 12px 24px;
+  background: #eaf5ff;
+  border: none;
+  border-radius: 10px;
+  color: #2864ad;
+  font-size: 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.18s;
+}
+.btn-volver:hover {
+  background: #e0eefe;
+}
+
+/* --- Animación --- */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.97);}
+  to   { opacity: 1; transform: scale(1);}
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 800px) {
+  .dashboard-cards {
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+  .submenu-reparaciones {
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+  .card, .small-card {
+    min-width: 90vw;
+    max-width: 97vw;
+  }
+}
+
+/* Estilos básicos de tarjetas */
+.dashboard-cards-principal {
+  margin: 0 auto;
+  max-width: 880px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.dashboard-row {
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+}
+
+.dashboard-row-center {
+  justify-content: center;
+  margin-top: 15px;
+}
+
+.dashboard-card {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 6px 24px rgba(35,55,90,0.09);
+  padding: 38px 38px 26px;
+  min-width: 230px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: box-shadow 0.2s, transform 0.2s;
+  position: relative;
+}
+
+.dashboard-card:hover {
+  box-shadow: 0 8px 32px rgba(20,80,200,0.18);
+  transform: translateY(-5px) scale(1.025);
+}
+
+.dashboard-card h3 {
+  margin-top: 0;
+  font-size: 1.36rem;
+  letter-spacing: .06em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-card-large {
+  min-width: 380px;
+  min-height: 150px;
+  font-size: 1.2rem;
+}
+
+.stats {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  align-items: flex-start;
+}
+
+.stats.stats-large {
+  flex-direction: row;
+  gap: 38px;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.stats-label {
+  font-size: 13px;
+  color: #798;
+  font-weight: 500;
+  margin-left: 5px;
+}
+
+/* Badge estilo (Externos, Dota) */
+.badge {
+  background: linear-gradient(135deg, #5c7cff, #1ad1a5);
+  color: #fff;
+  font-size: 1.1em;
+  font-weight: bold;
+  border-radius: 14px;
+  padding: 2px 11px;
+  margin-left: 8px;
+  box-shadow: 0 2px 8px rgba(30, 85, 200, 0.10);
+  transition: background 0.15s;
+  vertical-align: middle;
+}
+
+/* Counter animado (Totales) */
+.counter {
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: #0072ff;
+  min-width: 32px;
+  display: inline-block;
+  transition: color 0.25s;
+  will-change: text-content;
+  text-shadow: 0 1px 2px #e1eaff90;
+  vertical-align: middle;
+}
+
+.sidebar-btn.destacado {
+  background: linear-gradient(90deg, #0966bd 40%, #44aaff 100%);
+  color: #fff;
+  font-weight: bold;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px #156fa520;
+  font-size: 16px;
+  padding: 12px 16px;
+  transition: background 0.3s;
+}
+.sidebar-btn.destacado:hover {
+  background: linear-gradient(90deg, #1e3a8a 20%, #0284c7 100%);
+  color: #fff;
+}
+.titulo-dota {
+  font-size: 2rem;
+  text-align: left;
+  margin-bottom: 32px;
+  font-weight: 700;
+  color: #175ea9;
+  letter-spacing: 1px;
+}
+.dashboard-cards-dota {
+  display: flex;
+  gap: 32px;
+  margin-top: 20px;
+  justify-content: flex-start;
+}
+.dashboard-card {
+  min-width: 220px;
+  padding: 26px 32px;
+}
+
+.tabla-licitaciones {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  margin-bottom: 36px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 16px #bbb2;
+}
+.tabla-licitaciones th, .tabla-licitaciones td {
+  padding: 15px 14px;
+  text-align: left;
+}
+.tabla-licitaciones th {
+  background: #f2f6fa;
+  font-weight: 700;
+  color: #125c98;
+  font-size: 1rem;
+  border-bottom: 2px solid #e6eef7;
+}
+.tabla-licitaciones tr {
+  border-bottom: 1px solid #e6eef7;
+  transition: background 0.2s;
+}
+.tabla-licitaciones tr:hover {
+  background: #e5f2ff55;
+}
+.tabla-licitaciones td:last-child {
+  text-align: center;
+}
+.acciones-float {
+  position: sticky;
+  bottom: 14px;
+  left: 0;
+  width: fit-content;
+  display: flex;
+  gap: 16px;
+  z-index: 20;
+  background: #fff;
+  padding: 10px 18px;
+  border-radius: 16px;
+  box-shadow: 0 4px 18px #156fa512;
+  margin-top: 16px;
+}
+
+.icon-button {
+  background: #fff;
+  border: none;
+  outline: none;
+  border-radius: 50%;
+  padding: 16px 18px;
+  font-size: 1.35rem;
+  color: #1467b0;
+  box-shadow: 0 4px 18px #156fa51a;
+  cursor: pointer;
+  transition: background 0.25s, box-shadow 0.2s;
+}
+.icon-button:hover {
+  background: #e7f4ff;
+  box-shadow: 0 6px 24px #156fa522;
+}
+@media (max-width: 800px) {
+  .tabla-licitaciones th, .tabla-licitaciones td { padding: 11px 7px; }
+  .acciones-float {
+    left: 0;
+    right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    justify-content: center;
+    border-radius: 12px;
+    width: 98vw;
+    box-sizing: border-box;
+  }
+  .icon-button { padding: 12px; font-size: 1rem; }
+}

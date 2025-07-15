@@ -1,0 +1,74 @@
+/* ======= [ANIMACIONES CSS CARGADO] ======= */
+
+/* Fade Out Row */
+@keyframes fadeOutRow {
+  from {
+    opacity: 1;
+    height: auto;
+  }
+  to {
+    opacity: 0;
+    height: 0;
+    padding: 0;
+    margin: 0;
+  }
+}
+
+.fade-out {
+  animation: fadeOutRow 0.5s ease forwards;
+}
+
+/* Modal Animations */
+@keyframes fadeInModal {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fadeOutModal {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.95); }
+}
+
+.modal.mostrar {
+  display: flex !important;
+  animation: fadeInModal 0.3s ease-out forwards;
+}
+
+.modal.ocultar {
+  animation: fadeOutModal 0.3s ease-in forwards;
+}
+
+/* Pulse Effect */
+@keyframes pulseClick {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.btn-guardar.clicked {
+  animation: pulseClick 0.3s ease;
+}
+
+.clicked {
+  animation: pulse 0.3s ease;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0px #00ff00;
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px #00ff00;
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0px #00ff00;
+  }
+}
+
+.fila-animada {
+  background-color: rgba(0, 255, 0, 0.2) !important;
+  transition: background-color 0.3s ease;
+}

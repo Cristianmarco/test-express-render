@@ -1,0 +1,33 @@
+/* usuarios.css - estilos específicos para la sección de usuarios */
+
+.usuarios-section {
+  margin-top: 20px;
+}
+
+#tabla-usuarios {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#tabla-usuarios th,
+#tabla-usuarios td {
+  padding: 12px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+#tabla-usuarios th {
+  background-color: #f2f2f2;
+  color: #333;
+}
+
+#form-agregar-usuario input,
+#form-modificar-usuario input,
+#form-agregar-usuario select,
+#form-modificar-usuario select {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}

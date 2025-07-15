@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Licitaciones DOTA</title>
+
+  <link rel="stylesheet" href="/css/layout.css" />
+  <link rel="stylesheet" href="/css/dashboard.css" />
+  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="/css/tablas.css" />
+  <link rel="stylesheet" href="/css/modales.css" />
+  <link rel="stylesheet" href="/css/botones.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+
+<body class="main-dashboard">
+
+  <!-- HEADER -->
+  <header class="main-header">
+    <div class="logo">
+      <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header" />
+    </div>
+    <div class="user-info">
+      <i class="fas fa-user-circle"></i>
+      <span id="user-name">Bienvenido, Usuario</span>
+      <button class="logout-button" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <nav>
+      <ul>
+        <li>
+          <button class="sidebar-btn destacado" onclick="irA('dota-inicio')">
+            <i class="fas fa-home"></i> Inicio
+          </button>
+        </li>
+        <li>
+          <button class="sidebar-btn destacado" onclick="irA('dota-licitacion')">
+            <i class="fas fa-file-contract"></i> Licitación
+          </button>
+        </li>
+        <li>
+          <button class="sidebar-btn destacado" onclick="irA('dota-reparaciones')">
+            <i class="fas fa-tools"></i> Reparaciones
+          </button>
+        </li>
+        <li>
+          <button class="sidebar-btn destacado" onclick="irA('dota-garantias')">
+            <i class="fas fa-shield-alt"></i> Garantías
+          </button>
+        </li>
+        <hr>
+        <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
+        <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
+        <li><a href="/configuracion"><i class="fas fa-cog"></i> Configuración</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="content">
+    <h2 class="titulo-dota">Licitaciones DOTA</h2>
+
+    <section style="margin-top: 22px;">
+      <table class="tabla-licitaciones">
+        <thead>
+          <tr>
+            <th>Nro Lic.</th>
+            <th>Fecha</th>
+            <th>Fecha Cierre</th>
+            <th>Observación</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-licitaciones">
+          <!-- Ejemplo -->
+          <tr>
+            <td>1007</td>
+            <td>2025-07-01</td>
+            <td>2025-07-30</td>
+            <td>Compra Alternadores</td>
+            <td>
+              <button class="icon-button visualizar" title="Ver Licitación" onclick="verLicitacion('1007')">
+                <i class="fas fa-eye"></i>
+              </button>
+            </td>
+          </tr>
+          <!-- Las filas reales van por JS -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Panel flotante acciones -->
+    <section class="acciones-float">
+      <button class="icon-button agregar" onclick="abrirModalAgregarLicitacion()" title="Agregar Licitación">
+        <i class="fas fa-plus"></i>
+      </button>
+      <button class="icon-button modificar" onclick="abrirModalModificarLicitacion()" title="Modificar">
+        <i class="fas fa-edit"></i>
+      </button>
+      <button class="icon-button eliminar" onclick="eliminarLicitacion()" title="Eliminar">
+        <i class="fas fa-trash"></i>
+      </button>
+    </section>
+
+    <!-- MODAL AGREGAR/MODIFICAR LICITACION -->
+    <div id="modal-agregar-licitacion" class="modal" style="display:none;">
+      <div class="modal-contenido modal-licitacion" style="max-width:750px;min-width:320px;">
+        <span class="cerrar" onclick="cerrarModalLicitacion()">&times;</span>
+        <h2 style="margin-bottom:22px;">Agregar Licitación</h2>
+        <form id="form-licitacion" autocomplete="off">
+          <div style="max-width:680px;margin:0 auto;">
+            <div style="display: flex; gap:16px; margin-bottom:14px;">
+              <div style="flex:1; display:flex; flex-direction:column;">
+                <label for="nro-licitacion">Nº Licitación:</label>
+                <input type="text" id="nro-licitacion" required style="height:38px;">
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column;">
+                <label for="fecha-licitacion">Fecha:</label>
+                <input type="date" id="fecha-licitacion" required style="height:38px;">
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column;">
+                <label for="fecha-cierre-licitacion">Fecha Cierre:</label>
+                <input type="date" id="fecha-cierre-licitacion" required style="height:38px;">
+              </div>
+            </div>
+            <div style="margin-bottom:12px;">
+              <label for="observacion-licitacion">Observación:</label>
+              <textarea id="observacion-licitacion" rows="2" required
+                style="width:100%; min-height:38px; resize:vertical; box-sizing: border-box;"></textarea>
+            </div>
+          </div>
+          <hr style="margin:18px 0;">
+          <h3 style="margin-bottom:8px;">Ítems de Licitación</h3>
+          <table id="tabla-items-licitacion" class="tabla-licitaciones tabla-items-modal"
+            style="width:100%; min-width:580px; table-layout:fixed; margin-bottom:10px;">
+            <colgroup>
+              <col style="width: 17%;">
+              <col style="width: 39%;">
+              <col style="width: 14%;">
+              <col style="width: 17%;">
+              <col style="width: 13%;">
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th>Cant. Pedida</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="fila-sin-items">
+                <td colspan="5" style="text-align:center;color:#aaa;">Sin ítems</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="display:flex; justify-content:flex-start; margin-bottom:10px;">
+            <button type="button" class="btn-agregar-item" onclick="agregarFilaItemLicitacion()"
+              style="background:#e9f3fc; color:#145baa; border:1px solid #8ab6e6; border-radius:7px; font-weight:600; font-size:1rem; padding:8px 18px; transition:background .17s;">
+              + Agregar Ítem
+            </button>
+          </div>
+          <div style="margin-top:18px; display:flex; justify-content:flex-end; gap:22px;">
+            <button type="button" onclick="cerrarModalLicitacion()" class="icon-button cancelar" title="Cancelar"
+              style="background:#f5f6f8; color:#9aa; border:1.5px solid #dbe3ea; border-radius:50%; width:46px; height:46px; font-size:1.34rem;">
+              <i class="fas fa-times"></i>
+            </button>
+            <button type="submit" class="icon-button agregar" title="Guardar"
+              style="background:#1572d2; color:#fff; border-radius:50%; width:46px; height:46px; border:none; font-size:1.34rem;">
+              <i class="fas fa-check"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+
+    <!-- MODAL: VER LICITACION -->
+    <div id="modal-ver-licitacion" class="modal" style="display:none;">
+      <div class="modal-contenido modal-licitacion"
+        style="max-width: 800px; margin: 0 auto; padding: 32px 36px 24px 36px;">
+        <span class="cerrar" onclick="cerrarModalVerLicitacion()">&times;</span>
+        <h2 style="text-align:center; margin-bottom:18px;">Ítems de Licitación</h2>
+        <div id="info-cabecera-licitacion" style="margin-bottom:14px;"></div>
+        <div style="width:100%; min-width:0; overflow-x:auto;">
+          <div style="width:100%;">
+            <table id="tabla-items-ver-licitacion" class="tabla-licitaciones tabla-items-modal"
+              style="width:100%; min-width:660px; table-layout:fixed;">
+              <colgroup>
+                <col style="width: 20%;">
+                <col style="width: 38%;">
+                <col style="width: 16%;">
+                <col style="width: 16%;">
+                <col style="width: 10%;">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Descripción</th>
+                  <th>Cantidad</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="tabla-items-ver-licitacion-tbody">
+                <!-- JS carga los ítems -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style="margin-top:16px;text-align:right;">
+          <button class="icon-button" onclick="cerrarModalVerLicitacion()" title="Cerrar">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: ACEPTAR ITEM LICITACION -->
+    <div id="modal-aceptar-item" class="modal" style="display:none;">
+      <div class="modal-contenido" style="max-width: 440px; min-width:270px;">
+        <span class="cerrar" onclick="cerrarModalAceptarItem()">&times;</span>
+        <h3 style="margin-bottom:20px;text-align:center;color:#1761b4;font-weight:700;">Aceptar Ítem de Licitación</h3>
+        <form id="form-aceptar-item" autocomplete="off">
+          <input type="hidden" id="item-codigo">
+          <input type="hidden" id="item-descripcion">
+          <input type="hidden" id="item-cantidad">
+          <div style="display:flex; flex-direction:column; gap:14px;">
+            <div>
+              <label for="nro-pedido" style="font-weight:600;color:#145baa;">Nº de Pedido:</label>
+              <input type="text" id="nro-pedido" required style="width:100%;height:38px;margin-top:2px;">
+            </div>
+            <div>
+              <label for="destino-pedido" style="font-weight:600;color:#145baa;">Destino:</label>
+              <input type="text" id="destino-pedido" required style="width:100%;height:38px;margin-top:2px;">
+            </div>
+            <div>
+              <label for="razon-social-pedido" style="font-weight:600;color:#145baa;">Razón Social:</label>
+              <input type="text" id="razon-social-pedido" required style="width:100%;height:38px;margin-top:2px;">
+            </div>
+          </div>
+          <div style="margin-top:22px; display:flex; justify-content:flex-end; gap:20px;">
+            <button type="button" onclick="cerrarModalAceptarItem()" class="icon-button cancelar" title="Cancelar"
+              style="background:#f5f6f8; color:#9aa; border:1.5px solid #dbe3ea; border-radius:50%; width:44px; height:44px; font-size:1.22rem;">
+              <i class="fas fa-times"></i>
+            </button>
+            <button type="submit" class="icon-button agregar" title="Aceptar"
+              style="background:#1572d2; color:#fff; border-radius:50%; width:44px; height:44px; border:none; font-size:1.22rem;">
+              <i class="fas fa-check"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+
+  </main>
+
+
+
+  <!-- SCRIPTS -->
+  <script src="/scripts/licitaciones.js"></script>
+  <script src="/scripts/sidebar.js"></script>
+  <script>
+    function logout() {
+      if (confirm('¿Seguro que deseas salir?')) {
+        window.location.href = '/';
+      }
+    }
+  </script>
+</body>
+
+</html>

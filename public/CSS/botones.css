@@ -1,0 +1,184 @@
+/* ======= [BOTONES CSS CARGADO] ======= */
+
+.logout-button {
+  padding: 8px 16px;
+  background-color: #ff4d4f;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.logout-button:hover {
+  background-color: #cc0000;
+}
+
+
+.icon-button {
+  background-color: #ccc;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.icon-button:hover {
+  transform: scale(1.2);
+  opacity: 0.9;
+}
+
+.icon-button.visualizar { background-color: #5bc0de; }
+.icon-button.agregar    { background-color: #5cb85c; }
+.icon-button.modificar  { background-color: #f0ad4e; }
+.icon-button.eliminar   { background-color: #d9534f; }
+
+.btn-guardar {
+  background-color: #00cc66;
+  color: white;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  transition: background-color 0.3s ease;
+}
+
+.btn-guardar:hover {
+  background-color: #00a653;
+}
+
+.btn-terminado {
+  padding: 6px 12px;
+  background-color: #4a6c78;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.btn-terminado:hover {
+  background-color: #3d5a63;
+  transform: scale(1.05);
+}
+
+.btn-terminado:active {
+  background-color: #344c53;
+}
+
+.fixed-actions {
+  position: fixed;
+  bottom: 20px;
+  left: 260px; /* evita el aside */
+  right: 20px;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  padding: 12px 20px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 14px;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  z-index: 999;
+  transition: all 0.3s ease;
+}
+
+/* Responsive: ocupar todo el ancho en pantallas pequeñas */
+@media (max-width: 768px) {
+  .fixed-actions {
+    left: 10px;
+    right: 10px;
+    justify-content: space-around;
+    flex-wrap: wrap;
+  }
+}
+
+.content {
+  padding-bottom: 140px; /* para no tapar la tabla */
+}
+
+/* BOTÓN SIDEBAR */
+.sidebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  background: linear-gradient(to right, #4da6ff, #1a73e8);
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  padding: 12px 20px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.3s ease;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.sidebar-btn:hover {
+  background: linear-gradient(to right, #1a73e8, #4da6ff);
+}
+
+.btn-aceptada-mini {
+  padding: 5px 16px;
+  background: #e0fce9;
+  color: #11703a;
+  font-size: 0.98rem;
+  border: none;
+  border-radius: 7px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 0.17s;
+  margin: 0 auto;
+  display: block;
+}
+.btn-aceptada-mini:hover {
+  background: #c2f7d1;
+  color: #066c2a;
+}
+
+.badge-entregado {
+  display: inline-block;
+  background: #28b37e;
+  color: #fff;
+  padding: 2px 12px;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.btn-agregar-item {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 8px 18px;
+  background: #e9f3fc;
+  color: #145baa;
+  border: 1px solid #8ab6e6;
+  border-radius: 7px;
+  transition: background .17s;
+}
+.btn-agregar-item:hover {
+  background: #d0e7fa;
+}
+.icon-button.cancelar:hover {
+  background: #ffe7e7 !important;
+  color: #ad2a2a !important;
+  border-color: #ffbdbd !important;
+}
+.icon-button.agregar:hover {
+  background: #10af39 !important;
+  color: #fff;
+}
+

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reparaciones Entregadas</title>
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="/css/layout.css" />
+  <link rel="stylesheet" href="/css/tablas.css" />
+  <link rel="stylesheet" href="/css/modales.css" />
+  <link rel="stylesheet" href="/css/botones.css" />
+  <link rel="stylesheet" href="/css/animaciones.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+
+<body class="main-dashboard">
+
+  <!-- HEADER -->
+  <header class="main-header">
+    <div class="logo">
+      <img src="/images/logo.png" alt="Logo Empresa" height="40" />
+    </div>
+    <div class="user-info">
+      <i class="fas fa-user-circle"></i>
+      <span>Bienvenido, Usuario</span>
+      <button class="logout-button" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <nav>
+      <ul>
+        <li><button class="sidebar-btn" onclick="irA('main')"><i class="fas fa-home"></i> Inicio</button></li>
+        <li><button class="sidebar-btn" onclick="irA('clientes')"><i class="fas fa-users"></i> Clientes</button></li>
+        <li><button class="sidebar-btn" onclick="irA('reparaciones-vigentes')"><i class="fas fa-tools"></i>
+            R. Vigentes</button></li>
+        <li><button class="sidebar-btn" onclick="irA('historial')">
+            <i class="fas fa-history"></i> Historial
+          </button></li>
+        <hr>
+        <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
+        <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
+        <li><a href="/configuracion"><i class="fas fa-cog"></i> Configuración</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+
+  <!-- CONTENT -->
+  <main class="content">
+    <h2>Listado de Reparaciones Entregadas</h2>
+
+    <section class="busqueda-global">
+      <input type="text" id="busqueda-global" placeholder="Buscar en todas las reparaciones..."
+        oninput="buscarGlobal()">
+    </section>
+
+
+    <section class="table-section">
+      <table class="tabla-reparaciones">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Código/Coche</th>
+            <th>Tipo</th>
+            <th>Modelo</th>
+            <th>Cliente</th>
+            <th>Fecha de Entrega</th>
+          </tr>
+        </thead>
+        <tbody id="entregadas-tbody">
+          <!-- Cargado dinámicamente por entregadas.js -->
+        </tbody>
+      </table>
+    </section>
+    <!-- Panel de acciones flotante -->
+    <section class="acciones-reparaciones fixed-actions">
+      <button class="icon-button visualizar" onclick="visualizarHistorialEntregada()">
+        <i class="fas fa-eye"></i>
+      </button>
+      <button class="icon-button recargar" onclick="recargarEquipoEntregado()">
+        <b>R</b>
+      </button>
+    </section>
+  </main>
+
+
+  <!-- MODAL HISTORIAL -->
+  <div id="modal-historial" class="modal">
+    <div class="modal-contenido">
+      <span class="cerrar" onclick="cerrarModalHistorial()">&times;</span>
+      <h2 id="historial-titulo">ID: 0000</h2>
+      <div id="datos-equipo"></div>
+      <h3>Historial de Reparaciones</h3>
+      <div id="campo-historial" class="historial-textarea"
+        style="max-height: 400px; overflow-y: auto; padding-right: 10px;"></div>
+      <button class="btn-guardar" onclick="cerrarModalHistorial()">Cerrar</button>
+    </div>
+  </div>
+
+
+
+  <!-- SCRIPTS -->
+  <script src="/scripts/entregadas.js"></script>
+  <script src="/scripts/sidebar.js"></script>
+  <script>
+    function logout() {
+      if (confirm('¿Seguro que deseas salir?')) {
+        window.location.href = '/';
+      }
+    }
+  </script>
+</body>
+
+</html>

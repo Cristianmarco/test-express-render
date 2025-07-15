@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestión de Usuarios</title>
+
+  <link rel="stylesheet" href="/css/layout.css" />
+  <link rel="stylesheet" href="/css/tablas.css" />
+  <link rel="stylesheet" href="/css/usuarios.css" />
+  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="/css/botones.css" />
+  <link rel="stylesheet" href="/css/modales.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+
+<body class="main-dashboard">
+
+  <!-- HEADER -->
+  <header class="main-header">
+    <div class="logo">
+      <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header" />
+    </div>
+    <div class="user-info">
+      <i class="fas fa-user-circle"></i>
+      <span id="user-name">Bienvenido, Usuario</span>
+      <button class="logout-button" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <nav>
+      <ul>
+        <li><button class="sidebar-btn" onclick="irA('main')"><i class="fas fa-home"></i> Inicio</button></li>
+        <li><button class="sidebar-btn" onclick="irA('clientes')"><i class="fas fa-users"></i> Clientes</button></li>
+        <li><button class="sidebar-btn" onclick="irA('reparaciones-vigentes')"><i class="fas fa-tools"></i>
+            R. Vigentes</button></li>
+        <li><button class="sidebar-btn" onclick="irA('historial')">
+            <i class="fas fa-history"></i> Historial
+          </button></li>
+        <hr>
+        <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
+        <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
+        <li><a href="/configuracion"><i class="fas fa-cog"></i> Configuración</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="content">
+    <section class="table-section">
+      <table class="tabla-reparaciones tabla-estandar" id="tabla-usuarios">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Rol</th>
+          </tr>
+        </thead>
+        <tbody id="usuarios-tbody">
+          <!-- Se llena con JS -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Panel flotante de acciones -->
+    <section class="acciones-reparaciones fixed-actions">
+      <button class="icon-button agregar" onclick="abrirModalAgregarUsuario()">
+        <i class="fas fa-plus"></i>
+      </button>
+      <button class="icon-button modificar" onclick="abrirModalModificarUsuario()">
+        <i class="fas fa-pen"></i>
+      </button>
+      <button class="icon-button eliminar" onclick="eliminarUsuario()">
+        <i class="fas fa-trash"></i>
+      </button>
+    </section>
+
+    <!-- MODAL AGREGAR USUARIO -->
+    <div id="modal-agregar-usuario" class="modal">
+      <div class="modal-contenido">
+        <span class="cerrar" onclick="cerrarModalAgregarUsuario()">&times;</span>
+        <h2>Agregar Usuario</h2>
+        <form id="form-agregar-usuario">
+          <input type="email" name="email" placeholder="Email" required />
+          <div class="password-container" style="position:relative;">
+            <input type="password" name="password" id="password-agregar" placeholder="Contraseña" required />
+            <span class="toggle-password" onclick="togglePassword('password-agregar', this)"
+              style="position:absolute; right:10px; top:50%; transform:translateY(-50%); cursor:pointer;">
+              <i class="fa fa-eye"></i>
+            </span>
+          </div>
+          <select name="rol" id="rol-agregar" required onchange="toggleClienteSelect(this.value)">
+            <option value="admin">Admin</option>
+            <option value="cliente">Cliente</option>
+          </select>
+          <div id="select-cliente-agregar" style="display:none; margin-top:10px"></div>
+          <button type="submit" class="btn-guardar">Guardar</button>
+        </form>
+      </div>
+    </div>
+
+
+
+
+    <!-- MODAL MODIFICAR USUARIO -->
+    <div id="modal-modificar-usuario" class="modal">
+      <div class="modal-contenido">
+        <span class="cerrar" onclick="cerrarModalModificarUsuario()">&times;</span>
+        <h2>Modificar Usuario</h2>
+        <form id="form-modificar-usuario">
+          <input type="email" name="email" placeholder="Email" readonly />
+          <div class="password-container" style="position:relative;">
+            <input type="password" name="password" id="password-modificar" placeholder="Nueva Contraseña" />
+            <span class="toggle-password" onclick="togglePassword('password-modificar', this)"
+              style="position:absolute; right:10px; top:50%; transform:translateY(-50%); cursor:pointer;">
+              <i class="fa fa-eye"></i>
+            </span>
+          </div>
+          <select name="rol" id="rol-modificar" required onchange="toggleClienteSelectEdit(this.value)">
+            <option value="admin">Admin</option>
+            <option value="cliente">Cliente</option>
+          </select>
+          <div id="select-cliente-modificar" style="display:none; margin-top:10px"></div>
+          <button type="submit" class="btn-guardar">Guardar Cambios</button>
+        </form>
+      </div>
+    </div>
+
+
+
+  </main>
+
+  <!-- SCRIPTS -->
+  <script src="/scripts/usuarios.js"></script>
+  <script src="/scripts/sidebar.js"></script>
+  <script src="/scripts/logout.js"></script>
+  <script>
+    function logout() {
+      if (confirm('¿Seguro que deseas salir?')) {
+        window.location.href = '/';
+      }
+    }
+
+    function irA(seccion) {
+      switch (seccion) {
+        case 'main':
+          window.location.href = '/main';
+          break;
+        case 'clientes':
+          window.location.href = '/clientes';
+          break;
+        case 'reparaciones-vigentes':
+          window.location.href = '/reparaciones-vigentes';
+          break;
+        case 'historial':
+          window.location.href = '/historial';
+          break;
+        case 'externos':
+          window.location.href = '/externos';
+          break;
+        case 'dota':
+          window.location.href = '/dota';
+          break;
+        case 'usuarios':
+          window.location.href = '/usuarios';
+          break;
+        case 'reportes':
+          window.location.href = '/reportes';
+          break;
+        case 'configuracion':
+          window.location.href = '/configuracion';
+          break;
+        default:
+          console.warn('Sección no reconocida:', seccion);
+      }
+    }
+
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const username = localStorage.getItem('username');
+      if (username) {
+        document.getElementById('user-name').textContent = `Bienvenido, ${username}`;
+      }
+    });
+  </script>
+</body>
+
+</html>

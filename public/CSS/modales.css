@@ -1,0 +1,572 @@
+/* ===== Modal General ===== */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 2000;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  justify-content: center;
+  align-items: center;
+}
+
+.modal.mostrar {
+  display: flex;
+}
+
+.modal-contenido {
+  background-color: #ffffff;
+  padding: 30px 40px;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  text-align: left;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+  overflow-x: hidden;  /* 🔥 esto bloquea el scroll horizontal */
+  box-sizing: border-box; /* 🛠️ corrige el padding dentro del ancho */
+}
+
+
+.cerrar {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  font-size: 24px;
+  font-weight: bold;
+  color: #666;
+  cursor: pointer;
+}
+
+.cerrar:hover {
+  color: #ff4444;
+}
+
+/* ===== Formularios de Modales ===== */
+#form-agregar input,
+#form-modificar input {
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+#form-agregar .btn-guardar,
+#form-modificar .btn-guardar {
+  background-color: #00cc66;
+  color: white;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 10px;
+}
+
+#form-agregar .btn-guardar:hover,
+#form-modificar .btn-guardar:hover {
+  background-color: #00a653;
+}
+
+.datos-cliente {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.datos-cliente p {
+  font-size: 16px;
+  color: #333;
+  margin: 0;
+  padding: 8px;
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+#campo-historial {
+  width: 100%;
+  height: 200px;
+  resize: none;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  background-color: #f9f9f9;
+}
+
+.form-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.form-section {
+  flex: 1 1 45%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-section h4 {
+  margin-bottom: 5px;
+  color: #1a73e8;
+  font-size: 16px;
+}
+
+.modal-titulo-principal {
+  text-align: center;
+  font-size: 24px;
+  margin-bottom: 20px;
+  color: #1a73e8;
+}
+
+.modal-subtitulo {
+  margin-top: 25px;
+  font-size: 18px;
+  color: #333;
+  text-align: left;
+  margin-bottom: 10px;
+}
+
+.historial-datos {
+  background-color: #f5faff;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.historial-textarea {
+  width: 100%;
+  height: 180px;
+  padding: 12px;
+  resize: none;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-family: 'Segoe UI', sans-serif;
+  margin-bottom: 20px;
+}
+
+.historial-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.historial-actions .btn-historial {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 48px;
+  font-size: 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.btn-historial.agregar {
+  background-color: #00cc66;
+  color: white;
+}
+
+.btn-historial.agregar:hover {
+  background-color: #00a653;
+}
+
+.btn-historial.cerrar {
+  background-color: #ccc;
+  color: #333;
+}
+
+.btn-historial.cerrar:hover {
+  background-color: #999;
+}
+
+.btn-historial i {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* Estilo para campos del modal de historial */
+.campo-modal {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  resize: none;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f9f9f9;
+}
+
+.btn-historial {
+  width: 100%;
+  height: 48px;
+  font-size: 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.btn-historial.btn-guardar {
+  background-color: #00cc66;
+  color: white;
+}
+
+.btn-historial.btn-guardar:hover {
+  background-color: #00a653;
+}
+
+#modal-agregar-historial .modal-contenido {
+  padding-top: 60px;
+  /* deja espacio para el botón cerrar */
+  position: relative;
+}
+
+#modal-agregar-historial .cerrar {
+  position: absolute;
+  top: 20px;
+  right: 25px;
+  font-size: 28px;
+  font-weight: bold;
+  color: #666;
+  cursor: pointer;
+  z-index: 10;
+}
+
+#modal-agregar-historial h2 {
+  margin: 0;
+  text-align: center;
+  font-size: 22px;
+  margin-bottom: 20px;
+}
+
+#modal-historial h2.modal-titulo-principal {
+  margin-top: 30px;
+  padding-top: 10px;
+  text-align: center;
+  font-size: 22px;
+}
+
+#modal-historial .cerrar {
+  position: absolute;
+  top: 12px;
+  right: 15px;
+  font-size: 24px;
+  font-weight: bold;
+  color: #666;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+  z-index: 10;
+  transition: color 0.2s ease;
+}
+
+#modal-historial .cerrar:hover {
+  color: #e63946;
+}
+
+.historial-textarea {
+  border: 1px solid #ccc;
+  padding: 10px;
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 15px;
+}
+
+.historial-registro {
+  margin-bottom: 15px;
+  background: #f8f9fa;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.historial-registro table {
+  width: 100%;
+  font-size: 14px;
+  border-collapse: collapse;
+}
+
+.historial-registro td {
+  padding: 4px 6px;
+  vertical-align: top;
+}
+
+input[readonly] {
+  background-color: #eee;
+  cursor: not-allowed;
+}
+
+/* === MODAL USUARIOS === */
+#formulario-usuario {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#formulario-usuario input,
+#formulario-usuario select {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 15px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #f9f9f9;
+  transition: border-color 0.2s ease;
+}
+
+#formulario-usuario input:focus,
+#formulario-usuario select:focus {
+  border-color: #1a73e8;
+  outline: none;
+  background-color: #fff;
+}
+
+#formulario-usuario .btn-guardar {
+  background-color: #00cc66;
+  color: white;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+#formulario-usuario .btn-guardar:hover {
+  background-color: #00a653;
+}
+
+/* ===== ESTILO MODAL LICITACIÓN ===== */
+.modal-licitacion {
+  max-width: 670px;
+  width: 97vw;
+  padding: 32px 36px 24px 36px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 36px #156fa51d;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-grid {
+  display: flex;
+  gap: 22px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.form-grid > div {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 155px;
+}
+
+.modal-licitacion label {
+  font-size: 1.02rem;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #285;
+}
+
+.modal-licitacion input,
+.modal-licitacion textarea {
+  border: 1.3px solid #e0e4f5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 1.02rem;
+  background: #f9fbfd;
+  margin-bottom: 3px;
+  resize: none;
+  font-family: inherit;
+}
+
+.modal-licitacion textarea { min-height: 38px; }
+
+.btn-agregar-item {
+  display: inline-block;
+  margin-top: 12px;
+  background: #f3faff;
+  color: #1993db;
+  font-weight: 600;
+  border: none;
+  border-radius: 7px;
+  padding: 8px 19px;
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: background 0.17s;
+  box-shadow: 0 1.5px 8px #1993db15;
+}
+.btn-agregar-item:hover {
+  background: #e6f3fc;
+  color: #127;
+}
+
+.tabla-items-modal th, .tabla-items-modal td {
+  padding: 8px 8px;
+  font-size: 0.97rem;
+}
+
+.botones-modal {
+  display: flex;
+  justify-content: flex-end;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+@media (max-width: 670px) {
+  .modal-licitacion {
+    padding: 14px 6vw 14px 6vw;
+    max-width: 98vw;
+  }
+  .form-grid { gap: 10px; }
+}
+.form-observacion {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.form-observacion label {
+  margin-bottom: 6px;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #285;
+}
+.form-observacion textarea {
+  min-height: 38px;
+  font-size: 1.04rem;
+  border: 1.3px solid #e0e4f5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #f9fbfd;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.modal-licitacion {
+  overflow-x: visible !important;      /* Permitir contenido fuera del modal si es necesario */
+  padding-right: 32px !important;      /* Espacio extra a la derecha */
+}
+
+.tabla-items-modal {
+  display: block;
+  width: 100%;
+  overflow-x: auto;       /* Scroll horizontal solo si es necesario */
+  margin-bottom: 12px;
+}
+
+/* Ajustar columnas para que nunca achique el botón */
+.tabla-items-modal th:last-child,
+.tabla-items-modal td:last-child {
+  min-width: 54px;
+  width: 54px;
+  text-align: center;
+  padding-right: 6px;
+}
+
+.modal-licitacion {
+  max-width: 800px !important;
+  padding-right: 36px !important;
+}
+.tabla-items-modal th:last-child,
+.tabla-items-modal td:last-child {
+  min-width: 54px;
+  width: 54px;
+  text-align: center;
+  padding-right: 8px;
+}
+.tabla-items-modal {
+  width: 100%;
+  min-width: 500px;
+}
+
+/* Botón eliminar ítem compacto */
+.btn-eliminar-mini {
+  background: #e3e8ef !important;
+  color: #bb1826 !important;
+  font-size: 1.18rem !important;
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+  border: none;
+  box-shadow: none;
+  transition: background 0.14s;
+}
+.btn-eliminar-mini:hover {
+  background: #f5bebe !important;
+  color: #d80e24 !important;
+}
+
+@media (max-width: 700px) {
+  .modal-licitacion {
+    max-width: 98vw !important;
+    padding: 12px !important;
+  }
+  .modal-licitacion h2 { font-size: 1.3rem; }
+}
+
+.btn-agregar-item {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 8px 18px;
+  background: #e9f3fc;
+  color: #145baa;
+  border: 1px solid #8ab6e6;
+  border-radius: 7px;
+  transition: background .17s;
+}
+.btn-agregar-item:hover {
+  background: #d0e7fa;
+}
+.icon-button.cancelar:hover {
+  background: #ffe7e7 !important;
+  color: #ad2a2a !important;
+  border-color: #ffbdbd !important;
+}
+.icon-button.agregar:hover {
+  background: #10af39 !important;
+  color: #fff;
+}
+
+.tabla-items-modal th,
+.tabla-items-modal td {
+  min-width: 60px;
+  text-align: left;
+}
+
+.tabla-items-modal input,
+.tabla-items-modal select {
+  box-sizing: border-box;
+  font-size: 1rem;
+  padding: 5px 6px;
+}
