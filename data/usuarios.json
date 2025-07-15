@@ -1,0 +1,24 @@
+[
+  {
+    "email": "cristian.marcolongo@gmail.com",
+    "password": "$2b$10$jtvLtSc2gtBithKMY3IlnunYTtdL/NRP.aMfQBiaB.vsP.eEr5yEi",
+    "rol": "admin"
+  },
+  {
+    "email": "pablo@amorim.com",
+    "password": "$2b$10$8oxau/m28ZIgxx1VTbwvaecwC6u7vWMJgdoH/Gq8CRnQqhjoW66BW",
+    "rol": "admin"
+  },
+  {
+    "email": "info@bluecar.com.ar",
+    "password": "$2b$10$AioAttOZvmzLO/Hc1D3ugeS8Hg1rGhNWomPzu3xiWgWB1eV9I7pcq",
+    "rol": "cliente",
+    "cliente": "B001"
+  },
+  {
+    "email": "cofaypro@cofaypro.com.ar",
+    "password": "$2b$10$EPPp.qoK20SqNcfCE5oS9eLhvL005TAUgAbyTdQ/.VJYe907ofehi",
+    "rol": "cliente",
+    "cliente": "C001"
+  }
+]
