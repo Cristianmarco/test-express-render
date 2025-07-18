@@ -1,9 +1,7 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const router = express.Router();
 
-// Pool automático: lee config de variables de entorno (RENDER, Supabase, etc.)
 const pool = new Pool();
 
 // POST /api/login
@@ -15,7 +13,7 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    // Buscar usuario por email en la tabla usuarios (ajusta el nombre de la tabla y campos si es necesario)
+    // OJO: El campo en tu base es 'pasword', no 'password'
     const result = await pool.query(
       'SELECT * FROM usuarios WHERE email = $1 LIMIT 1',
       [email]
@@ -27,27 +25,26 @@ router.post('/', async (req, res) => {
 
     const usuario = result.rows[0];
 
-    // Verificar contraseña usando bcrypt
-    const passwordOk = await bcrypt.compare(password, usuario.password);
-    if (!passwordOk) {
+    // Comparación texto plano SOLO para tu caso actual
+    if (password !== usuario.pasword) {
       return res.status(401).json({ error: 'Contraseña incorrecta.' });
     }
 
-    // Guardar datos en sesión (si usas sesiones)
     if (req.session) {
       req.session.user = usuario.email;
+      req.session.nombre = usuario.nombre;
       req.session.rol = usuario.rol;
-      if (usuario.cliente) {
-        req.session.cliente = usuario.cliente;
+      if (usuario.clientes_codigo) {
+        req.session.cliente = usuario.clientes_codigo;
       }
     }
 
-    // Responder siempre igual
     res.status(200).json({
       message: 'Login exitoso',
       email: usuario.email,
+      nombre: usuario.nombre,
       rol: usuario.rol,
-      cliente: usuario.cliente || null
+      cliente: usuario.clientes_codigo || null
     });
 
   } catch (err) {
@@ -57,3 +54,4 @@ router.post('/', async (req, res) => {
 });
 
 module.exports = router;
+
