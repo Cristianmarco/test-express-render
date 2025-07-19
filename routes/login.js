@@ -42,9 +42,10 @@ router.post('/', async (req, res) => {
       req.session.user = usuario.email;
       req.session.nombre = usuario.nombre;
       req.session.rol = usuario.rol;
-      if (usuario.clientes_codigo) {
-        req.session.cliente = usuario.clientes_codigo;
+      if (usuario.cliente_codigo) {
+        req.session.cliente_codigo = usuario.cliente_codigo;
       }
+
     }
 
     res.status(200).json({
@@ -52,7 +53,7 @@ router.post('/', async (req, res) => {
       email: usuario.email,
       nombre: usuario.nombre,
       rol: usuario.rol,
-      cliente: usuario.clientes_codigo || null
+      cliente: usuario.cliente_codigo || null
     });
 
   } catch (err) {
