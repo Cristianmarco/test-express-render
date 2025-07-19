@@ -38,7 +38,7 @@ function irA(seccion) {
   } else if (seccion === 'clientes') {
     window.location.href = '/views/clientes.html';
   } else if (seccion === 'reparaciones-vigentes') {
-    window.location.href = '/views/reparaciones_vigentes.html';
+    window.location.href = '/views/reparaciones-vigentes.html';
   } else if (seccion === 'historial') {
     window.location.href = '/views/historial.html';
   } else {

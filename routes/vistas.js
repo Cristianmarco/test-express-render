@@ -21,7 +21,7 @@ router.get('/dota', (req, res) => {
 });
 
 router.get('/reparaciones-vigentes', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'reparaciones_vigentes.html'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'reparaciones-vigentes.html'));
 });
 
 router.get('/historial', (req, res) => {
