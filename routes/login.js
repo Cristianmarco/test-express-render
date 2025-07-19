@@ -4,6 +4,8 @@ const router = express.Router();
 
 const pool = new Pool();
 
+
+// POST /api/login
 // POST /api/login
 router.post('/', async (req, res) => {
   const { email, password } = req.body;
@@ -24,6 +26,13 @@ router.post('/', async (req, res) => {
     }
 
     const usuario = result.rows[0];
+
+    // 💡 Aquí pon el log, para ver el intento:
+    console.log('Intento login:', {
+      emailRecibido: email,
+      passwordRecibido: password,
+      usuarioEnBase: usuario
+    });
 
     // Comparación texto plano SOLO para tu caso actual
     if (password !== usuario.pasword) {
@@ -52,6 +61,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
 });
+
 
 module.exports = router;
 
