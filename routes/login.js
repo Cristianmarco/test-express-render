@@ -6,7 +6,6 @@ const pool = new Pool();
 
 
 // POST /api/login
-// POST /api/login
 router.post('/', async (req, res) => {
   const { email, password } = req.body;
 
@@ -35,7 +34,7 @@ router.post('/', async (req, res) => {
     });
 
     // Comparación texto plano SOLO para tu caso actual
-    if (password !== usuario.pasword) {
+    if (password !== usuario.password) {
       return res.status(401).json({ error: 'Contraseña incorrecta.' });
     }
 
