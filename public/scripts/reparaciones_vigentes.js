@@ -93,8 +93,10 @@ function fetchAuth(url, options = {}) {
     'x-role': role,
     'Content-Type': 'application/json',
   };
+  options.credentials = 'include';   // <-- AGREGAR ESTA LÍNEA
   return fetch(url, options);
 }
+
 
 function diasEntreFechas(fecha1, fecha2) {
   const f1 = new Date(fecha1);
