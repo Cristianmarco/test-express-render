@@ -17,7 +17,7 @@ router.get('/', async (req, res, next) => {
     }
   }
   // Cliente: solo sus reparaciones
-  const cliente_codigo = req.session.cliente_codigo || req.session.cliente;
+  const cliente_codigo = req.session.cliente_codigo;
   console.log("cliente_codigo:", cliente_codigo); // DEBUG extra
   if (cliente_codigo) {
     try {

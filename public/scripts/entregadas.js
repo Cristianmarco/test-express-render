@@ -12,10 +12,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   await cargarEntregadas();
 });
 
+function fetchAuth(url, options = {}) {
+  const user = localStorage.getItem('username');
+  const role = localStorage.getItem('rol');
+  options.headers = {
+    ...(options.headers || {}),
+    'x-user': user,
+    'x-role': role,
+    'Content-Type': 'application/json',
+  };
+  options.credentials = 'include';
+  return fetch(url, options);
+}
+
+
 // Cargar clientes para mostrar nombres en vez de códigos
 async function cargarMapaClientes() {
   try {
-    const res = await fetch('/api/clientes');
+    const res = await fetchAuth('/api/clientes');
     const clientes = await res.json();
     mapaClientes = {};
     if (clientes && Array.isArray(clientes)) {
@@ -31,7 +45,7 @@ async function cargarMapaClientes() {
 
 async function cargarEntregadas() {
   try {
-    const response = await fetch('/api/entregadas');
+    const response = await fetchAuth('/api/entregadas');
     entregadas = await response.json();
     renderizarEntregadas(entregadas);
   } catch (error) {
@@ -82,48 +96,11 @@ function renderizarEntregadas(entregadas) {
   });
 }
 
-// Muestra el historial usando la API SQL
-async function visualizarHistorial(reparacionId) {
-  try {
-    const res = await fetch(`/api/historial/${reparacionId}`);
-    const historial = await res.json();
-
-    document.getElementById("historial-titulo").textContent = `ID: ${reparacionId}`;
-    // podés también mostrar más datos si querés
-
-    const contenedor = document.getElementById("campo-historial");
-    if (!Array.isArray(historial) || historial.length === 0) {
-      contenedor.innerHTML = "<em>No hay historial para esta reparación.</em>";
-      return;
-    }
-    contenedor.innerHTML = historial.map(evento => `
-      <div class="historial-registro">
-        <table>
-          <tr>
-            <td><strong>Fecha:</strong> ${formatearFecha(evento.fecha)}</td>
-            <td><strong>Técnico:</strong> ${evento.tecnico}</td>
-            <td><strong>Garantía:</strong> ${evento.garantia ? 'Sí' : 'No'}</td>
-          </tr>
-          <tr>
-            <td colspan="3"><strong>Observaciones:</strong> ${evento.observaciones}</td>
-          </tr>
-          <tr>
-            <td colspan="3"><strong>Repuestos:</strong> ${evento.repuestos}</td>
-          </tr>
-        </table>
-      </div>
-    `).join('');
-    document.getElementById("modal-historial").style.display = "flex";
-  } catch (error) {
-    alert("No se pudo cargar el historial.");
-    console.error(error);
-  }
-}
 
 // Buscador global
 async function buscarGlobal() {
   const consulta = document.getElementById("busqueda-global").value.toLowerCase();
-  const resEntregadas = await fetch('/api/entregadas');
+  const resEntregadas = await fetchAuth('/api/entregadas');
   const entregadas = await resEntregadas.json();
 
   const resultadosEntregadas = entregadas.filter(rep =>
@@ -194,7 +171,8 @@ async function visualizarHistorial(codigo) {
   // 🔴 Consulta historial de esa reparación entregada
   let historialData = [];
   try {
-    const resp = await fetch(`/api/historial/${rep.id}`);
+    const resp = await fetchAuth(`/api/historial/${rep.id}`);
+
     historialData = await resp.json();
   } catch (e) { historialData = []; }
 
@@ -298,9 +276,8 @@ async function recargarEquipoEntregado() {
 
   try {
     // POST con los campos correctos
-    const response = await fetch('/api/reparaciones', {
+    const response = await fetchAuth('/api/reparaciones', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(nuevaReparacion)
     });
 
@@ -314,9 +291,10 @@ async function recargarEquipoEntregado() {
 
 
     // Eliminar de entregadas POR ID
-    const delResponse = await fetch(`/api/entregadas/${id_equipo}`, {
+    const delResponse = await fetchAuth(`/api/entregadas/${id_equipo}`, {
       method: 'DELETE'
     });
+
 
     if (!delResponse.ok) {
       const error = await delResponse.json();
