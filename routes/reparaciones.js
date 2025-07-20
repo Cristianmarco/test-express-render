@@ -4,8 +4,8 @@ const router = express.Router();
 const db = require('../db');
 
 // GET - Listar reparaciones (admin ve todo, cliente solo las propias)
-router.get('/', async (req, res, next) => {
-  // Si es admin, puede ver todo
+rrouter.get('/', async (req, res, next) => { 
+  // Si es admin, devuelve todas
   if (req.session.rol === 'admin') {
     try {
       const result = await db.query('SELECT * FROM reparaciones');
@@ -14,9 +14,8 @@ router.get('/', async (req, res, next) => {
       return next(err);
     }
   }
-
-  // Si es cliente, solo sus reparaciones
-  const cliente_codigo = req.session.cliente_codigo;
+  // Si es cliente, solo las suyas
+  const cliente_codigo = req.session.cliente_codigo || req.session.cliente;
   if (cliente_codigo) {
     try {
       const result = await db.query(
@@ -28,8 +27,7 @@ router.get('/', async (req, res, next) => {
       return next(err);
     }
   }
-
-  // Si no está autenticado, acceso denegado
+  // Si no está autenticado
   return res.status(403).json({ error: 'Acceso denegado.' });
 });
 
@@ -47,7 +45,7 @@ router.post('/', [
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  
+
   const { id, codigo, tipo, modelo, cliente_codigo, estado, fecha_ingreso, fecha_entrega, garantia, descripcion, creado_por } = req.body;
 
   try {
