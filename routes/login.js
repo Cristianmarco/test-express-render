@@ -42,12 +42,10 @@ router.post('/', async (req, res) => {
       req.session.user = usuario.email;
       req.session.nombre = usuario.nombre;
       req.session.rol = usuario.rol;
-      if (usuario.codigo) { // <--- usa el nombre real de la columna
-        req.session.cliente_codigo = usuario.codigo; // <--- ¡este es el que usarán las rutas!
+      if (usuario.cliente_codigo) {
+        req.session.cliente_codigo = usuario.cliente_codigo; // ¡IMPORTANTE!
       }
     }
-
-
 
     res.status(200).json({
       message: 'Login exitoso',
