@@ -717,3 +717,5 @@ body.usuarios-page {
   .tabla-garantias th { background: #e8f2ff; font-size: 1rem; }
   .tabla-garantias td { border: none; padding: 7px 10px; }
 }
+
+.seleccionado { background: #e0f7fa !important; }
