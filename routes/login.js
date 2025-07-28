@@ -1,8 +1,7 @@
 const express = require('express');
-const { Pool } = require('pg');
 const router = express.Router();
 
-const pool = new Pool();
+const db = require('../db'); // <-- IMPORTANTE: Trae la config correcta
 
 // POST /api/login
 router.post('/', async (req, res) => {
@@ -14,7 +13,7 @@ router.post('/', async (req, res) => {
 
   try {
     // OJO: El campo en tu base es 'pasword', no 'password'
-    const result = await pool.query(
+    const result = await db.query(
       'SELECT * FROM usuarios WHERE email = $1 LIMIT 1',
       [email]
     );
@@ -26,7 +25,7 @@ router.post('/', async (req, res) => {
     const usuario = result.rows[0];
 
     // Comparación texto plano SOLO para tu caso actual
-    if (password !== usuario.pasword) {
+    if (password !== usuario.password) {
       return res.status(401).json({ error: 'Contraseña incorrecta.' });
     }
 
@@ -54,4 +53,5 @@ router.post('/', async (req, res) => {
 });
 
 module.exports = router;
+
 
