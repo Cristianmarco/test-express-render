@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Configuración - Familias</title>
+    <link rel="stylesheet" href="/css/layout.css" />
+    <link rel="stylesheet" href="/css/tablas.css" />
+    <link rel="stylesheet" href="/css/botones.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <style>
+        .tabla-config {
+            width: 100%;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px #2221;
+            margin-top: 20px;
+        }
+
+        .tabla-config th {
+            background: #edeaff;
+            color: #7a51b9;
+            font-weight: 600;
+            padding: 13px 12px;
+            border-bottom: 2px solid #c8c3e4;
+        }
+
+        .tabla-config td {
+            padding: 13px 12px;
+            border-bottom: 1px solid #f0f0ff;
+            font-size: 1.03rem;
+        }
+
+        .tabla-config tr:hover td {
+            background: #f5f2ff;
+            cursor: pointer;
+        }
+
+        .config-panel-flotante {
+            position: fixed;
+            bottom: 34px;
+            left: 290px;
+            z-index: 99;
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px #7854d810;
+            display: flex;
+            gap: 15px;
+            padding: 13px 30px;
+            align-items: center;
+            border: 1.5px solid #edeaff;
+        }
+
+        @media (max-width:900px) {
+            .config-panel-flotante {
+                left: 50vw;
+                transform: translateX(-50%);
+            }
+        }
+
+        .icon-button-erp {
+            background: linear-gradient(135deg, #edeaff 55%, #eaf5ff 100%);
+            color: #7a51b9;
+            border: none;
+            border-radius: 50%;
+            width: 42px;
+            height: 42px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px #a483f91b;
+            cursor: pointer;
+            transition: background 0.2s, color 0.15s, transform 0.16s;
+            border: 1.7px solid #edeaff;
+            outline: none;
+        }
+
+        .icon-button-erp:hover {
+            background: #c1a4ff;
+            color: #562b97;
+        }
+
+        .modal {
+            /* igual que productos */
+        }
+
+        .modal.mostrar {
+            display: flex;
+        }
+
+        .modal-contenido {
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 8px 40px #a483f922;
+            padding: 32px 28px;
+            min-width: 320px;
+            max-width: 420px;
+            width: 97vw;
+            position: relative;
+            animation: fadeInScale 0.24s;
+        }
+
+        .cerrar {
+            position: absolute;
+            top: 13px;
+            right: 19px;
+            font-size: 2rem;
+            color: #7a51b9;
+            cursor: pointer;
+        }
+
+        .cerrar:hover {
+            color: #d72d67;
+        }
+
+        .btn-guardar {
+            width: 100%;
+            border-radius: 9px;
+            background: linear-gradient(90deg, #7a51b9, #2ea9ed 80%);
+            color: #fff;
+            font-weight: bold;
+            font-size: 1.08rem;
+            border: none;
+            padding: 12px 0;
+            margin-top: 10px;
+            cursor: pointer;
+            box-shadow: 0 2px 10px #8659c526;
+        }
+
+        .btn-guardar:hover {
+            background: #8a71e6;
+            color: #fff;
+            transform: scale(1.02);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- HEADER + SIDEBAR igual que siempre -->
+    <header class="main-header">
+        <!-- ...header igual... -->
+    </header>
+    <aside class="sidebar">
+        <!-- ...sidebar igual con submenu... -->
+    </aside>
+    <main class="content">
+        <h2 style="color:#7a51b9; font-weight:bold;"><i class="fas fa-sitemap"></i> Tabla de Familias</h2>
+        <table class="tabla-config" id="tabla-familia">
+            <thead>
+                <tr>
+                    <th style="width:120px;">Código</th>
+                    <th>Descripción</th>
+                    <th style="width:95px;text-align:center;">Acción</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-familia">
+                <!-- JS carga aquí -->
+            </tbody>
+        </table>
+        <!-- Panel flotante de acciones -->
+        <div class="config-panel-flotante">
+            <button class="icon-button-erp agregar" onclick="abrirModalAgregarFamilia()" title="Agregar familia"><i
+                    class="fas fa-plus"></i></button>
+        </div>
+        <!-- MODAL AGREGAR/MODIFICAR FAMILIA -->
+        <div class="modal" id="modal-familia" tabindex="-1">
+            <div class="modal-contenido">
+                <span class="cerrar" onclick="cerrarModalFamilia()">&times;</span>
+                <h2 style="color:#7a51b9;text-align:center;font-size:1.19rem;margin-bottom:14px;"><i
+                        class="fas fa-sitemap"></i> Familia</h2>
+                <form id="form-familia" autocomplete="off">
+                    <label>Código *</label>
+                    <input name="codigo" maxlength="15" required style="margin-bottom:13px;">
+                    <label>Descripción *</label>
+                    <input name="descripcion" maxlength="80" required>
+                    <button type="submit" class="btn-guardar" style="margin-top:20px;">
+                        <i class="fas fa-save"></i> Guardar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </main>
+    <script src="/scripts/configuracion/familia.js"></script>
+    <script>
+        // Mostrar/ocultar modal
+        function abrirModalAgregarFamilia() {
+            document.getElementById('modal-familia').classList.add('mostrar');
+            document.getElementById('form-familia').reset();
+            document.getElementById('form-familia').onsubmit = guardarFamilia;
+        }
+        function cerrarModalFamilia() {
+            document.getElementById('modal-familia').classList.remove('mostrar');
+        }
+        // Cerrar modal click fondo
+        document.getElementById('modal-familia').onclick = function (e) {
+            if (e.target === this) cerrarModalFamilia();
+        };
+    </script>
+</body>
+
+</html>

@@ -44,6 +44,10 @@ router.get('/clientes', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/views/clientes.html'));
 });
 
+router.get('/productos', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/views/productos.html'));
+});
+
 // Puedes agregar más rutas de vistas aquí según tu menú lateral
 
 module.exports = router;

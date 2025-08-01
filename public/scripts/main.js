@@ -34,3 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('user-name').textContent = `Bienvenido, ${username}`;
   }
 });
+
+function toggleSubmenuTablas(e) {
+  e.preventDefault();
+  var submenu = document.getElementById('submenu-tablas-generales');
+  submenu.style.display = submenu.style.display === "none" ? "block" : "none";
+}
+
+

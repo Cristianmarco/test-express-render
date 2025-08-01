@@ -12,6 +12,7 @@ const historialRouter = require('./routes/historial');
 const estadisticasRouter = require('./routes/estadisticas');
 const licitacionesRouter = require('./routes/licitaciones');
 const garantiasDotaRouter = require('./routes/garantias_dota');
+const productosRouter = require('./routes/productos');
 
 app.use(session({
   secret: 'secretoSuperSeguro', // 🔐 ¡cambiá esto por algo fuerte en producción!
@@ -40,6 +41,7 @@ app.use('/api/estadisticas', require('./routes/estadisticas'));
 app.use('/api/licitaciones', licitacionesRouter);
 app.use('/api/reparaciones_dota', require('./routes/reparaciones_dota'));
 app.use('/api/garantias_dota', garantiasDotaRouter);
+app.use('/api/productos', productosRouter);
 
 
 
