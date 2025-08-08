@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuración</title>
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/tablas.css">
+  <link rel="stylesheet" href="/css/modales.css">
+  <link rel="stylesheet" href="/css/botones.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+<body class="main-dashboard">
+
+  <!-- HEADER -->
+  <header class="main-header">
+    <div class="logo">
+      <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header" />
+    </div>
+    <div class="user-info">
+      <i class="fas fa-user-circle"></i>
+      <span id="user-name">Bienvenido, Usuario</span>
+      <button class="logout-button" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <nav>
+      <ul>
+        <li><button class="sidebar-btn destacado" onclick="irA('main')"><i class="fas fa-home"></i> Inicio</button></li>
+        <li><a href="/configuracion/familia.html" class="sidebar-btn"><i class="fas fa-list"></i> Familias</a></li>
+        <li><a href="/configuracion/otra-pagina.html" class="sidebar-btn"><i class="fas fa-cog"></i> Otra configuración</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="content">
+    <h2>Panel de Configuración</h2>
+    <p>Seleccioná una opción del menú lateral para gestionar las listas de validación.</p>
+  </main>
+
+  <script src="/scripts/sidebar.js"></script>
+  <script>
+    function logout() {
+      if (confirm('¿Seguro que deseas salir?')) {
+        window.location.href = '/';
+      }
+    }
+  </script>
+</body>
+</html>
