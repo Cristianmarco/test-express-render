@@ -1,202 +1,93 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-    <meta charset="UTF-8" />
-    <title>Configuración - Familias</title>
-    <link rel="stylesheet" href="/css/layout.css" />
-    <link rel="stylesheet" href="/css/tablas.css" />
-    <link rel="stylesheet" href="/css/botones.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-    <style>
-        .tabla-config {
-            width: 100%;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 4px 16px #2221;
-            margin-top: 20px;
-        }
-
-        .tabla-config th {
-            background: #edeaff;
-            color: #7a51b9;
-            font-weight: 600;
-            padding: 13px 12px;
-            border-bottom: 2px solid #c8c3e4;
-        }
-
-        .tabla-config td {
-            padding: 13px 12px;
-            border-bottom: 1px solid #f0f0ff;
-            font-size: 1.03rem;
-        }
-
-        .tabla-config tr:hover td {
-            background: #f5f2ff;
-            cursor: pointer;
-        }
-
-        .config-panel-flotante {
-            position: fixed;
-            bottom: 34px;
-            left: 290px;
-            z-index: 99;
-            background: #fff;
-            border-radius: 15px;
-            box-shadow: 0 4px 20px #7854d810;
-            display: flex;
-            gap: 15px;
-            padding: 13px 30px;
-            align-items: center;
-            border: 1.5px solid #edeaff;
-        }
-
-        @media (max-width:900px) {
-            .config-panel-flotante {
-                left: 50vw;
-                transform: translateX(-50%);
-            }
-        }
-
-        .icon-button-erp {
-            background: linear-gradient(135deg, #edeaff 55%, #eaf5ff 100%);
-            color: #7a51b9;
-            border: none;
-            border-radius: 50%;
-            width: 42px;
-            height: 42px;
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 8px #a483f91b;
-            cursor: pointer;
-            transition: background 0.2s, color 0.15s, transform 0.16s;
-            border: 1.7px solid #edeaff;
-            outline: none;
-        }
-
-        .icon-button-erp:hover {
-            background: #c1a4ff;
-            color: #562b97;
-        }
-
-        .modal {
-            /* igual que productos */
-        }
-
-        .modal.mostrar {
-            display: flex;
-        }
-
-        .modal-contenido {
-            background: #fff;
-            border-radius: 15px;
-            box-shadow: 0 8px 40px #a483f922;
-            padding: 32px 28px;
-            min-width: 320px;
-            max-width: 420px;
-            width: 97vw;
-            position: relative;
-            animation: fadeInScale 0.24s;
-        }
-
-        .cerrar {
-            position: absolute;
-            top: 13px;
-            right: 19px;
-            font-size: 2rem;
-            color: #7a51b9;
-            cursor: pointer;
-        }
-
-        .cerrar:hover {
-            color: #d72d67;
-        }
-
-        .btn-guardar {
-            width: 100%;
-            border-radius: 9px;
-            background: linear-gradient(90deg, #7a51b9, #2ea9ed 80%);
-            color: #fff;
-            font-weight: bold;
-            font-size: 1.08rem;
-            border: none;
-            padding: 12px 0;
-            margin-top: 10px;
-            cursor: pointer;
-            box-shadow: 0 2px 10px #8659c526;
-        }
-
-        .btn-guardar:hover {
-            background: #8a71e6;
-            color: #fff;
-            transform: scale(1.02);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Familia - Configuración</title>
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/tablas.css">
+  <link rel="stylesheet" href="/css/botones.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 </head>
+<body class="main-dashboard">
 
-<body>
-    <!-- HEADER + SIDEBAR igual que siempre -->
-    <header class="main-header">
-        <!-- ...header igual... -->
-    </header>
-    <aside class="sidebar">
-        <!-- ...sidebar igual con submenu... -->
-    </aside>
-    <main class="content">
-        <h2 style="color:#7a51b9; font-weight:bold;"><i class="fas fa-sitemap"></i> Tabla de Familias</h2>
-        <table class="tabla-config" id="tabla-familia">
-            <thead>
-                <tr>
-                    <th style="width:120px;">Código</th>
-                    <th>Descripción</th>
-                    <th style="width:95px;text-align:center;">Acción</th>
-                </tr>
-            </thead>
-            <tbody id="tbody-familia">
-                <!-- JS carga aquí -->
-            </tbody>
-        </table>
-        <!-- Panel flotante de acciones -->
-        <div class="config-panel-flotante">
-            <button class="icon-button-erp agregar" onclick="abrirModalAgregarFamilia()" title="Agregar familia"><i
-                    class="fas fa-plus"></i></button>
-        </div>
-        <!-- MODAL AGREGAR/MODIFICAR FAMILIA -->
-        <div class="modal" id="modal-familia" tabindex="-1">
-            <div class="modal-contenido">
-                <span class="cerrar" onclick="cerrarModalFamilia()">&times;</span>
-                <h2 style="color:#7a51b9;text-align:center;font-size:1.19rem;margin-bottom:14px;"><i
-                        class="fas fa-sitemap"></i> Familia</h2>
-                <form id="form-familia" autocomplete="off">
-                    <label>Código *</label>
-                    <input name="codigo" maxlength="15" required style="margin-bottom:13px;">
-                    <label>Descripción *</label>
-                    <input name="descripcion" maxlength="80" required>
-                    <button type="submit" class="btn-guardar" style="margin-top:20px;">
-                        <i class="fas fa-save"></i> Guardar
-                    </button>
-                </form>
-            </div>
-        </div>
-    </main>
-    <script src="/scripts/configuracion/familia.js"></script>
-    <script>
-        // Mostrar/ocultar modal
-        function abrirModalAgregarFamilia() {
-            document.getElementById('modal-familia').classList.add('mostrar');
-            document.getElementById('form-familia').reset();
-            document.getElementById('form-familia').onsubmit = guardarFamilia;
-        }
-        function cerrarModalFamilia() {
-            document.getElementById('modal-familia').classList.remove('mostrar');
-        }
-        // Cerrar modal click fondo
-        document.getElementById('modal-familia').onclick = function (e) {
-            if (e.target === this) cerrarModalFamilia();
-        };
-    </script>
+  <!-- HEADER -->
+  <header class="main-header">
+    <div class="logo">
+      <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header" />
+    </div>
+    <div class="user-info">
+      <i class="fas fa-user-circle"></i>
+      <span id="user-name">Bienvenido, Usuario</span>
+      <button class="logout-button" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <nav>
+      <ul>
+        <li>
+          <button class="sidebar-btn destacado" onclick="irA('configuracion-inicio')">
+            <i class="fas fa-home"></i> Inicio
+          </button>
+        </li>
+
+        <li>
+          <button type="button" class="sidebar-btn destacado" id="btn-tablas">
+            <i class="fas fa-table"></i> Tablas Generales
+          </button>
+          <ul id="submenu-tablas" class="submenu" style="display:block; margin-left:15px;">
+            <li><a href="/configuracion/familia" class="active"><i class="fas fa-tags"></i> Familia</a></li>
+            <li><a href="/configuracion/grupo"><i class="fas fa-layer-group"></i> Grupo</a></li>
+            <li><a href="/configuracion/marca"><i class="fas fa-trademark"></i> Marca</a></li>
+            <li><a href="/configuracion/categoria"><i class="fas fa-list"></i> Categoría</a></li>
+            <li><a href="/configuracion/proveedores"><i class="fas fa-truck"></i> Proveedores</a></li>
+          </ul>
+        </li>
+
+        <hr>
+        <li><a href="/productos"><i class="fas fa-box"></i> Productos</a></li>
+        <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
+        <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
+        <li><a href="/configuracion"><i class="fas fa-cog"></i> Configuración</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO -->
+  <main class="content">
+    <h2>Familias</h2>
+    <div class="erp-table-card">
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Descripción</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-familia">
+          <!-- Aquí se cargan las filas desde familia.js -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- PANEL FLOTANTE -->
+    <div class="erp-panel-flotante">
+      <button class="icon-button-erp agregar" id="btn-agregar"><i class="fas fa-plus"></i></button>
+      <button class="icon-button-erp modificar" id="btn-editar"><i class="fas fa-edit"></i></button>
+      <button class="icon-button-erp eliminar" id="btn-eliminar"><i class="fas fa-trash"></i></button>
+    </div>
+  </main>
+
+  <script src="/scripts/sidebar.js"></script>
+  <script src="/scripts/familia.js"></script>
+  <script>
+    function logout() {
+      if (confirm('¿Seguro que deseas salir?')) {
+        window.location.href = '/';
+      }
+    }
+  </script>
 </body>
-
 </html>

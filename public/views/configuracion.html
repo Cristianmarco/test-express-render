@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,6 +13,7 @@
   <link rel="stylesheet" href="/css/botones.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
+
 <body class="main-dashboard">
 
   <!-- HEADER -->
@@ -30,9 +32,34 @@
   <aside class="sidebar">
     <nav>
       <ul>
-        <li><button class="sidebar-btn destacado" onclick="irA('main')"><i class="fas fa-home"></i> Inicio</button></li>
-        <li><a href="/configuracion/familia.html" class="sidebar-btn"><i class="fas fa-list"></i> Familias</a></li>
-        <li><a href="/configuracion/otra-pagina.html" class="sidebar-btn"><i class="fas fa-cog"></i> Otra configuración</a></li>
+        <!-- Inicio -->
+        <li>
+          <button class="sidebar-btn destacado" onclick="irA('configuracion-inicio')">
+            <i class="fas fa-home"></i> Inicio
+          </button>
+        </li>
+
+        <!-- Tablas Generales con submenú -->
+        <li>
+          <button type="button" class="sidebar-btn destacado" id="btn-tablas">
+            <i class="fas fa-table"></i> Tablas Generales
+          </button>
+          <ul id="submenu-tablas" class="submenu submenu-cerrado" style="margin-left:15px;">
+            <li><a href="/configuracion/familia"><i class="fas fa-tags"></i> Familia</a></li>
+            <li><a href="/configuracion/grupo"><i class="fas fa-layer-group"></i> Grupo</a></li>
+            <li><a href="/configuracion/marca"><i class="fas fa-trademark"></i> Marca</a></li>
+            <li><a href="/configuracion/categoria"><i class="fas fa-list"></i> Categoría</a></li>
+            <li><a href="/configuracion/proveedores"><i class="fas fa-truck"></i> Proveedores</a></li>
+          </ul>
+        </li>
+
+        <hr>
+
+        <!-- Otros enlaces -->
+        <li><a href="/productos"><i class="fas fa-box"></i> Productos</a></li>
+        <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
+        <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
+        <li><a href="/configuracion"><i class="fas fa-cog"></i> Configuración</a></li>
       </ul>
     </nav>
   </aside>
@@ -44,6 +71,17 @@
   </main>
 
   <script src="/scripts/sidebar.js"></script>
+
+  <script>
+    document.getElementById("btn-tablas").addEventListener("click", function (e) {
+      e.preventDefault(); // Evita que navegue o recargue
+      const submenu = document.getElementById("submenu-tablas");
+      submenu.classList.toggle("submenu-abierto");
+      submenu.classList.toggle("submenu-cerrado");
+    });
+  </script>
+
+
   <script>
     function logout() {
       if (confirm('¿Seguro que deseas salir?')) {
@@ -51,5 +89,7 @@
       }
     }
   </script>
+
 </body>
+
 </html>
