@@ -42,6 +42,11 @@ app.use('/api/licitaciones', licitacionesRouter);
 app.use('/api/reparaciones_dota', require('./routes/reparaciones_dota'));
 app.use('/api/garantias_dota', garantiasDotaRouter);
 app.use('/api/productos', productosRouter);
+app.use("/api/familias", require("./routes/familia"));
+app.use('/api/grupo', require('./routes/grupo'));
+app.use('/api/marca', require('./routes/marca'));
+app.use('/api/categoria', require('./routes/categoria'));
+
 
 
 

@@ -3,16 +3,22 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// GET: Listar productos
-// routes/productos.js
+// GET: Listar productos ordenados alfanuméricamente por codigo
 router.get('/', async (req, res, next) => {
   try {
-    const result = await db.query('SELECT * FROM productos ORDER BY id DESC');
+    const result = await db.query(`
+      SELECT *
+      FROM productos
+      ORDER BY
+        regexp_replace(codigo, '[0-9]', '', 'g'),
+        NULLIF(regexp_replace(codigo, '[^0-9]', '', 'g'), '')::int
+    `);
     res.json(result.rows);
   } catch (e) {
     next(e);
   }
 });
+
 
 // POST: Crear producto
 router.post('/', async (req, res, next) => {

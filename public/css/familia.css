@@ -1,0 +1,153 @@
+/* Estilos específicos para la vista Familia */
+
+/* Contenedor principal */
+.erp-main-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+    padding: 16px;
+    margin-top: 20px;
+}
+
+/* Encabezado */
+.erp-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.erp-header-row .titulo-dota {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #333;
+}
+
+.erp-header-row .productos-cabecera-datos {
+    font-size: 0.95rem;
+    color: #666;
+}
+
+/* Tabla */
+.tabla-erp {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.tabla-erp th, .tabla-erp td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.tabla-erp th {
+    background-color: #f5f6fa;
+    font-weight: 600;
+}
+
+.tabla-erp tbody tr:hover {
+    background-color: #f0e9ff; /* lila suave para hover */
+    cursor: pointer;
+}
+
+.tabla-erp tr.seleccionado {
+    background-color: #e2d4ff; /* lila más intenso para seleccionado */
+}
+
+/* Panel flotante */
+.erp-panel-flotante {
+    position: fixed;
+    bottom: 34px;
+    left: 280px;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px #1a73e84a;
+    display: flex;
+    gap: 16px;
+    padding: 10px 22px;
+    z-index: 30;
+}
+
+/* Modal */
+.modal-erp-producto {
+    max-width: 500px;
+    width: 90%;
+}
+
+.modal-titulo-principal {
+    font-size: 1.2rem;
+    margin-bottom: 18px;
+    color: #333;
+}
+
+/* Inputs */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+input[type="text"]:focus {
+    border-color: #7a5af5; /* Lila para enfoque */
+    outline: none;
+}
+
+/* Panel flotante */
+.erp-panel-flotante {
+    position: fixed;
+    bottom: 32px;
+    left: 290px;
+    z-index: 88;
+    background: #fff;
+    border-radius: 15px;
+    box-shadow: 0 4px 20px #7854d810, 0 1px 4px #a3d0fa22;
+    display: flex;
+    flex-direction: row;
+    gap: 18px;
+    padding: 14px 34px;
+    align-items: center;
+    border: 1.5px solid #edeaff;
+}
+
+/* Botones flotantes */
+.icon-button-erp {
+    background: linear-gradient(135deg, #edeaff 55%, #eaf5ff 100%);
+    border: none;
+    border-radius: 50%;
+    width: 46px;
+    height: 46px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 1.7px solid #edeaff;
+    transition: all 0.2s;
+}
+
+.icon-button-erp:hover {
+    transform: scale(1.13);
+    box-shadow: 0 4px 18px #8a71e62a;
+}
+
+/* Colores por acción */
+.icon-button-erp.agregar { color: #289455; }
+.icon-button-erp.agregar:hover { background: #c9fae7; }
+
+.icon-button-erp.modificar { color: #af7c1e; }
+.icon-button-erp.modificar:hover { background: #fff4e3; }
+
+.icon-button-erp.eliminar { color: #e45858; }
+.icon-button-erp.eliminar:hover { background: #ffe3e3; }
