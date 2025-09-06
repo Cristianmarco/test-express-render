@@ -6,25 +6,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 👉 Abrir modal
   function abrirModal(titulo, datos = null) {
-    document.querySelector(".modal-titulo-principal").textContent = titulo;
-    modal.classList.add("mostrar");
+    document.getElementById("modal-titulo").textContent = titulo;
+    document.getElementById("modal-familia").classList.add("mostrar");
 
     if (datos) {
       form.codigo.value = datos.codigo;
-      form.descripcion.value = datos.descripcion; // ✅ usamos descripcion
-      editando = datos.id; // ✅ guardamos el id real
+      form.descripcion.value = datos.descripcion;
+      editando = datos.codigo;
     } else {
       form.reset();
       editando = null;
     }
   }
 
-  // 👉 Cerrar modal
   function cerrarModal() {
-    modal.classList.remove("mostrar");
+    document.getElementById("modal-familia").classList.remove("mostrar");
     form.reset();
-    editando = null;
   }
+
   window.cerrarModal = cerrarModal;
 
   // 👉 Cargar familias

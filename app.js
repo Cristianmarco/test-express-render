@@ -13,6 +13,9 @@ const estadisticasRouter = require('./routes/estadisticas');
 const licitacionesRouter = require('./routes/licitaciones');
 const garantiasDotaRouter = require('./routes/garantias_dota');
 const productosRouter = require('./routes/productos');
+const proveedoresRouter = require("./routes/proveedores");
+const depositosRouter = require("./routes/depositos");
+const vistasRoutes = require('./routes/vistas');
 
 app.use(session({
   secret: 'secretoSuperSeguro', // 🔐 ¡cambiá esto por algo fuerte en producción!
@@ -43,11 +46,12 @@ app.use('/api/reparaciones_dota', require('./routes/reparaciones_dota'));
 app.use('/api/garantias_dota', garantiasDotaRouter);
 app.use('/api/productos', productosRouter);
 app.use("/api/familias", require("./routes/familia"));
-app.use('/api/grupo', require('./routes/grupo'));
-app.use('/api/marca', require('./routes/marca'));
-app.use('/api/categoria', require('./routes/categoria'));
-
-
+app.use("/api/grupo", require("./routes/grupo"));
+app.use("/api/marca", require("./routes/marca"));
+app.use("/api/categoria", require("./routes/categoria"));
+app.use("/api/proveedores", proveedoresRouter);
+app.use("/api/depositos", depositosRouter);
+app.use('/', vistasRoutes);
 
 
 // Error Handler Middleware (opcional)

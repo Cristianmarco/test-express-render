@@ -104,30 +104,6 @@
             class="fas fa-trash"></i></button>
       </div>
 
-      <!-- MODAL AGREGAR FAMILIA -->
-      <div id="modal-agregar-familia" class="modal">
-        <div class="modal-contenido modal-erp-producto">
-          <button id="cerrar-modal-familia" class="cerrar">&times;</button>
-          <h2 class="modal-titulo-principal"><i class="fas fa-plus"></i> Nueva Familia</h2>
-
-          <form id="form-familia">
-            <div class="form-grid">
-              <div>
-                <label for="codigo">Código *</label>
-                <input type="text" name="codigo" id="codigo" maxlength="10" required>
-              </div>
-              <div>
-                <label for="descripcion">Nombre de Familia *</label>
-                <input type="text" name="descripcion" id="descripcion" maxlength="50" required>
-              </div>
-            </div>
-            <button type="submit" class="btn-guardar">
-              <i class="fas fa-save"></i> Guardar
-            </button>
-          </form>
-        </div>
-      </div>
-
     </div>
   </main>
 
@@ -138,14 +114,14 @@
       <h2 id="modal-titulo" class="modal-titulo-principal">Nueva Familia</h2>
 
       <form id="form-familia">
-        <div class="form-grid">
+        <div class="form-grid doble">
           <div>
             <label for="codigo">Código *</label>
             <input type="text" name="codigo" id="codigo" maxlength="10" required>
           </div>
           <div>
-            <label for="nombre">Nombre de Familia *</label>
-            <input type="text" name="nombre" id="nombre" maxlength="50" required>
+            <label for="descripcion">Nombre de Familia *</label>
+            <input type="text" name="descripcion" id="descripcion" maxlength="50" required>
           </div>
         </div>
         <button type="submit" class="btn-guardar">
@@ -154,6 +130,7 @@
       </form>
     </div>
   </div>
+
 
   <script src="/scripts/familia.js"></script>
   <script>

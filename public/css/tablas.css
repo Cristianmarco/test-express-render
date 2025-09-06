@@ -719,3 +719,132 @@ body.usuarios-page {
 }
 
 .seleccionado { background: #e0f7fa !important; }
+
+#tabla-proveedores tr.seleccionado td {
+  background: linear-gradient(90deg, #edeaff 60%, #e7f2fc 100%) !important;
+  color: #562b97 !important;
+  font-weight: bold;
+  border-left: 5px solid #a483f9;
+}
+
+/* Layout tabla + ficha lateral */
+.proveedores-layout .erp-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+/* La tabla ocupa más espacio */
+.erp-table-card {
+  flex: 3;
+}
+
+/* Panel lateral de detalle */
+.ficha-proveedor {
+  flex: 1.2;
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  min-width: 260px;
+  max-width: 320px;
+  font-size: 0.95rem;
+  height: fit-content;
+}
+
+.ficha-proveedor h3 {
+  margin-top: 0;
+  color: #1a73e8;
+  font-size: 1.2rem;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 8px;
+}
+
+.ficha-proveedor p {
+  margin: 8px 0;
+}
+
+.ficha-proveedor strong {
+  color: #333;
+}
+
+.ficha-proveedor {
+  margin-top: 20px;
+  padding: 15px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Tablas ERP generales */
+.tabla-erp {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.tabla-erp thead {
+  background: linear-gradient(to right, #4da6ff, #1a73e8);
+  color: #fff;
+}
+
+.tabla-erp th, .tabla-erp td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
+
+.tabla-erp tbody tr:hover {
+  background: #f5faff;
+  cursor: pointer;
+}
+
+/* Botones flotantes */
+.erp-panel-flotante {
+  position: fixed;
+  bottom: 20px;
+  left: 260px;
+  display: flex;
+  gap: 14px;
+  z-index: 900;
+}
+
+.icon-button-erp {
+  border: none;
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.icon-button-erp:hover {
+  transform: scale(1.1);
+  opacity: 0.9;
+}
+
+.icon-button-erp.agregar   { background: #5cb85c; color: #fff; }
+.icon-button-erp.modificar { background: #f0ad4e; color: #fff; }
+.icon-button-erp.eliminar  { background: #d9534f; color: #fff; }
+
+.contenedor-proveedores {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start; /* 🔥 alinea ambos arriba */
+}
+
+.ficha-proveedor {
+  background: #fff;
+  padding: 18px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  min-height: 200px;  /* para que no quede tan chiquita vacía */
+}

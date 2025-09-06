@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración - Depósitos</title>
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/tablas.css">
+    <link rel="stylesheet" href="/css/botones.css">
+    <link rel="stylesheet" href="/css/modales.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+
+<body class="main-dashboard">
+    <!-- HEADER -->
+    <header class="main-header">
+        <div class="logo">
+            <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header">
+        </div>
+        <div class="user-info">
+            <i class="fas fa-user-circle"></i>
+            <span id="user-name">Bienvenido, Usuario</span>
+            <button class="logout-button" onclick="logout()">Salir</button>
+        </div>
+    </header>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <nav>
+            <ul>
+                <li><button class="sidebar-btn" onclick="irA('dota-inicio')"><i class="fas fa-home"></i> Inicio</button>
+                </li>
+                <li><a href="/productos" class="sidebar-link"><i class="fas fa-box"></i> Productos</a></li>
+                <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
+                <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
+                <li><a href="/configuracion" class="sidebar-link active"><i class="fas fa-cog"></i> Configuración</a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="content">
+        <div class="erp-main-card">
+            <!-- Header superior -->
+            <div class="erp-header-row">
+                <div class="titulo-dota"><i class="fas fa-warehouse"></i> Depósitos</div>
+                <div class="productos-cabecera-datos">
+                    <span><i class="fas fa-database"></i> Total: <b id="total-depositos">0</b></span>
+                    <span><i class="fas fa-user-circle"></i> Usuario: <b>Admin</b></span>
+                </div>
+            </div>
+
+            <!-- Tabla -->
+            <div class="erp-content-row">
+                <div class="erp-col-izq">
+                    <div class="erp-table-card">
+                        <table class="tabla-erp">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Ubicación</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-depositos">
+                                <!-- JS carga acá -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Panel derecho con ficha -->
+                <div class="erp-col-der">
+                    <div class="erp-card-resumen">
+                        <div class="erp-card-titulo"><i class="fas fa-info-circle"></i> Ficha del Depósito</div>
+                        <div class="erp-resumen-dato"><b>ID:</b> -</div>
+                        <div class="erp-resumen-dato"><b>Nombre:</b> -</div>
+                        <div class="erp-resumen-dato"><b>Ubicación:</b> -</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL FLOTANTE -->
+            <div class="erp-panel-flotante">
+                <button id="btn-agregar" class="icon-button-erp agregar" title="Agregar">
+                    <i class="fas fa-plus"></i>
+                </button>
+                <button id="btn-modificar" class="icon-button-erp modificar" title="Editar">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button id="btn-eliminar" class="icon-button-erp eliminar" title="Eliminar">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+
+            <!-- MODAL DEPÓSITO -->
+            <div id="modal-deposito" class="modal" tabindex="-1">
+                <div class="modal-contenido modal-erp-producto" style="max-width:500px;">
+                    <span class="cerrar" onclick="cerrarModal()">&times;</span>
+                    <h2 class="modal-titulo-principal" id="modal-titulo">Nuevo Depósito</h2>
+            
+                    <form id="form-deposito" autocomplete="off">
+                        <div class="form-grid">
+                            <div>
+                                <label>Nombre *</label>
+                                <input name="nombre" required maxlength="100" />
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div>
+                                <label>Ubicación</label>
+                                <input name="ubicacion" maxlength="150" />
+                            </div>
+                        </div>
+            
+                        <button type="submit" class="btn-guardar">
+                            <i class="fas fa-save"></i> Guardar
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+    </main>
+
+    <!-- Scripts -->
+    <script>
+        function logout() {
+            if (confirm('¿Seguro que deseas salir?')) window.location.href = '/';
+        }
+        function irA(seccion) {
+            window.location.href = '/' + seccion;
+        }
+    </script>
+    <script src="/scripts/depositos.js"></script>
+</body>
+
+</html>

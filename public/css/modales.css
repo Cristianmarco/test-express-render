@@ -103,13 +103,6 @@
   background-color: #f9f9f9;
 }
 
-.form-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: space-between;
-}
-
 .form-section {
   flex: 1 1 45%;
   display: flex;
@@ -379,16 +372,22 @@ input[readonly] {
 
 .form-grid {
   display: flex;
-  gap: 22px;
-  margin-bottom: 12px;
   flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 15px;
 }
+
 .form-grid > div {
+  flex: 1 1 100%;        
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-width: 155px;
 }
+
+.form-grid.doble > div {
+  flex: 1 1 45%;         
+  min-width: 180px;
+}
+
 
 .modal-licitacion label {
   font-size: 1.02rem;
@@ -569,4 +568,77 @@ input[readonly] {
   box-sizing: border-box;
   font-size: 1rem;
   padding: 5px 6px;
+}
+
+/* ===== Ajustes para formularios de Tablas Generales (familia, grupo, marca, categoria) ===== */
+.form-grid.doble {
+  display: grid;
+  grid-template-columns: 1fr 3fr; /* Código más chico, Nombre más grande */
+  gap: 18px;
+  align-items: center;
+}
+
+.form-grid.doble > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-grid.doble label {
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.form-grid.doble input {
+  width: 100%;
+  padding: 9px 11px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 7px;
+}
+
+/* Responsive */
+@media (max-width: 700px) {
+  .form-grid.doble {
+    grid-template-columns: 1fr; /* Se apilan en pantallas chicas */
+  }
+}
+
+/* === Modal Proveedores === */
+#modal-proveedor .modal-contenido {
+  max-width: 700px;
+  padding: 28px 34px;
+}
+
+#modal-proveedor .form-grid {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+
+#modal-proveedor .form-grid > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#modal-proveedor label {
+  font-weight: 500;
+  color: #673cb6;
+  margin-bottom: 4px;
+}
+
+#modal-proveedor input {
+  border-radius: 7px;
+  border: 1.3px solid #a483f949;
+  padding: 9px 10px;
+  font-size: 1rem;
+  background: #fafdff;
+}
+
+#modal-proveedor input:focus {
+  border-color: #8a71e6;
+  background: #f5f1ff;
+  outline: none;
 }

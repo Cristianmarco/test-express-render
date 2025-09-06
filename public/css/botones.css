@@ -199,3 +199,11 @@
   background-color: #1175d8;
   color: #fff;
 }
+
+.icon-button-erp.stock {
+  color: #1d88e5;
+}
+.icon-button-erp.stock:hover {
+  background: #d6ebff;
+  color: #0a4f91;
+}

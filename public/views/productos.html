@@ -782,327 +782,345 @@
 </head>
 
 <body class="main-dashboard">
-    <!-- HEADER -->
-    <header class="main-header">
-        <div class="logo">
-            <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header" />
-        </div>
-        <div class="user-info">
-            <i class="fas fa-user-circle"></i>
-            <span id="user-name">Bienvenido, Usuario</span>
-            <button class="logout-button" onclick="logout()">Salir</button>
-        </div>
-    </header>
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-        <nav>
-            <ul>
-                <li>
-                    <button class="sidebar-btn" onclick="irA('dota-inicio')">
-                        <i class="fas fa-home"></i> Inicio
-                    </button>
-                </li>
-                <li>
-                    <button class="sidebar-btn" onclick="irA('dota-licitacion')">
-                        <i class="fas fa-file-contract"></i> Licitación
-                    </button>
-                </li>
-                <li>
-                    <button class="sidebar-btn" onclick="irA('dota-reparaciones')">
-                        <i class="fas fa-tools"></i> Reparaciones
-                    </button>
-                </li>
-                <li>
-                    <button class="sidebar-btn" onclick="irA('dota-garantias')">
-                        <i class="fas fa-shield-alt"></i> Garantías
-                    </button>
-                </li>
-                <hr>
-                <li>
-                    <a href="/productos" class="sidebar-link active" id="sidebar-productos">
-                        <i class="fas fa-box"></i> Productos
-                    </a>
-                </li>
-                <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
-                <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
-                <li><a href="/configuracion"><i class="fas fa-cog"></i> Configuración</a></li>
-                
+  <!-- HEADER -->
+  <header class="main-header">
+    <div class="logo">
+      <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header" />
+    </div>
+    <div class="user-info">
+      <i class="fas fa-user-circle"></i>
+      <span id="user-name">Bienvenido, Usuario</span>
+      <button class="logout-button" onclick="logout()">Salir</button>
+    </div>
+  </header>
 
-            </ul>
-        </nav>
-    </aside>
-    <!-- CONTENIDO PRINCIPAL -->
-    <main class="content">
-        <div class="erp-main-card">
-            <!-- Header superior -->
-            <div class="erp-header-row">
-                <div class="titulo-dota"><i class="fas fa-box"></i> Productos / Repuestos</div>
-                <div class="productos-cabecera-datos">
-                    <span><i class="fas fa-database"></i> Total: <b>120</b></span>
-                    <span><i class="fas fa-user-circle"></i> Usuario: <b>Admin</b></span>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <nav>
+      <ul>
+        <li>
+          <button class="sidebar-btn" onclick="irA('dota-inicio')">
+            <i class="fas fa-home"></i> Inicio
+          </button>
+        </li>
+        <li>
+          <button class="sidebar-btn" onclick="irA('dota-licitacion')">
+            <i class="fas fa-file-contract"></i> Licitación
+          </button>
+        </li>
+        <li>
+          <button class="sidebar-btn" onclick="irA('dota-reparaciones')">
+            <i class="fas fa-tools"></i> Reparaciones
+          </button>
+        </li>
+        <li>
+          <button class="sidebar-btn" onclick="irA('dota-garantias')">
+            <i class="fas fa-shield-alt"></i> Garantías
+          </button>
+        </li>
+        <hr>
+        <li>
+          <a href="/productos" class="sidebar-link active" id="sidebar-productos">
+            <i class="fas fa-box"></i> Productos
+          </a>
+        </li>
+        <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
+        <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
+        <li><a href="/configuracion"><i class="fas fa-cog"></i> Configuración</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="content">
+    <div class="erp-main-card">
+      <!-- Header superior -->
+      <div class="erp-header-row">
+        <div class="titulo-dota"><i class="fas fa-box"></i> Productos / Repuestos</div>
+        <div class="productos-cabecera-datos">
+          <span><i class="fas fa-database"></i> Total: <b>120</b></span>
+          <span><i class="fas fa-user-circle"></i> Usuario: <b>Admin</b></span>
+        </div>
+      </div>
+
+      <!-- Content principal flex -->
+      <div class="erp-content-row">
+        <!-- Columna izquierda -->
+        <div class="erp-col-izq">
+          <div class="erp-tabs">
+            <button class="erp-tab-btn active" onclick="mostrarTab('tab-detalle')">Detalle</button>
+            <button class="erp-tab-btn" onclick="mostrarTab('tab-stock')">Stock</button>
+            <button class="erp-tab-btn" onclick="mostrarTab('tab-precios')">Precios</button>
+          </div>
+          <div id="tab-detalle" class="erp-table-card tab-erp active">
+            <table class="tabla-erp">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Descripción</th>
+                  <th>Equivalencia</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-productos">
+                <!-- JS carga aquí -->
+              </tbody>
+            </table>
+          </div>
+          <div id="tab-stock" class="erp-table-card tab-erp" style="display:none;">
+            <span style="color:#859">Aquí iría la tabla de stock por depósitos…</span>
+          </div>
+          <div id="tab-precios" class="erp-table-card tab-erp" style="display:none;">
+            <span style="color:#859">Aquí irían los precios y listas…</span>
+          </div>
+        </div>
+
+        <!-- Columna derecha -->
+        <div class="erp-col-der">
+          <div class="erp-card-resumen">
+            <div class="erp-card-titulo"><i class="fas fa-info-circle"></i> Detalle del Producto</div>
+            <div class="erp-resumen-dato"><b>Código:</b> ALT-568</div>
+            <div class="erp-resumen-dato"><b>Descripción:</b> Alternador 80A</div>
+            <div class="erp-resumen-dato"><b>Familia:</b> Alternadores</div>
+            <div class="erp-resumen-dato"><b>Grupo:</b> Grupo 1</div>
+            <div class="erp-resumen-dato"><b>Marca:</b> BOSCH</div>
+            <div class="erp-resumen-dato"><b>Categoría:</b> Eléctrico</div>
+            <div class="erp-resumen-dato"><b>Proveedor:</b> PROVEEDOR S.A.</div>
+            <div class="erp-resumen-dato"><b>Origen:</b> Nacional</div>
+            <div class="erp-resumen-dato"><b>IVA:</b> 21%</div>
+            <div class="erp-resumen-dato"><b>Código barra:</b> 7790001234567</div>
+          </div>
+
+          <!-- Colapsable stock -->
+          <div class="erp-colapsable" id="colap-stock">
+            <div class="erp-colapsable-header" onclick="toggleColapsable('colap-stock')">
+              <span><i class="fas fa-warehouse"></i> Stock por depósitos</span>
+              <i class="fas fa-chevron-down"></i>
+            </div>
+            <div class="erp-colapsable-content" id="stock-por-deposito">
+              <!-- JS carga stock acá -->
+            </div>
+          </div>
+
+          <!-- Colapsable precios -->
+          <div class="erp-colapsable" id="colap-precios">
+            <div class="erp-colapsable-header" onclick="toggleColapsable('colap-precios')">
+              <span><i class="fas fa-money-bill"></i> Listas y Precios</span>
+              <i class="fas fa-chevron-down"></i>
+            </div>
+            <div class="erp-colapsable-content">
+              <table style="width:100%;">
+                <tr><td>Lista 1</td><td>$ 25.000</td></tr>
+                <tr><td>Lista 2</td><td>$ 27.900</td></tr>
+                <tr><td>Lista 3</td><td>$ 29.900</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL FLOTANTE ACCIONES -->
+      <div class="erp-panel-flotante">
+        <button id="btn-visualizar" class="icon-button-erp visualizar" title="Visualizar"><i
+            class="fas fa-eye"></i></button>
+        <button id="btn-agregar" class="icon-button-erp agregar" title="Agregar"><i
+            class="fas fa-plus"></i></button>
+        <button id="btn-modificar" class="icon-button-erp modificar" title="Editar"><i
+            class="fas fa-edit"></i></button>
+        <button id="btn-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i
+            class="fas fa-trash"></i></button>
+        <button onclick="abrirModalStock()" class="icon-button-erp stock" title="Movimiento de Stock">
+          <i class="fas fa-exchange-alt"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- MODAL AGREGAR PRODUCTO -->
+    <div id="modal-agregar-producto" class="modal" tabindex="-1">
+      <div class="modal-contenido modal-erp-producto modal-agregar-producto-grande">
+        <span class="cerrar" onclick="cerrarModalAgregarProducto()">&times;</span>
+        <h2 class="modal-titulo-principal"><i class="fas fa-plus"></i> Nuevo Producto</h2>
+        <form id="form-agregar-producto" autocomplete="off">
+          <!-- Código y Descripción -->
+          <div class="form-row">
+            <div class="form-group corto">
+              <label>Código *</label>
+              <input name="codigo" required maxlength="25">
+            </div>
+            <div class="form-group largo">
+              <label>Descripción *</label>
+              <input name="descripcion" required maxlength="100">
+            </div>
+          </div>
+
+          <!-- Equivalencia y descripción adicional -->
+          <div class="form-row">
+            <div class="form-group corto">
+              <label>Equivalencia</label>
+              <input name="equivalencia" maxlength="25">
+            </div>
+            <div class="form-group largo">
+              <label>Descripción adicional</label>
+              <input name="descripcion_adicional" maxlength="120">
+            </div>
+          </div>
+
+          <!-- Selects -->
+          <div class="form-row form-codigos-foto">
+            <div class="form-codigos-y-nombres">
+              <div class="form-group-codigo">
+                <label>Familia *</label>
+                <select id="familia_id" name="familia_id" required>
+                  <option value="">Seleccione una familia</option>
+                </select>
+              </div>
+              <div class="form-group-codigo">
+                <label>Grupo *</label>
+                <select id="grupo_id" name="grupo_id" required>
+                  <option value="">Seleccione un grupo</option>
+                </select>
+              </div>
+              <div class="form-group-codigo">
+                <label>Marca *</label>
+                <select id="marca_id" name="marca_id" required>
+                  <option value="">Seleccione una marca</option>
+                </select>
+              </div>
+              <div class="form-group-codigo">
+                <label>Categoría *</label>
+                <select id="categoria_id" name="categoria_id" required>
+                  <option value="">Seleccione una categoría</option>
+                </select>
+              </div>
+              <div class="form-group-codigo">
+                <label>Proveedor *</label>
+                <select id="proveedor_id" name="proveedor_id" required>
+                  <option value="">Seleccione un proveedor</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Foto -->
+            <div class="form-foto-producto">
+              <label>Foto del producto</label>
+              <div class="foto-uploader">
+                <label for="foto-producto" class="btn-foto-upload">
+                  <i class="fas fa-upload"></i> Subir foto
+                </label>
+                <input type="file" id="foto-producto" accept="image/*" onchange="previewFotoProducto(this)">
+                <div class="foto-preview" id="foto-preview">
+                  <span style="color:#bbb;font-size:0.96rem">Sin foto</span>
                 </div>
+              </div>
             </div>
-            <!-- Content principal flex -->
-            <div class="erp-content-row">
-                <!-- Columna izquierda: tabs y tabla -->
-                <div class="erp-col-izq">
-                    <div class="erp-tabs">
-                        <button class="erp-tab-btn active" onclick="mostrarTab('tab-detalle')">Detalle</button>
-                        <button class="erp-tab-btn" onclick="mostrarTab('tab-stock')">Stock</button>
-                        <button class="erp-tab-btn" onclick="mostrarTab('tab-precios')">Precios</button>
-                    </div>
-                    <div id="tab-detalle" class="erp-table-card tab-erp active">
-                        <table class="tabla-erp">
-                            <thead>
-                                <tr>
-                                    <th>Código</th>
-                                    <th>Descripción</th>
-                                    <th>Equivalencia</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tbody-productos">
-                                <!-- JS carga aquí -->
-                            </tbody>
+          </div>
 
-                        </table>
-                    </div>
-                    <div id="tab-stock" class="erp-table-card tab-erp" style="display:none;">
-                        <span style="color:#859">Aquí iría la tabla de stock por depósitos…</span>
-                    </div>
-                    <div id="tab-precios" class="erp-table-card tab-erp" style="display:none;">
-                        <span style="color:#859">Aquí irían los precios y listas…</span>
-                    </div>
-                </div>
-                <!-- Columna derecha: panel detalle/resumen -->
-                <div class="erp-col-der">
-                    <div class="erp-card-resumen">
-                        <div class="erp-card-titulo"><i class="fas fa-info-circle"></i> Detalle del Producto</div>
-                        <div class="erp-resumen-dato"><b>Código:</b> ALT-568</div>
-                        <div class="erp-resumen-dato"><b>Descripción:</b> Alternador 80A</div>
-                        <div class="erp-resumen-dato"><b>Familia:</b> Alternadores</div>
-                        <div class="erp-resumen-dato"><b>Grupo:</b> Grupo 1</div>
-                        <div class="erp-resumen-dato"><b>Marca:</b> BOSCH</div>
-                        <div class="erp-resumen-dato"><b>Categoría:</b> Eléctrico</div>
-                        <div class="erp-resumen-dato"><b>Proveedor:</b> PROVEEDOR S.A.</div>
-                        <div class="erp-resumen-dato"><b>Origen:</b> Nacional</div>
-                        <div class="erp-resumen-dato"><b>IVA:</b> 21%</div>
-                        <div class="erp-resumen-dato"><b>Código barra:</b> 7790001234567</div>
-                        <!-- Aquí podés agregar más datos clave -->
-                    </div>
-                    <!-- Cards colapsables -->
-                    <div class="erp-colapsable" id="colap-stock">
-                        <div class="erp-colapsable-header" onclick="toggleColapsable('colap-stock')">
-                            <span><i class="fas fa-warehouse"></i> Stock por depósitos</span>
-                            <i class="fas fa-chevron-down"></i>
-                        </div>
-                        <div class="erp-colapsable-content">
-                            <table style="width:100%;">
-                                <tr>
-                                    <td>Central</td>
-                                    <td>24</td>
-                                </tr>
-                                <tr>
-                                    <td>Sucursal 1</td>
-                                    <td>8</td>
-                                </tr>
-                                <tr>
-                                    <td>Sucursal 2</td>
-                                    <td>0</td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="erp-colapsable" id="colap-precios">
-                        <div class="erp-colapsable-header" onclick="toggleColapsable('colap-precios')">
-                            <span><i class="fas fa-money-bill"></i> Listas y Precios</span>
-                            <i class="fas fa-chevron-down"></i>
-                        </div>
-                        <div class="erp-colapsable-content">
-                            <table style="width:100%;">
-                                <tr>
-                                    <td>Lista 1</td>
-                                    <td>$ 25.000</td>
-                                </tr>
-                                <tr>
-                                    <td>Lista 2</td>
-                                    <td>$ 27.900</td>
-                                </tr>
-                                <tr>
-                                    <td>Lista 3</td>
-                                    <td>$ 29.900</td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+          <!-- Origen / IVA / Código barras -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Origen</label>
+              <input name="origen" maxlength="20">
             </div>
+            <div class="form-group">
+              <label>Tipo de IVA</label>
+              <select name="iva_tipo">
+                <option value="">- Seleccionar -</option>
+                <option>21%</option>
+                <option>10.5%</option>
+                <option>27%</option>
+                <option>Exento</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Código de barras</label>
+              <input name="codigo_barra" maxlength="40">
+            </div>
+          </div>
 
-            <!-- PANEL FLOTANTE ACCIONES -->
-            <div class="erp-panel-flotante">
-                <button class="icon-button-erp visualizar" title="Visualizar"><i class="fas fa-eye"></i></button>
-                <button class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
-                <button class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
-                <button class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
-            </div>
+          <button type="submit" class="btn-guardar" style="margin-top:22px;">
+            <i class="fas fa-save"></i> Guardar producto
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal foto ampliada -->
+    <div id="modal-foto-ampliada" class="modal" tabindex="-1" style="z-index: 99999;">
+      <div class="modal-foto-ampliada-contenido" onclick="cerrarModalFotoAmpliada(event)">
+        <span class="cerrar" onclick="cerrarModalFotoAmpliada(event)">&times;</span>
+        <img id="img-foto-ampliada" src="" alt="Foto producto" />
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL MOVIMIENTO DE STOCK -->
+  <div id="modal-mov-stock" class="modal" tabindex="-1">
+    <div class="modal-contenido modal-erp-producto" style="max-width:500px;">
+      <span class="cerrar" onclick="cerrarModalStock()">&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-exchange-alt"></i> Movimiento de Stock</h2>
+      <form id="form-mov-stock">
+        <div class="form-grid">
+          <div>
+            <label>Depósito *</label>
+            <select id="mov-deposito" name="deposito_id" required>
+              <option value="">Seleccione depósito</option>
+            </select>
+          </div>
+          <div>
+            <label>Tipo *</label>
+            <select id="mov-tipo" name="tipo" required>
+              <option value="ENTRADA">Entrada</option>
+              <option value="SALIDA">Salida</option>
+            </select>
+          </div>
         </div>
 
-        <!-- MODAL AGREGAR PRODUCTO -->
-        <div id="modal-agregar-producto" class="modal" tabindex="-1">
-            <div class="modal-contenido modal-erp-producto modal-agregar-producto-grande">
-                <span class="cerrar" onclick="cerrarModalAgregarProducto()">&times;</span>
-                <h2 class="modal-titulo-principal"><i class="fas fa-plus"></i> Nuevo Producto</h2>
-                <form id="form-agregar-producto" autocomplete="off">
-                    <!-- Primera línea: Código + Descripción -->
-                    <div class="form-row">
-                        <div class="form-group corto">
-                            <label>Código *</label>
-                            <input name="codigo" required maxlength="25">
-                        </div>
-                        <div class="form-group largo">
-                            <label>Descripción *</label>
-                            <input name="descripcion" required maxlength="100">
-                        </div>
-                    </div>
-                    <!-- Segunda línea: Equivalencia + Descripción adicional -->
-                    <div class="form-row">
-                        <div class="form-group corto">
-                            <label>Equivalencia</label>
-                            <input name="equivalencia" maxlength="25">
-                        </div>
-                        <div class="form-group largo">
-                            <label>Descripción adicional</label>
-                            <input name="descripcion_adicional" maxlength="120">
-                        </div>
-                    </div>
-                    <!-- 5 códigos uno debajo del otro, con lupa al costado -->
-                    <div class="form-row form-codigos-foto">
-                        <div class="form-codigos-y-nombres">
-                            <div class="form-group-codigo">
-                                <label>Código Familia</label>
-                                <div class="input-lupa">
-                                    <input name="codigo_familia" maxlength="20" autocomplete="off"
-                                        oninput="mostrarNombreFamilia(this)">
-                                    <button type="button" class="btn-lupa" title="Buscar familia" tabindex="-1"><i
-                                            class="fas fa-search"></i></button>
-                                    <span class="nombre-codigo" id="nombre-familia"></span>
-                                </div>
-                            </div>
-                            <div class="form-group-codigo">
-                                <label>Código Grupo</label>
-                                <div class="input-lupa">
-                                    <input name="codigo_grupo" maxlength="20" autocomplete="off"
-                                        oninput="mostrarNombreGrupo(this)">
-                                    <button type="button" class="btn-lupa" title="Buscar grupo" tabindex="-1"><i
-                                            class="fas fa-search"></i></button>
-                                    <span class="nombre-codigo" id="nombre-grupo"></span>
-                                </div>
-                            </div>
-                            <div class="form-group-codigo">
-                                <label>Código Marca</label>
-                                <div class="input-lupa">
-                                    <input name="codigo_marca" maxlength="20" autocomplete="off"
-                                        oninput="mostrarNombreMarca(this)">
-                                    <button type="button" class="btn-lupa" title="Buscar marca" tabindex="-1"><i
-                                            class="fas fa-search"></i></button>
-                                    <span class="nombre-codigo" id="nombre-marca"></span>
-                                </div>
-                            </div>
-                            <div class="form-group-codigo">
-                                <label>Código Categoría</label>
-                                <div class="input-lupa">
-                                    <input name="codigo_categoria" maxlength="20" autocomplete="off"
-                                        oninput="mostrarNombreCategoria(this)">
-                                    <button type="button" class="btn-lupa" title="Buscar categoría" tabindex="-1"><i
-                                            class="fas fa-search"></i></button>
-                                    <span class="nombre-codigo" id="nombre-categoria"></span>
-                                </div>
-                            </div>
-                            <div class="form-group-codigo">
-                                <label>Código Proveedor</label>
-                                <div class="input-lupa">
-                                    <input name="codigo_proveedor" maxlength="20" autocomplete="off"
-                                        oninput="mostrarNombreProveedor(this)">
-                                    <button type="button" class="btn-lupa" title="Buscar proveedor" tabindex="-1"><i
-                                            class="fas fa-search"></i></button>
-                                    <span class="nombre-codigo" id="nombre-proveedor"></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-foto-producto">
-                            <label>Foto del producto</label>
-                            <div class="foto-uploader">
-                                <label for="foto-producto" class="btn-foto-upload">
-                                    <i class="fas fa-upload"></i> Subir foto
-                                </label>
-                                <input type="file" id="foto-producto" accept="image/*"
-                                    onchange="previewFotoProducto(this)" style="display:none;">
-                                <div class="foto-preview" id="foto-preview">
-                                    <span style="color:#bbb;font-size:0.96rem">Sin foto</span>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <!-- Última línea: Origen, IVA, Código barras -->
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Origen</label>
-                            <input name="origen" maxlength="20">
-                        </div>
-                        <div class="form-group">
-                            <label>Tipo de IVA</label>
-                            <select name="iva_tipo">
-                                <option value="">- Seleccionar -</option>
-                                <option>21%</option>
-                                <option>10.5%</option>
-                                <option>27%</option>
-                                <option>Exento</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Código de barras</label>
-                            <input name="codigo_barra" maxlength="40">
-                        </div>
-                    </div>
-                    <button type="submit" class="btn-guardar" style="margin-top:22px;">
-                        <i class="fas fa-save"></i> Guardar producto
-                    </button>
-                </form>
-            </div>
+        <div class="form-grid">
+          <div>
+            <label>Cantidad *</label>
+            <input type="number" id="mov-cantidad" name="cantidad" min="1" required>
+          </div>
         </div>
 
-        <!-- MODAL AMPLIAR FOTO PRODUCTO -->
-        <div id="modal-foto-ampliada" class="modal" tabindex="-1" style="z-index: 99999;">
-            <div class="modal-foto-ampliada-contenido" onclick="cerrarModalFotoAmpliada(event)">
-                <span class="cerrar" onclick="cerrarModalFotoAmpliada(event)">&times;</span>
-                <img id="img-foto-ampliada" src="" alt="Foto producto" />
-            </div>
+        <div class="form-grid">
+          <div>
+            <label>Observación</label>
+            <input type="text" id="mov-observacion" name="observacion" maxlength="120">
+          </div>
         </div>
 
-    </main>
-    <!-- SCRIPTS -->
-    <script>
-        function logout() {
-            if (confirm('¿Seguro que deseas salir?')) {
-                window.location.href = '/';
-            }
-        }
-        function irA(seccion) {
-            window.location.href = '/' + seccion;
-        }
-        function mostrarTab(tabId) {
-            document.querySelectorAll('.erp-tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-erp').forEach(tab => tab.style.display = 'none');
-            const idx = ['tab-detalle', 'tab-stock', 'tab-precios'].indexOf(tabId);
-            if (idx >= 0) document.querySelectorAll('.erp-tab-btn')[idx].classList.add('active');
-            document.getElementById(tabId).style.display = '';
-        }
-        function toggleColapsable(id) {
-            document.getElementById(id).classList.toggle('open');
-        }
-    </script>
-    <script src="/scripts/productos.js"></script>
+        <button type="submit" class="btn-guardar">
+          <i class="fas fa-save"></i> Registrar movimiento
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script>
+    function logout() {
+      if (confirm('¿Seguro que deseas salir?')) window.location.href = '/';
+    }
+    function irA(seccion) {
+      window.location.href = '/' + seccion;
+    }
+    function mostrarTab(tabId) {
+      document.querySelectorAll('.erp-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-erp').forEach(tab => tab.style.display = 'none');
+      const idx = ['tab-detalle', 'tab-stock', 'tab-precios'].indexOf(tabId);
+      if (idx >= 0) document.querySelectorAll('.erp-tab-btn')[idx].classList.add('active');
+      document.getElementById(tabId).style.display = '';
+    }
+    function toggleColapsable(id) {
+      document.getElementById(id).classList.toggle('open');
+    }
+    function abrirModalStock() {
+      document.getElementById('modal-mov-stock').classList.add('mostrar');
+    }
+    function cerrarModalStock() {
+      document.getElementById('modal-mov-stock').classList.remove('mostrar');
+    }
+  </script>
+  <script src="/scripts/productos.js"></script>
 </body>
 
 </html>
