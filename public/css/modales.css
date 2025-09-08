@@ -642,3 +642,212 @@ input[readonly] {
   background: #f5f1ff;
   outline: none;
 }
+
+/* ===== MODAL REPARACIÓN DIARIA ===== */
+#modal-reparacion .modal-contenido {
+  max-width: 850px;               /* más ancho que los otros */
+  padding: 28px 36px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
+#modal-reparacion h2.modal-titulo-principal {
+  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 22px;
+  color: #2176bd;
+}
+
+#modal-reparacion .form-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+#modal-reparacion .form-grid > div {
+  flex: 1 1 100%; /* por defecto ocupan todo */
+  display: flex;
+  flex-direction: column;
+}
+
+#modal-reparacion .form-grid.doble > div {
+  flex: 1 1 48%;  /* en doble columna */
+  min-width: 200px;
+}
+
+#modal-reparacion label {
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: #333;
+  font-size: 0.96rem;
+}
+
+#modal-reparacion input,
+#modal-reparacion select,
+#modal-reparacion textarea {
+  border: 1.2px solid #ccd6eb;
+  border-radius: 7px;
+  padding: 9px 11px;
+  font-size: 0.95rem;
+  background: #f9fbfd;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+#modal-reparacion input:focus,
+#modal-reparacion select:focus,
+#modal-reparacion textarea:focus {
+  border-color: #2176bd;
+  background: #fff;
+  outline: none;
+}
+
+#modal-reparacion textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+#modal-reparacion .btn-guardar {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+  background-color: #00cc66;
+  color: #fff;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+#modal-reparacion .btn-guardar:hover {
+  background-color: #00a653;
+}
+
+/* Botón cerrar */
+#modal-reparacion .cerrar {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #666;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+#modal-reparacion .cerrar:hover {
+  color: #e63946;
+}
+
+/* ===== MODAL REPARACIÓN DIARIA (alineado) ===== */
+#modal-reparacion .modal-contenido {
+  max-width: 900px;               /* ancho fijo del modal */
+  width: 95%;
+  padding: 30px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  position: relative;
+}
+
+#modal-reparacion h2.modal-titulo-principal {
+  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 24px;
+  color: #2176bd;
+}
+
+#modal-reparacion .form-grid {
+  display: grid;
+  grid-template-columns: 1fr; /* por defecto una sola columna */
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+#modal-reparacion .form-grid.doble {
+  grid-template-columns: 1fr 1fr; /* dos columnas iguales */
+  gap: 18px;
+}
+
+#modal-reparacion .form-grid > div {
+  display: flex;
+  flex-direction: column;
+}
+
+#modal-reparacion label {
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: #333;
+  font-size: 0.96rem;
+}
+
+#modal-reparacion input,
+#modal-reparacion select,
+#modal-reparacion textarea {
+  border: 1.2px solid #ccd6eb;
+  border-radius: 7px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  background: #f9fbfd;
+  width: 100%;             /* 🔥 todos iguales de ancho */
+  box-sizing: border-box;  /* 🔥 evita desbordes */
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+#modal-reparacion input:focus,
+#modal-reparacion select:focus,
+#modal-reparacion textarea:focus {
+  border-color: #2176bd;
+  background: #fff;
+  outline: none;
+}
+
+#modal-reparacion textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+#modal-reparacion .btn-guardar {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+  background-color: #00cc66;
+  color: #fff;
+  padding: 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+#modal-reparacion .btn-guardar:hover {
+  background-color: #00a653;
+}
+
+/* Botón cerrar */
+#modal-reparacion .cerrar {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #666;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+#modal-reparacion .cerrar:hover {
+  color: #e63946;
+}
+
+/* Responsivo */
+@media (max-width: 700px) {
+  #modal-reparacion .form-grid.doble {
+    grid-template-columns: 1fr; /* 🔥 en pantallas chicas se apilan */
+  }
+}
+

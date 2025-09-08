@@ -77,6 +77,15 @@ router.get('/planilla', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'planilla.html'));
 });
 
+router.get('/configuracion/equipos', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'equipos.html'));
+});
+
+router.get('/configuracion/tecnicos', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'tecnicos.html'));
+});
+
+
 
 // Puedes agregar más rutas de vistas aquí según tu menú lateral
 

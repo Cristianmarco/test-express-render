@@ -16,6 +16,8 @@ const productosRouter = require('./routes/productos');
 const proveedoresRouter = require("./routes/proveedores");
 const depositosRouter = require("./routes/depositos");
 const vistasRoutes = require('./routes/vistas');
+const equiposRoutes = require("./routes/equipos");
+const tecnicosRoutes = require("./routes/tecnicos");
 
 app.use(session({
   secret: 'secretoSuperSeguro', // 🔐 ¡cambiá esto por algo fuerte en producción!
@@ -52,7 +54,8 @@ app.use("/api/categoria", require("./routes/categoria"));
 app.use("/api/proveedores", proveedoresRouter);
 app.use("/api/depositos", depositosRouter);
 app.use('/', vistasRoutes);
-
+app.use("/api/equipos", equiposRoutes);
+app.use("/api/tecnicos", tecnicosRoutes);
 
 // Error Handler Middleware (opcional)
 app.use((err, req, res, next) => {
