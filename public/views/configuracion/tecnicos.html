@@ -90,62 +90,65 @@
                         </table>
                     </div>
 
-                    <!-- Bloque QR debajo de la tabla -->
-                    <div id="qr-section">
-                        <div id="ficha-qr"></div>
-                        <button id="btn-descargar-qr" class="btn-guardar">
-                            <i class="fas fa-download"></i> Descargar QR
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Derecha -->
-                <div class="erp-col-der">
-                    <div class="erp-card-resumen">
-                        <div class="erp-card-titulo"><i class="fas fa-info-circle"></i> Ficha del Técnico</div>
-                        <div class="erp-resumen-dato"><b>ID:</b> <span id="ficha-id">-</span></div>
-                        <div class="erp-resumen-dato"><b>Nombre:</b> <span id="ficha-nombre">-</span></div>
-                        <div class="erp-resumen-dato"><b>DNI:</b> <span id="ficha-dni">-</span></div>
-                    </div>
-
                     <!-- Bloque QR debajo de la ficha -->
-                    <div id="qr-section" style="margin-top:20px; text-align:center; display:none;">
-                        <div id="ficha-qr" style="margin-bottom:10px;"></div>
-                        <button id="btn-descargar-qr" class="btn-guardar" style="width:160px;">
-                            <i class="fas fa-download"></i> Descargar QR
-                        </button>
+                    <div id="qr-ficha-section" style="margin-top:20px; text-align:center; display:none;">
+                        <div id="ficha-qr-img" style="margin-bottom:10px;"></div>
+                        <a id="link-descargar-qr" href="#" download>
+                            <button type="button" class="btn-guardar" style="width:160px;">
+                                <i class="fas fa-download"></i> Descargar QR
+                            </button>
+                        </a>
+                    </div>
+
+
+                    <!-- Derecha -->
+                    <div class="erp-col-der">
+                        <div class="erp-card-resumen">
+                            <div class="erp-card-titulo"><i class="fas fa-info-circle"></i> Ficha del Técnico</div>
+                            <div class="erp-resumen-dato"><b>ID:</b> <span id="ficha-id">-</span></div>
+                            <div class="erp-resumen-dato"><b>Nombre:</b> <span id="ficha-nombre">-</span></div>
+                            <div class="erp-resumen-dato"><b>DNI:</b> <span id="ficha-dni">-</span></div>
+                        </div>
+
+                        <!-- Bloque QR debajo de la ficha -->
+                        <div id="qr-section" style="margin-top:20px; text-align:center; display:none;">
+                            <div id="ficha-qr" style="margin-bottom:10px;"></div>
+                            <button id="btn-descargar-qr" class="btn-guardar" style="width:160px;">
+                                <i class="fas fa-download"></i> Descargar QR
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Panel flotante -->
+                    <div class="erp-panel-flotante">
+                        <button id="btn-agregar" class="icon-button-erp agregar"><i class="fas fa-plus"></i></button>
+                        <button id="btn-modificar" class="icon-button-erp modificar"><i
+                                class="fas fa-edit"></i></button>
+                        <button id="btn-eliminar" class="icon-button-erp eliminar"><i class="fas fa-trash"></i></button>
+                    </div>
+
+                    <!-- Modal -->
+                    <div id="modal-tecnico" class="modal">
+                        <div class="modal-contenido modal-erp-producto">
+                            <span class="cerrar" onclick="cerrarModal()">&times;</span>
+                            <h2 class="modal-titulo-principal" id="modal-titulo">Nuevo Técnico</h2>
+
+                            <form id="form-tecnico" autocomplete="off">
+                                <div class="form-grid">
+                                    <div>
+                                        <label>Nombre *</label>
+                                        <input name="nombre" required maxlength="100">
+                                    </div>
+                                    <div>
+                                        <label>DNI</label>
+                                        <input name="dni" maxlength="20">
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar</button>
+                            </form>
+                        </div>
                     </div>
                 </div>
-
-                <!-- Panel flotante -->
-                <div class="erp-panel-flotante">
-                    <button id="btn-agregar" class="icon-button-erp agregar"><i class="fas fa-plus"></i></button>
-                    <button id="btn-modificar" class="icon-button-erp modificar"><i class="fas fa-edit"></i></button>
-                    <button id="btn-eliminar" class="icon-button-erp eliminar"><i class="fas fa-trash"></i></button>
-                </div>
-
-                <!-- Modal -->
-                <div id="modal-tecnico" class="modal">
-                    <div class="modal-contenido modal-erp-producto">
-                        <span class="cerrar" onclick="cerrarModal()">&times;</span>
-                        <h2 class="modal-titulo-principal" id="modal-titulo">Nuevo Técnico</h2>
-
-                        <form id="form-tecnico" autocomplete="off">
-                            <div class="form-grid">
-                                <div>
-                                    <label>Nombre *</label>
-                                    <input name="nombre" required maxlength="100">
-                                </div>
-                                <div>
-                                    <label>DNI</label>
-                                    <input name="dni" maxlength="20">
-                                </div>
-                            </div>
-                            <button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
     </main>
 
     <!-- Scripts -->

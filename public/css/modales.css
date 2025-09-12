@@ -851,3 +851,58 @@ input[readonly] {
   }
 }
 
+/* Modal planilla más grande */
+#modal-planilla .modal-contenido {
+  width: 90%;              /* más ancho */
+  max-width: 1200px;       /* límite grande */
+  height: 80vh;            /* más alto, ocupa el 80% de la pantalla */
+  display: flex;
+  flex-direction: column;
+}
+
+/* El contenedor de la tabla ocupa todo el espacio disponible */
+#modal-planilla .erp-table-card {
+  flex: 1;                 /* ocupa altura restante */
+  overflow-y: auto;        /* scroll vertical si hay muchas reparaciones */
+  margin-top: 10px;
+}
+
+/* Que la tabla sea más legible */
+#modal-planilla table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Encabezado más visible */
+#modal-planilla thead {
+  position: sticky;
+  top: 0;
+  background: #2176bd;   /* Azul fuerte */
+  color: #fff;           /* Texto blanco */
+  z-index: 1;
+}
+
+#modal-planilla th {
+  padding: 10px;
+  font-weight: bold;
+  text-align: center;
+  border-bottom: 2px solid #145388;
+}
+
+/* 🔹 Datos normales, sin negrita */
+#modal-planilla td {
+  font-weight: normal;   /* fuerza texto regular */
+  padding: 8px;
+  text-align: center;
+  border: 1px solid #ddd;
+}
+
+/* Alternar filas */
+#modal-planilla tbody tr:nth-child(even) {
+  background-color: #f9fbfd;
+}
+
+#modal-planilla tbody tr:hover {
+  background-color: #eaf5ff;
+}
+

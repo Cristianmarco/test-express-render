@@ -71,6 +71,49 @@
       padding: 6px 0;
       color: #333;
     }
+
+    .buscador-historial {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin: 15px auto;
+      padding: 10px 15px;
+      max-width: 600px;
+      background: #f9fbfd;
+      border: 1px solid #dce6f5;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    }
+
+    .buscador-historial input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #c5d8ef;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .buscador-historial input:focus {
+      border-color: #2176bd;
+      outline: none;
+      box-shadow: 0 0 4px rgba(33, 118, 189, 0.3);
+    }
+
+    .buscador-historial button {
+      background: #2176bd;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .buscador-historial button:hover {
+      background: #1a5a90;
+    }
   </style>
 </head>
 
@@ -109,6 +152,15 @@
         <div class="titulo-dota"><i class="fas fa-calendar-alt"></i> Planilla Diaria</div>
       </div>
 
+      <!-- BUSCADOR DE HISTORIAL -->
+      <div class="buscador-historial">
+        <input type="text" id="buscar-reparacion" placeholder="🔍 Buscar por ID Reparación..." />
+        <button id="btn-buscar-historial">
+          <i class="fas fa-search"></i> Buscar
+        </button>
+      </div>
+
+
       <div class="calendar-container">
         <div class="calendar-header">
           <button id="prevMonth" class="icon-button-erp visualizar"><i class="fas fa-chevron-left"></i></button>
@@ -132,21 +184,25 @@
         <table class="tabla-erp">
           <thead>
             <tr>
-              <th>ID Equipo</th>
               <th>Cliente</th>
+              <th>ID Reparación</th>
+              <th>Nº Coche</th>
+              <th>Equipo</th>
               <th>Técnico</th>
-              <th>Trabajo</th>
+              <th>Garantía</th>
               <th>Observaciones</th>
             </tr>
           </thead>
-          <tbody id="tbody-reparaciones">
-            <!-- JS carga -->
+          <tbody id="tbody-reparaciones"></tbody>
+          <!-- JS carga -->
           </tbody>
         </table>
       </div>
 
       <!-- PANEL FLOTANTE -->
       <div class="erp-panel-flotante">
+        <button id="btn-ver-detalle" class="icon-button-erp visualizar" title="Ver Detalle">
+          <i class="fas fa-eye"></i></button>
         <button id="btn-agregar-rep" class="icon-button-erp agregar" title="Agregar"><i
             class="fas fa-plus"></i></button>
         <button id="btn-modificar-rep" class="icon-button-erp modificar" title="Editar"><i
@@ -165,15 +221,25 @@
         <i class="fas fa-tools"></i> Nueva Reparación
       </h2>
 
+      <!-- 👇 acá abrís el form -->
       <form id="form-reparacion" autocomplete="off">
-        <!-- Cliente -->
+
         <div class="form-grid">
           <div>
             <label>Cliente *</label>
-            <select name="cliente_tipo" required>
+            <select id="cliente_tipo" name="cliente_tipo" required>
               <option value="">Seleccione cliente</option>
               <option value="dota">Dota</option>
               <option value="externo">Externo</option>
+            </select>
+          </div>
+
+          <!-- Select adicional (solo visible si se elige Externo) -->
+          <div id="cliente_externo_wrapper" style="display:none;">
+            <label>Seleccione cliente externo *</label>
+            <select id="cliente_id" name="cliente_id">
+              <option value="">Seleccione</option>
+              <!-- JS cargará aquí -->
             </select>
           </div>
         </div>
@@ -196,7 +262,6 @@
             <label>Equipo *</label>
             <select id="equipo_id" name="equipo_id" required>
               <option value="">Seleccione un equipo</option>
-              <!-- JS cargará aquí -->
             </select>
           </div>
         </div>
@@ -207,7 +272,6 @@
             <label>Técnico asignado *</label>
             <select id="tecnico_id" name="tecnico_id" required>
               <option value="">Seleccione técnico</option>
-              <!-- JS cargará aquí -->
             </select>
           </div>
         </div>
@@ -254,121 +318,73 @@
         <button type="submit" class="btn-guardar">
           <i class="fas fa-save"></i> Guardar Reparación
         </button>
-      </form>
+      </form> <!-- 👈 cierre correcto -->
     </div>
   </div>
 
 
-  <script>
-    function logout() { if (confirm('¿Seguro que deseas salir?')) window.location.href = '/'; }
-    function irA(seccion) { window.location.href = '/' + seccion; }
+  <!-- MODAL DETALLE REPARACIÓN -->
+  <div id="modal-detalle" class="modal">
+    <div class="modal-contenido modal-erp-producto modal-agregar-producto-grande">
+      <span class="cerrar" onclick="cerrarModalDetalle()">&times;</span>
+      <h2 class="modal-titulo-principal">
+        <i class="fas fa-info-circle"></i> Detalle de Reparación
+      </h2>
 
-    const calendarTitle = document.getElementById("calendarTitle");
-    const calendarGrid = document.getElementById("calendarGrid");
-    let currentDate = new Date();
+      <div class="detalle-grid">
+        <p><b>Cliente:</b> <span id="detalle-cliente"></span></p>
+        <p><b>ID Reparación:</b> <span id="detalle-id-reparacion"></span></p>
+        <p><b>Nº Coche:</b> <span id="detalle-coche"></span></p>
+        <p><b>Equipo:</b> <span id="detalle-equipo"></span></p>
+        <p><b>Técnico:</b> <span id="detalle-tecnico"></span></p>
+        <p><b>Hora inicio:</b> <span id="detalle-hora-inicio"></span></p>
+        <p><b>Hora fin:</b> <span id="detalle-hora-fin"></span></p>
+        <p><b>Trabajo:</b> <span id="detalle-trabajo"></span></p>
+        <p><b>Garantía:</b> <span id="detalle-garantia"></span></p>
+        <p><b>Observaciones:</b> <span id="detalle-observaciones"></span></p>
+      </div>
+    </div>
+  </div>
 
-    function renderCalendar(date) {
-      calendarGrid.innerHTML = "";
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      const monthName = date.toLocaleString("es-ES", { month: "long", year: "numeric" });
-      calendarTitle.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-      const weekdays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-      weekdays.forEach(day => {
-        const div = document.createElement("div");
-        div.textContent = day;
-        div.classList.add("calendar-weekday");
-        calendarGrid.appendChild(div);
-      });
-      const firstDay = new Date(year, month, 1);
-      const startDay = (firstDay.getDay() + 6) % 7;
-      const totalDays = new Date(year, month + 1, 0).getDate();
-      for (let i = 0; i < startDay; i++) {
-        const emptyDiv = document.createElement("div");
-        emptyDiv.classList.add("calendar-day", "empty");
-        calendarGrid.appendChild(emptyDiv);
-      }
-      for (let day = 1; day <= totalDays; day++) {
-        const div = document.createElement("div");
-        div.classList.add("calendar-day");
-        div.textContent = day;
-        const fecha = new Date(year, month, day).toISOString().split("T")[0];
-        div.onclick = () => abrirModalPlanilla(fecha);
-        calendarGrid.appendChild(div);
-      }
-    }
+  <!-- MODAL HISTORIAL REPARACIONES -->
+  <div id="modal-historial" class="modal">
+    <div class="modal-contenido modal-erp-producto modal-agregar-producto-grande">
+      <span class="cerrar" onclick="cerrarModalHistorial()">&times;</span>
+      <h2 class="modal-titulo-principal">
+        <i class="fas fa-history"></i> Historial de Reparaciones
+      </h2>
 
-    document.getElementById("prevMonth").onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(currentDate); }
-    document.getElementById("nextMonth").onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(currentDate); }
+      <!-- Datos fijos del equipo -->
+      <div class="detalle-grid" id="historial-datos">
+        <p><b>ID Reparación:</b> <span id="historial-id"></span></p>
+        <p><b>Cliente:</b> <span id="historial-cliente"></span></p>
+        <p><b>Equipo:</b> <span id="historial-equipo"></span></p>
+        <p><b>Nº Coche:</b> <span id="historial-coche"></span></p>
+      </div>
 
-    renderCalendar(currentDate);
+      <!-- Tabla de reparaciones -->
+      <div class="erp-table-card">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Trabajo</th>
+              <th>Hora inicio</th>
+              <th>Hora fin</th>
+              <th>Garantía</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-historial">
+            <!-- JS carga -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
-    // === MODAL PLANILLA ===
-    function abrirModalPlanilla(fecha) {
-      document.getElementById("fecha-planilla").textContent = fecha;
-      document.getElementById("modal-planilla").classList.add("mostrar");
-      cargarReparaciones(fecha);
-    }
-    function cerrarModalPlanilla() {
-      document.getElementById("modal-planilla").classList.remove("mostrar");
-      document.getElementById("tbody-reparaciones").innerHTML = "";
-    }
 
-    async function cargarReparaciones(fecha) {
-      try {
-        const res = await fetch(`/api/reparaciones?fecha=${fecha}`);
-        const data = await res.json();
-        const tbody = document.getElementById("tbody-reparaciones");
-        tbody.innerHTML = "";
-        if (!data.length) {
-          tbody.innerHTML = "<tr><td colspan='5'>No hay reparaciones</td></tr>";
-        } else {
-          data.forEach(r => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-              <td>${r.id_equipo}</td>
-              <td>${r.cliente}</td>
-              <td>${r.tecnico}</td>
-              <td>${r.trabajo}</td>
-              <td>${r.observaciones || "-"}</td>`;
-            tbody.appendChild(tr);
-          });
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
+  <script src="/scripts/planilla.js"></script>
 
-    // === MODAL REPARACIÓN ===
-    function abrirModalReparacion(titulo = "Nueva Reparación", datos = null) {
-      document.getElementById("modal-titulo-reparacion").textContent = titulo;
-      document.getElementById("modal-reparacion").classList.add("mostrar");
-      document.getElementById("form-reparacion").reset();
-
-      if (datos) {
-        // precargar datos para edición
-        for (const [key, value] of Object.entries(datos)) {
-          if (document.querySelector(`[name="${key}"]`)) {
-            document.querySelector(`[name="${key}"]`).value = value;
-          }
-        }
-      }
-    }
-
-    function cerrarModalReparacion() {
-      document.getElementById("modal-reparacion").classList.remove("mostrar");
-    }
-
-    // Botones del panel flotante de planilla
-    document.getElementById("btn-agregar-rep").onclick = () => abrirModalReparacion();
-    document.getElementById("btn-modificar-rep").onclick = () => {
-      alert("Editar reparación (pendiente implementar)");
-    };
-    document.getElementById("btn-eliminar-rep").onclick = () => {
-      alert("Eliminar reparación (pendiente implementar)");
-    };
-
-  </script>
 </body>
 
 </html>
