@@ -11,8 +11,9 @@ router.get("/historial/:id_reparacion", async (req, res) => {
   try {
     const query = `
       SELECT r.id, r.id_reparacion, r.coche_numero, r.fecha,
+             r.hora_inicio, r.hora_fin,   -- 👈 agregamos
              e.modelo AS equipo,
-             t.nombre AS tecnico,
+             t.nombre AS tecnico,          -- 👈 técnico
              COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
              r.trabajo, r.garantia, r.observaciones
       FROM equipos_reparaciones r
@@ -35,6 +36,7 @@ router.get("/historial/:id_reparacion", async (req, res) => {
     res.status(500).json({ error: "Error al obtener historial" });
   }
 });
+
 
 // ============================
 // GET reparaciones por fecha (planilla diaria)
@@ -170,7 +172,7 @@ router.post("/", async (req, res) => {
 });
 
 // ============================
-// PUT actualizar reparación
+// PUT: actualizar una reparación existente
 // ============================
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
@@ -192,19 +194,20 @@ router.put("/:id", async (req, res) => {
   try {
     const query = `
       UPDATE equipos_reparaciones
-      SET id_reparacion=$1,
-          coche_numero=$2,
-          equipo_id=$3,
-          tecnico_id=$4,
-          hora_inicio=$5,
-          hora_fin=$6,
-          trabajo=$7,
-          garantia=$8,
-          observaciones=$9,
-          fecha=$10,
-          cliente_id=$11,
-          cliente_tipo=$12
-      WHERE id=$13
+      SET 
+        id_reparacion = $1,
+        coche_numero = $2,
+        equipo_id = $3,
+        tecnico_id = $4,
+        hora_inicio = $5,
+        hora_fin = $6,
+        trabajo = $7,
+        garantia = $8,
+        observaciones = $9,
+        fecha = $10,
+        cliente_id = $11,
+        cliente_tipo = $12
+      WHERE id = $13
       RETURNING *;
     `;
 
@@ -221,21 +224,24 @@ router.put("/:id", async (req, res) => {
       fecha,
       cliente_id || null,
       cliente_tipo,
-      id, // 👈 este es el $13
+      id, // el ID real de la fila
     ];
 
     const result = await pool.query(query, values);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Reparación no encontrada" });
+      return res.status(404).json({ error: "❌ Reparación no encontrada" });
     }
 
+    console.log("✏️ Reparación actualizada:", result.rows[0]);
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("❌ Error PUT /reparaciones_planilla:", err);
+    console.error("❌ Error en PUT /reparaciones_planilla:", err);
     res.status(500).json({ error: "Error al actualizar reparación" });
   }
 });
+
+
 
 
 // ============================

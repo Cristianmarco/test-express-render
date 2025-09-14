@@ -906,3 +906,62 @@ input[readonly] {
   background-color: #eaf5ff;
 }
 
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  min-width: 250px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.4s ease;
+  z-index: 9999;
+}
+.toast.mostrar {
+  opacity: 1;
+  transform: translateY(0);
+}
+.toast.success { background: #28a745; }   /* Verde éxito */
+.toast.error { background: #dc3545; }     /* Rojo error */
+.toast.info { background: #2176bd; }      /* Azul info */
+
+/* Modal historial más ancho */
+.modal-historial-ancho {
+  width: 90%;               /* más ancho */
+  max-width: 1200px;        /* límite */
+  background: #fff;
+  padding: 20px 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  margin: auto;
+  overflow-y: auto;
+}
+
+/* Header con datos fijos */
+.historial-header {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+  background: #f9fbfd;
+  border: 1px solid #dce6f5;
+  border-radius: 8px;
+  padding: 12px 15px;
+  font-size: 14px;
+  color: #333;
+}
+
+.historial-header div {
+  display: flex;
+  gap: 5px;
+}
+
+/* Tabla dentro del modal */
+.historial-tabla {
+  max-height: 400px;
+  overflow-y: auto;
+}

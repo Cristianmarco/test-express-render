@@ -348,22 +348,22 @@
 
   <!-- MODAL HISTORIAL REPARACIONES -->
   <div id="modal-historial" class="modal">
-    <div class="modal-contenido modal-erp-producto modal-agregar-producto-grande">
+    <div class="modal-contenido modal-historial-ancho">
       <span class="cerrar" onclick="cerrarModalHistorial()">&times;</span>
       <h2 class="modal-titulo-principal">
         <i class="fas fa-history"></i> Historial de Reparaciones
       </h2>
 
       <!-- Datos fijos del equipo -->
-      <div class="detalle-grid" id="historial-datos">
-        <p><b>ID Reparación:</b> <span id="historial-id"></span></p>
-        <p><b>Cliente:</b> <span id="historial-cliente"></span></p>
-        <p><b>Equipo:</b> <span id="historial-equipo"></span></p>
-        <p><b>Nº Coche:</b> <span id="historial-coche"></span></p>
+      <div class="historial-header">
+        <div><b>ID Reparación:</b> <span id="historial-id"></span></div>
+        <div><b>Cliente:</b> <span id="historial-cliente"></span></div>
+        <div><b>Equipo:</b> <span id="historial-equipo"></span></div>
+        <div><b>Nº Coche:</b> <span id="historial-coche"></span></div>
       </div>
 
       <!-- Tabla de reparaciones -->
-      <div class="erp-table-card">
+      <div class="erp-table-card historial-tabla">
         <table class="tabla-erp">
           <thead>
             <tr>
@@ -371,6 +371,7 @@
               <th>Trabajo</th>
               <th>Hora inicio</th>
               <th>Hora fin</th>
+              <th>Técnico</th>
               <th>Garantía</th>
             </tr>
           </thead>
@@ -381,7 +382,6 @@
       </div>
     </div>
   </div>
-
 
   <script src="/scripts/planilla.js"></script>
 

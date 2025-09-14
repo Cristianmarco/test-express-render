@@ -1,9 +1,10 @@
 // ============================
 // Variables globales
 // ============================
-let currentDate = new Date();
-let reparacionSeleccionada = null;
-let modoEdicion = false;
+window.currentDate = new Date();
+window.reparacionSeleccionada = null;
+window.modoEdicion = false;
+
 
 // ============================
 // Render Calendario
@@ -102,7 +103,6 @@ async function cargarReparaciones(fecha) {
   }
 }
 
-
 // ============================
 // Seleccionar fila
 // ============================
@@ -117,7 +117,7 @@ function seleccionarReparacion(tr, datos) {
 // Modal Detalle
 // ============================
 function abrirModalDetalle() {
-  if (!reparacionSeleccionada) return alert("Selecciona una reparación primero");
+  if (!reparacionSeleccionada) return almostrarToast("Selecciona una reparación primero");
 
   document.getElementById("detalle-cliente").textContent = reparacionSeleccionada.cliente;
   document.getElementById("detalle-id-reparacion").textContent = reparacionSeleccionada.id_reparacion;
@@ -146,50 +146,34 @@ async function abrirModalReparacion(titulo = "Nueva Reparación", datos = null) 
   const modal = document.getElementById("modal-reparacion");
   const form = document.getElementById("form-reparacion");
 
-  // Abrir modal y setear título
   document.getElementById("modal-titulo-reparacion").textContent = titulo;
   modal.classList.add("mostrar");
 
   if (!form) return;
-
-  // 🔄 Siempre limpiar antes de precargar
   form.reset();
 
-  // === Cargar todos los selects siempre ===
   await cargarOpcionesSelect("/api/clientes", "cliente_id", "id", "fantasia", datos ? datos.cliente_id : null);
   await cargarOpcionesSelect("/api/equipos", "equipo_id", "id", "modelo", datos ? datos.equipo_id : null);
   await cargarOpcionesSelect("/api/tecnicos", "tecnico_id", "id", "nombre", datos ? datos.tecnico_id : null);
 
   const wrapper = document.getElementById("cliente_externo_wrapper");
 
-  // === Precargar datos si es edición ===
   if (datos) {
     for (const [k, v] of Object.entries(datos)) {
       if (form[k]) form[k].value = v;
     }
-
-    // Mostrar cliente externo si aplica
-    if (datos.cliente_tipo === "externo" && wrapper) {
-      wrapper.style.display = "block";
-    } else if (wrapper) {
-      wrapper.style.display = "none";
-    }
+    wrapper.style.display = datos.cliente_tipo === "externo" ? "block" : "none";
   } else {
-    // Alta nueva → asegurar wrapper oculto
-    if (wrapper) wrapper.style.display = "none";
+    wrapper.style.display = "none";
   }
 }
 
 function cerrarModalReparacion() {
   document.getElementById("modal-reparacion").classList.remove("mostrar");
-
   const form = document.getElementById("form-reparacion");
   if (form) form.reset();
-
-  const wrapper = document.getElementById("cliente_externo_wrapper");
-  if (wrapper) wrapper.style.display = "none";
+  document.getElementById("cliente_externo_wrapper").style.display = "none";
 }
-
 
 // ============================
 // Helper: cargar selects
@@ -203,12 +187,9 @@ async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto, valor
 
     const select = document.getElementById(selectId);
     if (!select) return;
-
-    // siempre dejamos la opción inicial
     select.innerHTML = `<option value="">Seleccione</option>`;
 
     if (!data.length) {
-      // si no hay datos, ponemos mensaje
       const opt = document.createElement("option");
       opt.value = "";
       opt.textContent = "⚠️ No hay registros disponibles";
@@ -216,7 +197,6 @@ async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto, valor
       return;
     }
 
-    // recorremos datos
     data.forEach(item => {
       const opt = document.createElement("option");
       opt.value = item[campoValor];
@@ -230,7 +210,6 @@ async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto, valor
     console.error("❌ Error cargando opciones de", url, err);
   }
 }
-
 
 // ============================
 // Select cliente externo
@@ -258,21 +237,24 @@ document.addEventListener("DOMContentLoaded", () => {
   form.onsubmit = async (e) => {
     e.preventDefault();
 
-    // Tomamos todos los valores del formulario
     const datos = Object.fromEntries(new FormData(form).entries());
     datos.fecha = document.getElementById("fecha-planilla").textContent;
 
-    // 🔑 Si es externo, agregamos el cliente_id real
     if (datos.cliente_tipo === "externo") {
       datos.cliente_id = document.getElementById("cliente_id").value;
     }
 
-    // Configuración de endpoint
     let url = "/api/reparaciones_planilla";
     let method = "POST";
 
-    if (modoEdicion && reparacionSeleccionada && reparacionSeleccionada.id) {
-      url = `/api/reparaciones_planilla/${reparacionSeleccionada.id}`;
+    // 👇 Confirmamos el estado global
+    console.log("🔎 Estado antes de enviar:", {
+      modoEdicion: window.modoEdicion,
+      reparacionSeleccionada: window.reparacionSeleccionada
+    });
+
+    if (window.modoEdicion && window.reparacionSeleccionada && window.reparacionSeleccionada.id) {
+      url = `/api/reparaciones_planilla/${window.reparacionSeleccionada.id}`;
       method = "PUT";
     }
 
@@ -294,105 +276,109 @@ document.addEventListener("DOMContentLoaded", () => {
       cargarReparaciones(datos.fecha);
 
       // Resetear estado
-      reparacionSeleccionada = null;
-      modoEdicion = false;
+      window.reparacionSeleccionada = null;
+      window.modoEdicion = false;
     } catch (err) {
       console.error("❌ Error en el guardado:", err);
-      alert("Error al guardar reparación");
+      mostrarToast("Error al guardar reparación");
     }
   };
-});
 
+
+  // === BUSCADOR ===
+  const btnBuscar = document.getElementById("btn-buscar-historial");
+  const inputBuscar = document.getElementById("buscar-reparacion");
+  if (btnBuscar && inputBuscar) {
+    btnBuscar.onclick = async () => {
+      const idReparacion = inputBuscar.value.trim();
+      if (!idReparacion) {
+        mostrarToast("Ingrese un ID de reparación");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/reparaciones_planilla/historial/${idReparacion}`);
+        if (!res.ok) throw new Error("No se encontraron reparaciones");
+        const data = await res.json();
+        console.log("📜 Historial recibido:", data);
+        if (data.length > 0) {
+          abrirModalHistorial(data[0], data);
+        } else {
+          mostrarToast("No se encontraron reparaciones para ese ID");
+        }
+      } catch (err) {
+        console.error("❌ Error al buscar historial:", err);
+        mostrarToast("No se encontraron reparaciones para ese ID");
+      }
+    };
+    inputBuscar.addEventListener("keyup", (e) => {
+      if (e.key === "Enter") btnBuscar.click();
+    });
+  }
+});
 
 // ============================
 // Botones de acción
 // ============================
 document.getElementById("btn-agregar-rep").onclick = () => {
-  modoEdicion = false;
-  reparacionSeleccionada = null; // 👈 aseguramos limpiar selección
+  window.modoEdicion = false;
+  window.reparacionSeleccionada = null;
+  console.log("➕ Nueva reparación → POST");
   abrirModalReparacion("Nueva Reparación");
 };
 
 document.getElementById("btn-modificar-rep").onclick = () => {
-  if (!reparacionSeleccionada) return alert("Selecciona una reparación primero");
-  modoEdicion = true;
-  abrirModalReparacion("Editar Reparación", reparacionSeleccionada);
+  if (!window.reparacionSeleccionada) {
+    mostrarToast("Selecciona una reparación primero");
+    return;
+  }
+  window.modoEdicion = true;
+  console.log("✏️ Editando reparación ID:", window.reparacionSeleccionada.id, "→ PUT");
+  abrirModalReparacion("Editar Reparación", window.reparacionSeleccionada);
 };
+
 document.getElementById("btn-eliminar-rep").onclick = async () => {
-  if (!reparacionSeleccionada) return alert("Selecciona una reparación primero");
+  if (!reparacionSeleccionada) return mostrarToast("Selecciona una reparación primero");
   if (!confirm(`¿Eliminar reparación ${reparacionSeleccionada.id_reparacion}?`)) return;
   try {
-    const res = await fetch(
-      `/api/reparaciones_planilla/${reparacionSeleccionada.id}?cliente_tipo=${reparacionSeleccionada.cliente_tipo}`,
-      { method: "DELETE" }
-    );
+    const res = await fetch(`/api/reparaciones_planilla/${reparacionSeleccionada.id}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Error al eliminar");
-    alert("Reparación eliminada ✔️");
+    mostrarToast("Reparación eliminada ✔️");
     reparacionSeleccionada = null;
     cargarReparaciones(document.getElementById("fecha-planilla").textContent);
   } catch (err) {
     console.error("❌ Error en DELETE:", err);
-    alert("❌ Error al eliminar reparación");
+    mostrarToast("❌ Error al eliminar reparación");
   }
 };
 document.getElementById("btn-ver-detalle").onclick = abrirModalDetalle;
 
-// Deseleccionar fila al hacer click fuera de la tabla
+// Deseleccionar fila al hacer click fuera de la tabla,
+// excepto si el modal de reparación está abierto
 document.addEventListener("click", (e) => {
   const tbody = document.getElementById("tbody-reparaciones");
   const filaSeleccionada = document.querySelector("#tbody-reparaciones tr.seleccionado");
+  const modalPlanilla = document.getElementById("modal-planilla");
+  const modalReparacion = document.getElementById("modal-reparacion");
 
-  if (!filaSeleccionada) return; // nada seleccionado
+  if (!filaSeleccionada) return;
 
-  // Si el click no fue dentro del tbody → deseleccionamos
-  if (tbody && !tbody.contains(e.target)) {
+  // ❌ No deseleccionar si el modal de reparación está abierto
+  if (modalReparacion.classList.contains("mostrar")) {
+    return;
+  }
+
+  if (tbody && !tbody.contains(e.target) && !modalPlanilla.contains(e.target)) {
     filaSeleccionada.classList.remove("seleccionado");
     reparacionSeleccionada = null;
     console.log("ℹ️ Fila deseleccionada");
   }
 });
 
-document.addEventListener("DOMContentLoaded", () => {
-  const btnBuscar = document.getElementById("btn-buscar-historial");
-  const inputBuscar = document.getElementById("buscar-reparacion");
 
-  if (!btnBuscar || !inputBuscar) {
-    console.error("❌ No se encontró el buscador en el DOM");
-    return;
-  }
 
-  // Buscar historial
-  btnBuscar.onclick = async () => {
-    const idReparacion = inputBuscar.value.trim();
-    if (!idReparacion) {
-      alert("Ingrese un ID de reparación");
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/reparaciones_planilla/historial/${idReparacion}`);
-      if (!res.ok) throw new Error("No se encontraron reparaciones");
-
-      const data = await res.json();
-      console.log("📜 Historial recibido:", data);
-
-      if (data.length > 0) {
-        abrirModalHistorial(data[0], data); // 👈 abre el modal con datos
-      } else {
-        alert("No se encontraron reparaciones para ese ID");
-      }
-    } catch (err) {
-      console.error("❌ Error al buscar historial:", err);
-      alert("No se encontraron reparaciones para ese ID");
-    }
-  };
-
-  // Enter = buscar
-  inputBuscar.addEventListener("keyup", (e) => {
-    if (e.key === "Enter") btnBuscar.click();
-  });
-});
-
+// ============================
+// Modal Historial
+// ============================
 function abrirModalHistorial(datosEquipo, historial) {
   // Datos fijos
   document.getElementById("historial-id").textContent = datosEquipo.id_reparacion;
@@ -407,14 +393,16 @@ function abrirModalHistorial(datosEquipo, historial) {
   historial.forEach(r => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${new Date(r.fecha).toLocaleDateString("es-AR")}</td>
-      <td>${r.trabajo}</td>
-      <td>${r.hora_inicio || "-"}</td>
-      <td>${r.hora_fin || "-"}</td>
-      <td>${r.garantia === "si" ? "✔️" : "❌"}</td>
-    `;
+    <td>${new Date(r.fecha).toLocaleDateString("es-AR")}</td>
+    <td>${r.trabajo}</td>
+    <td>${r.hora_inicio || "-"}</td>
+    <td>${r.hora_fin || "-"}</td>
+    <td>${r.tecnico || "-"}</td>
+    <td>${r.garantia === "si" ? "✔️" : "❌"}</td>
+  `;
     tbody.appendChild(tr);
   });
+
 
   // Mostrar modal
   document.getElementById("modal-historial").classList.add("mostrar");
@@ -422,4 +410,30 @@ function abrirModalHistorial(datosEquipo, historial) {
 
 function cerrarModalHistorial() {
   document.getElementById("modal-historial").classList.remove("mostrar");
+
+  // 👇 limpiar campo buscador
+  const inputBuscar = document.getElementById("buscar-reparacion");
+  if (inputBuscar) inputBuscar.value = "";
+}
+
+
+// ============================
+// Toast Notificaciones
+// ============================
+function mostrarToast(mensaje, tipo = "info") {
+  // Crear elemento
+  const toast = document.createElement("div");
+  toast.className = `toast ${tipo}`;
+  toast.textContent = mensaje;
+
+  document.body.appendChild(toast);
+
+  // Mostrar animado
+  setTimeout(() => toast.classList.add("mostrar"), 100);
+
+  // Ocultar después de 3s
+  setTimeout(() => {
+    toast.classList.remove("mostrar");
+    setTimeout(() => toast.remove(), 400);
+  }, 3000);
 }
