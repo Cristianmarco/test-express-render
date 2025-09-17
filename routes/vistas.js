@@ -44,6 +44,49 @@ router.get('/clientes', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/views/clientes.html'));
 });
 
+router.get('/productos', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/views/productos.html'));
+});
+
+router.get('/configuracion/familia', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/views/configuracion/familia.html'));
+});
+
+// === CONFIGURACIÓN ===
+router.get('/configuracion/familia', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'familia.html'));
+});
+
+router.get('/configuracion/grupo', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'grupo.html'));
+});
+
+router.get('/configuracion/marca', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'marca.html'));
+});
+
+router.get('/configuracion/categoria', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'categoria.html'));
+});
+
+router.get('/configuracion/proveedores', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/views/configuracion/proveedores.html'));
+});
+
+router.get('/planilla', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'planilla.html'));
+});
+
+router.get('/configuracion/equipos', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'equipos.html'));
+});
+
+router.get('/configuracion/tecnicos', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'tecnicos.html'));
+});
+
+
+
 // Puedes agregar más rutas de vistas aquí según tu menú lateral
 
 module.exports = router;

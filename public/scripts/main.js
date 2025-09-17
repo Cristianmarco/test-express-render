@@ -5,13 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-
-function logout() {
-  if (confirm('¿Seguro que deseas salir?')) {
-    window.location.href = '/';
-  }
-}
-
 function irA(seccion) {
   switch (seccion) {
     case 'externos':
@@ -34,3 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('user-name').textContent = `Bienvenido, ${username}`;
   }
 });
+
+function toggleSubmenuTablas(e) {
+  e.preventDefault();
+  var submenu = document.getElementById('submenu-tablas-generales');
+  submenu.style.display = submenu.style.display === "none" ? "block" : "none";
+}
+
+

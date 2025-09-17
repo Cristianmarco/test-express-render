@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Familia</title>
+
+  <!-- Estilos generales -->
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/tablas.css">
+  <link rel="stylesheet" href="/css/modales.css">
+  <link rel="stylesheet" href="/css/botones.css">
+
+  <!-- Estilos específicos para familia -->
+  <link rel="stylesheet" href="/css/familia.css">
+
+  <!-- Iconos -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+
+<body class="main-dashboard">
+
+  <!-- HEADER -->
+  <header class="main-header">
+    <div class="logo">
+      <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header" />
+    </div>
+    <div class="user-info">
+      <i class="fas fa-user-circle"></i>
+      <span id="user-name">Bienvenido, Usuario</span>
+      <button class="logout-button" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <nav>
+      <ul>
+        <li>
+          <button class="sidebar-btn destacado" onclick="irA('configuracion')">
+            <i class="fas fa-home"></i> Inicio
+          </button>
+        </li>
+
+        <!-- Tablas Generales -->
+        <li>
+          <button type="button" class="sidebar-btn destacado" id="btn-tablas">
+            <i class="fas fa-table"></i> Tablas Generales
+          </button>
+          <ul id="submenu-tablas" class="submenu submenu-cerrado" style="margin-left:15px;">
+            <li><a href="/configuracion/familia" class="active"><i class="fas fa-tags"></i> Familia</a></li>
+            <li><a href="/configuracion/grupo"><i class="fas fa-layer-group"></i> Grupo</a></li>
+            <li><a href="/configuracion/marca"><i class="fas fa-trademark"></i> Marca</a></li>
+            <li><a href="/configuracion/categoria"><i class="fas fa-list"></i> Categoría</a></li>
+            <li><a href="/configuracion/proveedores"><i class="fas fa-truck"></i> Proveedores</a></li>
+          </ul>
+        </li>
+
+        <hr>
+
+        <!-- Otros enlaces -->
+        <li><a href="/productos"><i class="fas fa-box"></i> Productos</a></li>
+        <li><a href="/reportes"><i class="fas fa-chart-line"></i> Reportes</a></li>
+        <li><a href="/usuarios"><i class="fas fa-users"></i> Usuarios</a></li>
+        <li><a href="/configuracion"><i class="fas fa-cog"></i> Configuración</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="content">
+    <div class="erp-main-card">
+      <div class="erp-header-row">
+        <div class="titulo-dota"><i class="fas fa-tags"></i> Familias</div>
+        <div class="productos-cabecera-datos">
+          <span><i class="fas fa-database"></i> Total: <b id="total-familias">0</b></span>
+        </div>
+      </div>
+
+      <div class="erp-table-card">
+        <table class="tabla-erp" id="tabla-familia">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre de Familia</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-familias">
+            <tr>
+              <td colspan="2" style="text-align:center; color:#888;">Sin datos</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PANEL FLOTANTE ACCIONES -->
+      <div class="erp-panel-flotante">
+        <button id="btn-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
+        <button id="btn-modificar" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
+        <button id="btn-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i
+            class="fas fa-trash"></i></button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MODAL FAMILIA -->
+  <div id="modal-familia" class="modal">
+    <div class="modal-contenido modal-erp-producto">
+      <button type="button" class="cerrar" onclick="cerrarModal()">&times;</button>
+      <h2 id="modal-titulo" class="modal-titulo-principal">Nueva Familia</h2>
+
+      <form id="form-familia">
+        <div class="form-grid doble">
+          <div>
+            <label for="codigo">Código *</label>
+            <input type="text" name="codigo" id="codigo" maxlength="10" required>
+          </div>
+          <div>
+            <label for="descripcion">Nombre de Familia *</label>
+            <input type="text" name="descripcion" id="descripcion" maxlength="50" required>
+          </div>
+        </div>
+        <button type="submit" class="btn-guardar">
+          <i class="fas fa-save"></i> Guardar
+        </button>
+      </form>
+    </div>
+  </div>
+
+
+  <script src="/scripts/familia.js"></script>
+  <script>
+    function irA(ruta) {
+      window.location.href = "/" + ruta;
+    }
+    function logout() {
+      if (confirm('¿Seguro que deseas salir?')) {
+        window.location.href = '/';
+      }
+    }
+    document.getElementById("btn-tablas").addEventListener("click", function (e) {
+      e.preventDefault();
+      const submenu = document.getElementById("submenu-tablas");
+      submenu.classList.toggle("submenu-abierto");
+      submenu.classList.toggle("submenu-cerrado");
+    });
+  </script>
+
+</body>
+
+</html>

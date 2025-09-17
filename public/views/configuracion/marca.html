@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marca</title>
+
+    <!-- Estilos -->
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/tablas.css">
+    <link rel="stylesheet" href="/css/modales.css">
+    <link rel="stylesheet" href="/css/botones.css">
+    <link rel="stylesheet" href="/css/familia.css">
+
+    <!-- Iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+
+<body class="main-dashboard">
+
+    <!-- HEADER -->
+    <header class="main-header">
+        <div class="logo">
+            <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header" />
+        </div>
+        <div class="user-info">
+            <i class="fas fa-user-circle"></i>
+            <span id="user-name">Bienvenido, Usuario</span>
+            <button class="logout-button" onclick="logout()">Salir</button>
+        </div>
+    </header>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <nav>
+            <ul>
+                <li>
+                    <button type="button" class="sidebar-btn destacado" id="btn-tablas">
+                        <i class="fas fa-table"></i> Tablas Generales
+                    </button>
+                    <ul id="submenu-tablas" class="submenu submenu-abierto" style="margin-left:15px;">
+                        <li><a href="/configuracion/familia"><i class="fas fa-tags"></i> Familia</a></li>
+                        <li><a href="/configuracion/grupo"><i class="fas fa-layer-group"></i> Grupo</a></li>
+                        <li><a href="/configuracion/marca" class="active"><i class="fas fa-trademark"></i> Marca</a>
+                        </li>
+                        <li><a href="/configuracion/categoria"><i class="fas fa-list"></i> Categoría</a></li>
+                        <li><a href="/configuracion/proveedores"><i class="fas fa-truck"></i> Proveedores</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <!-- CONTENIDO -->
+    <main class="content">
+        <div class="erp-main-card">
+            <div class="erp-header-row">
+                <div class="titulo-dota"><i class="fas fa-trademark"></i> Marcas</div>
+                <div class="productos-cabecera-datos">
+                    <span><i class="fas fa-database"></i> Total: <b id="total-marca">0</b></span>
+                </div>
+            </div>
+
+            <div class="erp-table-card">
+                <table class="tabla-erp" id="tabla-marca">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Nombre de Marca</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-marca">
+                        <tr>
+                            <td colspan="2" style="text-align:center; color:#888;">Sin datos</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Panel flotante -->
+            <div class="erp-panel-flotante">
+                <button id="btn-agregar" class="icon-button-erp agregar" title="Agregar"><i
+                        class="fas fa-plus"></i></button>
+                <button id="btn-modificar" class="icon-button-erp modificar" title="Editar"><i
+                        class="fas fa-edit"></i></button>
+                <button id="btn-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i
+                        class="fas fa-trash"></i></button>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODAL -->
+    <div id="modal-marca" class="modal">
+        <div class="modal-contenido modal-erp-producto">
+            <button id="cerrar-modal" class="cerrar">&times;</button>
+            <h2 id="modal-titulo" class="modal-titulo-principal"><i class="fas fa-plus"></i> Nueva Marca</h2>
+            <form id="form-marca">
+                <div class="form-grid">
+                    <div>
+                        <label for="codigo">Código *</label>
+                        <input type="text" name="codigo" id="codigo" maxlength="10" required>
+                    </div>
+                    <div>
+                        <label for="descripcion">Nombre de Marca *</label>
+                        <input type="text" name="descripcion" id="descripcion" maxlength="50" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/scripts/marca.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Configuración - Equipos</title>
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/tablas.css">
+    <link rel="stylesheet" href="/css/botones.css">
+    <link rel="stylesheet" href="/css/modales.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+
+<body class="main-dashboard">
+
+    <!-- HEADER -->
+    <header class="main-header">
+        <div class="logo">
+            <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header">
+        </div>
+        <div class="user-info">
+            <i class="fas fa-user-circle"></i>
+            <span id="user-name">Bienvenido, Usuario</span>
+            <button class="logout-button" onclick="logout()">Salir</button>
+        </div>
+    </header>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <nav>
+            <ul>
+                <li><a href="/main"><i class="fas fa-home"></i> Inicio</a></li>
+                <li><a href="/productos"><i class="fas fa-box"></i> Productos</a></li>
+                <li><a href="/configuracion" class="sidebar-link active"><i class="fas fa-cog"></i> Configuración</a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <!-- CONTENIDO -->
+    <main class="content">
+        <div class="erp-main-card">
+            <div class="erp-header-row">
+                <div class="titulo-dota"><i class="fas fa-tools"></i> Equipos</div>
+                <div class="productos-cabecera-datos">
+                    <span><i class="fas fa-database"></i> Total: <b id="total-equipos">0</b></span>
+                </div>
+            </div>
+
+            <div class="erp-content-row">
+                <!-- Izquierda -->
+                <div class="erp-col-izq">
+                    <div class="erp-table-card">
+                        <table class="tabla-erp">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>ID Dota</th>
+                                    <th>Marca</th>
+                                    <th>Modelo</th>
+                                    <th>Descripción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-equipos">
+                                <!-- JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Derecha -->
+                <div class="erp-col-der">
+                    <div class="erp-card-resumen">
+                        <div class="erp-card-titulo"><i class="fas fa-info-circle"></i> Ficha del Equipo</div>
+                        <div class="erp-resumen-dato"><b>ID:</b> -</div>
+                        <div class="erp-resumen-dato"><b>ID Dota:</b> -</div>
+                        <div class="erp-resumen-dato"><b>Marca:</b> -</div>
+                        <div class="erp-resumen-dato"><b>Modelo:</b> -</div>
+                        <div class="erp-resumen-dato"><b>Descripción:</b> -</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel flotante -->
+            <div class="erp-panel-flotante">
+                <button id="btn-agregar" class="icon-button-erp agregar"><i class="fas fa-plus"></i></button>
+                <button id="btn-modificar" class="icon-button-erp modificar"><i class="fas fa-edit"></i></button>
+                <button id="btn-eliminar" class="icon-button-erp eliminar"><i class="fas fa-trash"></i></button>
+            </div>
+
+            <!-- Modal -->
+            <div id="modal-equipo" class="modal">
+                <div class="modal-contenido modal-erp-producto">
+                    <span class="cerrar" onclick="cerrarModal()">&times;</span>
+                    <h2 class="modal-titulo-principal" id="modal-titulo">Nuevo Equipo</h2>
+
+                    <form id="form-equipo" autocomplete="off">
+                        <div class="form-grid">
+                            <div>
+                                <label>ID Dota</label>
+                                <input name="id_dota" maxlength="50">
+                            </div>
+                            <div>
+                                <label>Marca</label>
+                                <input name="marca" required maxlength="50">
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div>
+                                <label>Modelo</label>
+                                <input name="modelo" required maxlength="50">
+                            </div>
+                            <div>
+                                <label>Descripción</label>
+                                <input name="descripcion" maxlength="200">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/scripts/equipos.js"></script>
+</body>
+
+</html>

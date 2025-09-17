@@ -182,3 +182,28 @@
   color: #fff;
 }
 
+.sidebar-link {
+  color: #fff;
+  text-decoration: none;
+  font-size: 16px;
+  padding: 15px 30px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: background 0.3s, color 0.3s;
+  border-radius: 8px;
+}
+
+.sidebar-link:hover,
+.sidebar-link.active {
+  background-color: #1175d8;
+  color: #fff;
+}
+
+.icon-button-erp.stock {
+  color: #1d88e5;
+}
+.icon-button-erp.stock:hover {
+  background: #d6ebff;
+  color: #0a4f91;
+}

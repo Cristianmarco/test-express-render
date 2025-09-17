@@ -1,44 +1,56 @@
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const { body, validationResult } = require('express-validator');
+const express = require("express");
 const router = express.Router();
+const pool = require("../db");
 
-const stockPath = path.join(__dirname, '..', 'stock.json');
-
-// GET
-router.get('/', (req, res, next) => {
-  fs.readFile(stockPath, 'utf-8', (err, data) => {
-    if (err) return next(err);
-    res.json(JSON.parse(data || '[]'));
-  });
+// Stock por producto
+router.get("/:productoId", async (req, res) => {
+  const { productoId } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT d.id deposito_id, d.nombre deposito, COALESCE(s.cantidad,0) cantidad
+       FROM depositos d
+       LEFT JOIN stock s ON s.deposito_id = d.id AND s.producto_id = $1
+       ORDER BY d.nombre`,
+      [productoId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error cargando stock" });
+  }
 });
 
-// POST
-router.post(
-  '/',
-  [
-    body('codigo').notEmpty().withMessage('El campo "codigo" es obligatorio'),
-    body('descripcion').notEmpty().withMessage('El campo "descripcion" es obligatorio')
-  ],
-  (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+// Movimiento de stock
+router.post("/movimiento", async (req, res) => {
+  const { producto_id, deposito_id, tipo, cantidad, observacion } = req.body;
+  await pool.query("BEGIN");
+  try {
+    const sign = tipo === "ENTRADA" ? 1 : -1;
 
-    const nuevo = req.body;
-    fs.readFile(stockPath, 'utf-8', (err, data) => {
-      if (err) return next(err);
-      let arr = [];
-      try { arr = JSON.parse(data); } catch { return next(new Error('Error al parsear stock')); }
-      arr.push(nuevo);
-      fs.writeFile(stockPath, JSON.stringify(arr, null, 2), err => {
-        if (err) return next(err);
-        res.status(201).json({ mensaje: 'Reparación agregada' });
-      });
-    });
+    // Actualizar stock (si no existe crea, si existe actualiza)
+    await pool.query(
+      `INSERT INTO stock (producto_id, deposito_id, cantidad)
+       VALUES ($1,$2,$3)
+       ON CONFLICT (producto_id, deposito_id)
+       DO UPDATE SET cantidad = stock.cantidad + EXCLUDED.cantidad`,
+      [producto_id, deposito_id, sign * cantidad]
+    );
+
+    // Registrar movimiento
+    await pool.query(
+      `INSERT INTO movimientos_stock 
+        (producto_id, deposito_id, tipo, cantidad, observacion) 
+       VALUES ($1,$2,$3,$4,$5)`,
+      [producto_id, deposito_id, tipo, cantidad, observacion]
+    );
+
+    await pool.query("COMMIT");
+    res.json({ success: true });
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Error en movimiento de stock" });
   }
-);
+});
 
 module.exports = router;

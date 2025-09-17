@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planilla Diaria</title>
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/tablas.css">
+  <link rel="stylesheet" href="/css/botones.css">
+  <link rel="stylesheet" href="/css/modales.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    .calendar-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 700px;
+    }
+
+    .calendar-header h2 {
+      margin: 0;
+      font-size: 1.5rem;
+      color: #2176bd;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      width: 100%;
+      max-width: 700px;
+    }
+
+    .calendar-day {
+      background: #f9fbfd;
+      border: 1px solid #dce6f5;
+      border-radius: 8px;
+      height: 90px;
+      padding: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      font-size: 0.9rem;
+    }
+
+    .calendar-day:hover {
+      background: #eaf5ff;
+    }
+
+    .calendar-day.empty {
+      background: transparent;
+      border: none;
+      cursor: default;
+    }
+
+    .calendar-weekday {
+      font-weight: bold;
+      text-align: center;
+      padding: 6px 0;
+      color: #333;
+    }
+
+    .buscador-historial {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin: 15px auto;
+      padding: 10px 15px;
+      max-width: 600px;
+      background: #f9fbfd;
+      border: 1px solid #dce6f5;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    }
+
+    .buscador-historial input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #c5d8ef;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .buscador-historial input:focus {
+      border-color: #2176bd;
+      outline: none;
+      box-shadow: 0 0 4px rgba(33, 118, 189, 0.3);
+    }
+
+    .buscador-historial button {
+      background: #2176bd;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .buscador-historial button:hover {
+      background: #1a5a90;
+    }
+  </style>
+</head>
+
+<body class="main-dashboard">
+  <!-- HEADER -->
+  <header class="main-header">
+    <div class="logo">
+      <img src="/images/logo.png" alt="Logo Empresa" height="40" class="logo-header">
+    </div>
+    <div class="user-info">
+      <i class="fas fa-user-circle"></i>
+      <span id="user-name">Bienvenido, Usuario</span>
+      <button class="logout-button" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <nav>
+      <ul>
+        <li>
+          <a href="/main" class="sidebar-link">
+            <i class="fas fa-home"></i> Inicio
+          </a>
+        </li>
+        <li><a href="/productos" class="sidebar-link"><i class="fas fa-box"></i> Productos</a></li>
+        <li><a href="/reportes" class="sidebar-link"><i class="fas fa-chart-line"></i> Reportes</a></li>
+        <li><a href="/usuarios" class="sidebar-link"><i class="fas fa-users"></i> Usuarios</a></li>
+        <li><a href="/configuracion" class="sidebar-link"><i class="fas fa-cog"></i> Configuración</a></li>
+        <hr>
+        <li><a href="/planilla" class="sidebar-link active"><i class="fas fa-calendar-alt"></i> Planilla Diaria</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- CONTENIDO -->
+  <main class="content">
+    <div class="erp-main-card">
+      <div class="erp-header-row">
+        <div class="titulo-dota"><i class="fas fa-calendar-alt"></i> Planilla Diaria</div>
+      </div>
+
+      <!-- BUSCADOR DE HISTORIAL -->
+      <div class="buscador-historial">
+        <input type="text" id="buscar-reparacion" placeholder="🔍 Buscar por ID Reparación..." />
+        <button id="btn-buscar-historial">
+          <i class="fas fa-search"></i> Buscar
+        </button>
+      </div>
+
+
+      <div class="calendar-container">
+        <div class="calendar-header">
+          <button id="prevMonth" class="icon-button-erp visualizar"><i class="fas fa-chevron-left"></i></button>
+          <h2 id="calendarTitle"></h2>
+          <button id="nextMonth" class="icon-button-erp visualizar"><i class="fas fa-chevron-right"></i></button>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"><!-- JS carga días --></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL PLANILLA DIARIA -->
+  <div id="modal-planilla" class="modal">
+    <div class="modal-contenido modal-erp-producto modal-agregar-producto-grande">
+      <span class="cerrar" onclick="cerrarModalPlanilla()">&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-clipboard-list"></i> Reparaciones del <span
+          id="fecha-planilla"></span></h2>
+
+      <!-- Tabla reparaciones -->
+      <div class="erp-table-card">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>ID Reparación</th>
+              <th>Nº Coche</th>
+              <th>Equipo</th>
+              <th>Técnico</th>
+              <th>Garantía</th>
+              <th>Observaciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-reparaciones"></tbody>
+          <!-- JS carga -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PANEL FLOTANTE -->
+      <div class="erp-panel-flotante">
+        <button id="btn-ver-detalle" class="icon-button-erp visualizar" title="Ver Detalle">
+          <i class="fas fa-eye"></i></button>
+        <button id="btn-agregar-rep" class="icon-button-erp agregar" title="Agregar"><i
+            class="fas fa-plus"></i></button>
+        <button id="btn-modificar-rep" class="icon-button-erp modificar" title="Editar"><i
+            class="fas fa-edit"></i></button>
+        <button id="btn-eliminar-rep" class="icon-button-erp eliminar" title="Eliminar"><i
+            class="fas fa-trash"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL REPARACIÓN DIARIA -->
+  <div id="modal-reparacion" class="modal" tabindex="-1">
+    <div class="modal-contenido modal-erp-producto modal-agregar-producto-grande">
+      <span class="cerrar" onclick="cerrarModalReparacion()">&times;</span>
+      <h2 class="modal-titulo-principal" id="modal-titulo-reparacion">
+        <i class="fas fa-tools"></i> Nueva Reparación
+      </h2>
+
+      <!-- 👇 acá abrís el form -->
+      <form id="form-reparacion" autocomplete="off">
+
+        <div class="form-grid">
+          <div>
+            <label>Cliente *</label>
+            <select id="cliente_tipo" name="cliente_tipo" required>
+              <option value="">Seleccione cliente</option>
+              <option value="dota">Dota</option>
+              <option value="externo">Externo</option>
+            </select>
+          </div>
+
+          <!-- Select adicional (solo visible si se elige Externo) -->
+          <div id="cliente_externo_wrapper" style="display:none;">
+            <label>Seleccione cliente externo *</label>
+            <select id="cliente_id" name="cliente_id">
+              <option value="">Seleccione</option>
+              <!-- JS cargará aquí -->
+            </select>
+          </div>
+        </div>
+
+        <!-- ID Reparación + Nº Coche -->
+        <div class="form-grid doble">
+          <div>
+            <label>ID Reparación (nuestro) *</label>
+            <input type="text" name="id_reparacion" maxlength="20" required />
+          </div>
+          <div>
+            <label>Nº Coche</label>
+            <input type="text" name="coche_numero" maxlength="20" />
+          </div>
+        </div>
+
+        <!-- Equipo -->
+        <div class="form-grid">
+          <div>
+            <label>Equipo *</label>
+            <select id="equipo_id" name="equipo_id" required>
+              <option value="">Seleccione un equipo</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Técnico -->
+        <div class="form-grid">
+          <div>
+            <label>Técnico asignado *</label>
+            <select id="tecnico_id" name="tecnico_id" required>
+              <option value="">Seleccione técnico</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Horarios -->
+        <div class="form-grid doble">
+          <div>
+            <label>Hora inicio *</label>
+            <input type="time" name="hora_inicio" required />
+          </div>
+          <div>
+            <label>Hora fin</label>
+            <input type="time" name="hora_fin" />
+          </div>
+        </div>
+
+        <!-- Trabajo / Repuestos -->
+        <div class="form-grid">
+          <div>
+            <label>Trabajo realizado / Repuestos *</label>
+            <textarea name="trabajo" rows="3" required></textarea>
+          </div>
+        </div>
+
+        <!-- Garantía -->
+        <div class="form-grid">
+          <div>
+            <label>¿Es garantía?</label>
+            <select name="garantia">
+              <option value="no">No</option>
+              <option value="si">Sí</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Observaciones -->
+        <div class="form-grid">
+          <div>
+            <label>Observaciones</label>
+            <textarea name="observaciones" rows="2"></textarea>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-guardar">
+          <i class="fas fa-save"></i> Guardar Reparación
+        </button>
+      </form> <!-- 👈 cierre correcto -->
+    </div>
+  </div>
+
+
+  <!-- MODAL DETALLE REPARACIÓN -->
+  <div id="modal-detalle" class="modal">
+    <div class="modal-contenido modal-erp-producto modal-agregar-producto-grande">
+      <span class="cerrar" onclick="cerrarModalDetalle()">&times;</span>
+      <h2 class="modal-titulo-principal">
+        <i class="fas fa-info-circle"></i> Detalle de Reparación
+      </h2>
+
+      <div class="detalle-grid">
+        <p><b>Cliente:</b> <span id="detalle-cliente"></span></p>
+        <p><b>ID Reparación:</b> <span id="detalle-id-reparacion"></span></p>
+        <p><b>Nº Coche:</b> <span id="detalle-coche"></span></p>
+        <p><b>Equipo:</b> <span id="detalle-equipo"></span></p>
+        <p><b>Técnico:</b> <span id="detalle-tecnico"></span></p>
+        <p><b>Hora inicio:</b> <span id="detalle-hora-inicio"></span></p>
+        <p><b>Hora fin:</b> <span id="detalle-hora-fin"></span></p>
+        <p><b>Trabajo:</b> <span id="detalle-trabajo"></span></p>
+        <p><b>Garantía:</b> <span id="detalle-garantia"></span></p>
+        <p><b>Observaciones:</b> <span id="detalle-observaciones"></span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL HISTORIAL REPARACIONES -->
+  <div id="modal-historial" class="modal">
+    <div class="modal-contenido modal-historial-ancho">
+      <span class="cerrar" onclick="cerrarModalHistorial()">&times;</span>
+      <h2 class="modal-titulo-principal">
+        <i class="fas fa-history"></i> Historial de Reparaciones
+      </h2>
+
+      <!-- Datos fijos del equipo -->
+      <div class="historial-header">
+        <div><b>ID Reparación:</b> <span id="historial-id"></span></div>
+        <div><b>Cliente:</b> <span id="historial-cliente"></span></div>
+        <div><b>Equipo:</b> <span id="historial-equipo"></span></div>
+        <div><b>Nº Coche:</b> <span id="historial-coche"></span></div>
+      </div>
+
+      <!-- Tabla de reparaciones -->
+      <div class="erp-table-card historial-tabla">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Trabajo</th>
+              <th>Hora inicio</th>
+              <th>Hora fin</th>
+              <th>Técnico</th>
+              <th>Garantía</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-historial">
+            <!-- JS carga -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/scripts/planilla.js"></script>
+  <script src="/scripts/logout.js"></script>
+
+</body>
+
+</html>

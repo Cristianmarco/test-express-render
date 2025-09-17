@@ -146,5 +146,34 @@
   margin-right: 20px;     /* Espacio a la derecha */
 }
 
+.submenu {
+  list-style: none;
+  padding-left: 10px;
+  margin: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.submenu-cerrado {
+  max-height: 0;
+  display: none;
+}
+
+.submenu-abierto {
+  max-height: 500px; /* lo suficiente para mostrar todo */
+  display: block;
+}
+
+.submenu a {
+  display: block;
+  padding: 6px 0;
+  color: #ddd;
+  font-size: 0.95rem;
+}
+
+.submenu a:hover {
+  color: #fff;
+}
+
 
 
