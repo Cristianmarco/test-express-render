@@ -1,57 +1,66 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
+const pool = require("../db");
+const bcrypt = require("bcryptjs"); 
 
-const db = require('../db'); // <-- IMPORTANTE: Trae la config correcta
 
+// ============================
 // POST /api/login
-router.post('/', async (req, res) => {
+// ============================
+router.post("/", async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ error: 'Email y contraseña son requeridos.' });
+    return res.status(400).json({ error: "Faltan credenciales" });
   }
 
   try {
-    // OJO: El campo en tu base es 'pasword', no 'password'
-    const result = await db.query(
-      'SELECT * FROM usuarios WHERE email = $1 LIMIT 1',
-      [email]
-    );
+    // Buscar usuario por email
+    const query = "SELECT * FROM usuarios WHERE email = $1 LIMIT 1";
+    const result = await pool.query(query, [email]);
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Usuario no encontrado.' });
+      return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
     }
 
-    const usuario = result.rows[0];
+    const user = result.rows[0];
 
-    // Comparación texto plano SOLO para tu caso actual
-    if (password !== usuario.password) {
-      return res.status(401).json({ error: 'Contraseña incorrecta.' });
+    let validPassword = false;
+
+    // Si el password en DB parece un hash bcrypt
+    if (user.password.startsWith("$2b$")) {
+      validPassword = await bcrypt.compare(password, user.password);
+    } else {
+      // Comparación simple (texto plano, ⚠️ inseguro)
+      validPassword = password === user.password;
     }
 
-    if (req.session) {
-      req.session.user = usuario.email;
-      req.session.nombre = usuario.nombre;
-      req.session.rol = usuario.rol;
-      if (usuario.clientes_codigo) {
-        req.session.cliente = usuario.clientes_codigo;
-      }
+    // 🚨 Si la contraseña no coincide → error
+    if (!validPassword) {
+      return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
     }
 
-    res.status(200).json({
-      message: 'Login exitoso',
-      email: usuario.email,
-      nombre: usuario.nombre,
-      rol: usuario.rol,
-      cliente: usuario.clientes_codigo || null
+    // Guardar datos en sesión
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      rol: user.rol,
+      cliente: user.cliente_id || null
+    };
+
+    console.log("✅ Sesión creada:", req.session.user);
+
+    // Respuesta al frontend
+    res.json({
+      success: true,
+      email: user.email,
+      rol: user.rol,
+      cliente: user.cliente_id || null
     });
-
   } catch (err) {
-    console.error('Error consultando usuarios:', err);
-    res.status(500).json({ error: 'Error interno del servidor.' });
+    console.error("❌ Error en /api/login:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
 module.exports = router;
-
-

@@ -5,13 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-
-function logout() {
-  if (confirm('¿Seguro que deseas salir?')) {
-    window.location.href = '/';
-  }
-}
-
 function irA(seccion) {
   switch (seccion) {
     case 'externos':

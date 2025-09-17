@@ -10,20 +10,25 @@ router.get("/historial/:id_reparacion", async (req, res) => {
 
   try {
     const query = `
-      SELECT r.id, r.id_reparacion, r.coche_numero, r.fecha,
-             r.hora_inicio, r.hora_fin,   -- 👈 agregamos
+      SELECT r.id,
+             r.id_reparacion,
+             r.coche_numero,
+             r.fecha,
+             r.hora_inicio,
+             r.hora_fin,
+             r.trabajo,
+             r.garantia,
+             r.observaciones,
              e.modelo AS equipo,
-             t.nombre AS tecnico,          -- 👈 técnico
-             COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
-             r.trabajo, r.garantia, r.observaciones
+             t.nombre AS tecnico,
+             COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
       FROM equipos_reparaciones r
       LEFT JOIN equipos e ON r.equipo_id = e.id
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE r.id_reparacion = $1
-      ORDER BY r.fecha ASC
+      ORDER BY r.fecha DESC, r.hora_inicio ASC
     `;
-
     const result = await pool.query(query, [id_reparacion]);
 
     if (result.rows.length === 0) {
@@ -36,6 +41,7 @@ router.get("/historial/:id_reparacion", async (req, res) => {
     res.status(500).json({ error: "Error al obtener historial" });
   }
 });
+
 
 
 // ============================
@@ -77,39 +83,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ============================
-// GET historial de un equipo (por id_reparacion)
-// ============================
-router.get("/historial/:id_reparacion", async (req, res) => {
-  const { id_reparacion } = req.params;
-
-  try {
-    const query = `
-      SELECT r.id,
-             r.id_reparacion,
-             r.fecha,
-             r.hora_inicio,
-             r.hora_fin,
-             r.trabajo,
-             r.garantia,
-             r.observaciones,
-             e.modelo AS equipo,
-             t.nombre AS tecnico,
-             COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
-      FROM equipos_reparaciones r
-      LEFT JOIN equipos e ON r.equipo_id = e.id
-      LEFT JOIN tecnicos t ON r.tecnico_id = t.id
-      LEFT JOIN clientes c ON r.cliente_id = c.id
-      WHERE r.id_reparacion = $1
-      ORDER BY r.fecha DESC, r.hora_inicio ASC
-    `;
-    const result = await pool.query(query, [id_reparacion]);
-    res.json(result.rows);
-  } catch (err) {
-    console.error("❌ Error GET /reparaciones_planilla/historial:", err);
-    res.status(500).json({ error: "Error al obtener historial" });
-  }
-});
 
 // ============================
 // POST nueva reparación
