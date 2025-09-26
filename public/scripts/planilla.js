@@ -72,7 +72,9 @@ function cerrarModalPlanilla() {
 
 async function cargarReparaciones(fecha) {
   try {
-    const res = await fetch(`/api/reparaciones_planilla?fecha=${fecha}`);
+    const res = await fetch(`/api/reparaciones_planilla?fecha=${fecha}`, {
+      credentials: "include"
+    });
     const data = await res.json();
     console.log("📊 Datos recibidos en la planilla:", data);
 
@@ -153,7 +155,7 @@ async function abrirModalReparacion(titulo = "Nueva Reparación", datos = null) 
   form.reset();
 
   await cargarOpcionesSelect("/api/clientes", "cliente_id", "id", "fantasia", datos ? datos.cliente_id : null);
-  await cargarOpcionesSelect("/api/equipos", "equipo_id", "id", "modelo", datos ? datos.equipo_id : null);
+  await cargarOpcionesSelect("/api/familias", "familia_id", "id", "descripcion", datos ? datos.familia_id : null);
   await cargarOpcionesSelect("/api/tecnicos", "tecnico_id", "id", "nombre", datos ? datos.tecnico_id : null);
 
   const wrapper = document.getElementById("cliente_externo_wrapper");
@@ -180,7 +182,7 @@ function cerrarModalReparacion() {
 // ============================
 async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto, valorSeleccionado = null) {
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { credentials: "include" });
     if (!res.ok) throw new Error(`Error cargando ${url}`);
     const data = await res.json();
     console.log("📥 Opciones cargadas en", selectId, data);
@@ -263,6 +265,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const res = await fetch(url, {
         method,
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(datos),
       });
@@ -296,7 +299,9 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       try {
-        const res = await fetch(`/api/reparaciones_planilla/historial/${idReparacion}`);
+        const res = await fetch(`/api/reparaciones_planilla/historial/${idReparacion}`, {
+          credentials: "include"
+        });
         if (!res.ok) throw new Error("No se encontraron reparaciones");
         const data = await res.json();
         console.log("📜 Historial recibido:", data);
@@ -340,7 +345,10 @@ document.getElementById("btn-eliminar-rep").onclick = async () => {
   if (!reparacionSeleccionada) return mostrarToast("Selecciona una reparación primero");
   if (!confirm(`¿Eliminar reparación ${reparacionSeleccionada.id_reparacion}?`)) return;
   try {
-    const res = await fetch(`/api/reparaciones_planilla/${reparacionSeleccionada.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/reparaciones_planilla/${reparacionSeleccionada.id}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
     if (!res.ok) throw new Error("Error al eliminar");
     mostrarToast("Reparación eliminada ✔️");
     reparacionSeleccionada = null;

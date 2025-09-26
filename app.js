@@ -2,7 +2,10 @@ const express = require('express');
 const app = express();
 const path = require('path');
 const session = require('express-session');
+const pgSession = require("connect-pg-simple")(session);
+const pool = require("./db"); // 👈 importa tu pool
 require('dotenv').config();
+
 
 // Routers
 const loginRouter = require('./routes/login');
@@ -40,26 +43,38 @@ if (process.env.NODE_ENV === 'production') {
 app.set('trust proxy', 1); // Render necesita esto
 
 app.use(session({
+  store: new pgSession({
+    pool: pool,            // 👈 usa el pool de tu db.js
+    tableName: "session"   // 👈 la tabla que creamos en la DB
+  }),
   secret: process.env.SESSION_SECRET || 'secretoSuperSeguro',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // ✅ seguro en prod, false en local
+    secure: process.env.NODE_ENV === 'production', // true solo si usás https en prod
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 1000 * 60 * 60 * 2 // 2h
+    maxAge: 1000 * 60 * 60 * 2 // 2 horas
   }
 }));
+
+
 
 // ============================
 // Middleware para proteger rutas privadas
 // ============================
 function requireLogin(req, res, next) {
-  if (!req.session.user) {
-    return res.redirect("/login");
+  console.log("🛡️ Sesión:", req.session);
+  if (req.session && req.session.user) {
+    return next();
   }
-  next();
+
+  if (req.originalUrl.startsWith("/api/")) {
+    return res.status(401).json({ error: "No autenticado" });
+  }
+  return res.redirect("/login");
 }
+
 
 // ============================
 // Middlewares generales
@@ -87,7 +102,8 @@ app.use('/api/licitaciones', requireLogin, licitacionesRouter);
 app.use('/api/reparaciones_dota', requireLogin, require('./routes/reparaciones_dota'));
 app.use('/api/garantias_dota', requireLogin, garantiasDotaRouter);
 app.use('/api/productos', requireLogin, productosRouter);
-app.use("/api/familias", requireLogin, require("./routes/familia"));
+//app.use("/api/familias", requireLogin, require("./routes/familia"));//
+app.use("/api/familias", require("./routes/familia"));
 app.use("/api/grupo", requireLogin, require("./routes/grupo"));
 app.use("/api/marca", requireLogin, require("./routes/marca"));
 app.use("/api/categoria", requireLogin, require("./routes/categoria"));

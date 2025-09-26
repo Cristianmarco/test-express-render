@@ -19,11 +19,11 @@ router.get("/historial/:id_reparacion", async (req, res) => {
              r.trabajo,
              r.garantia,
              r.observaciones,
-             e.modelo AS equipo,
+             f.nombre AS equipo,  -- 👈 ahora viene de familias
              t.nombre AS tecnico,
              COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
       FROM equipos_reparaciones r
-      LEFT JOIN equipos e ON r.equipo_id = e.id
+      LEFT JOIN familia f ON r.familia_id = f.id   -- 👈 cambio de equipos a familias
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE r.id_reparacion = $1
@@ -42,8 +42,6 @@ router.get("/historial/:id_reparacion", async (req, res) => {
   }
 });
 
-
-
 // ============================
 // GET reparaciones por fecha (planilla diaria)
 // ============================
@@ -56,8 +54,8 @@ router.get("/", async (req, res) => {
       SELECT r.id,
              r.id_reparacion,
              r.coche_numero,
-             r.equipo_id,
-             e.modelo AS equipo,
+             r.familia_id,                      -- 👈 ahora familia_id
+             f.descripcion AS equipo,           -- 👈 usamos descripcion de familia
              r.tecnico_id,
              t.nombre AS tecnico,
              r.cliente_id,
@@ -70,7 +68,7 @@ router.get("/", async (req, res) => {
              r.observaciones
       FROM equipos_reparaciones r
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
-      LEFT JOIN equipos e ON r.equipo_id = e.id
+      LEFT JOIN familia f ON r.familia_id = f.id      -- 👈 tabla correcta
       LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE r.fecha = $1::date
       ORDER BY r.hora_inicio ASC
@@ -84,6 +82,7 @@ router.get("/", async (req, res) => {
 });
 
 
+
 // ============================
 // POST nueva reparación
 // ============================
@@ -95,7 +94,7 @@ router.post("/", async (req, res) => {
     cliente_id,   // null si es Dota
     id_reparacion,
     coche_numero,
-    equipo_id,
+    familia_id,   // 👈 ahora viene de familia
     tecnico_id,
     hora_inicio,
     hora_fin,
@@ -112,7 +111,7 @@ router.post("/", async (req, res) => {
   try {
     const query = `
       INSERT INTO equipos_reparaciones
-      (id_reparacion, coche_numero, equipo_id, tecnico_id,
+      (id_reparacion, coche_numero, familia_id, tecnico_id,
        hora_inicio, hora_fin, trabajo, garantia, observaciones,
        fecha, cliente_id, cliente_tipo)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -122,7 +121,7 @@ router.post("/", async (req, res) => {
     const values = [
       id_reparacion,
       coche_numero,
-      equipo_id,
+      familia_id, // 👈 importante
       tecnico_id,
       hora_inicio || null,
       hora_fin || null,
@@ -144,6 +143,7 @@ router.post("/", async (req, res) => {
   }
 });
 
+
 // ============================
 // PUT: actualizar una reparación existente
 // ============================
@@ -154,7 +154,7 @@ router.put("/:id", async (req, res) => {
     cliente_id,
     id_reparacion,
     coche_numero,
-    equipo_id,
+    familia_id,     // 👈 ahora usamos familia_id
     tecnico_id,
     hora_inicio,
     hora_fin,
@@ -170,7 +170,7 @@ router.put("/:id", async (req, res) => {
       SET 
         id_reparacion = $1,
         coche_numero = $2,
-        equipo_id = $3,
+        familia_id = $3,      -- 👈 actualizado
         tecnico_id = $4,
         hora_inicio = $5,
         hora_fin = $6,
@@ -187,7 +187,7 @@ router.put("/:id", async (req, res) => {
     const values = [
       id_reparacion,
       coche_numero,
-      equipo_id,
+      familia_id,   // 👈 en values también
       tecnico_id,
       hora_inicio || null,
       hora_fin || null,
@@ -213,7 +213,6 @@ router.put("/:id", async (req, res) => {
     res.status(500).json({ error: "Error al actualizar reparación" });
   }
 });
-
 
 
 
