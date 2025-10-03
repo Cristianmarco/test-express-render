@@ -6,14 +6,24 @@ const db = require("../db");
 // === GET: listar todos los proveedores ===
 router.get("/", async (req, res, next) => {
   try {
-    const result = await db.query(
-      "SELECT id, codigo, razon_social, telefono, email, web FROM proveedores ORDER BY codigo ASC"
-    );
+    const result = await db.query(`
+      SELECT 
+        id, 
+        codigo, 
+        razon_social AS nombre,   -- 👈 usamos siempre razon_social como "nombre"
+        telefono, 
+        email, 
+        web
+      FROM proveedores 
+      ORDER BY codigo ASC
+    `);
     res.json(result.rows);
   } catch (e) {
     next(e);
   }
 });
+
+
 
 // === GET: obtener un proveedor por código ===
 router.get("/:codigo", async (req, res, next) => {

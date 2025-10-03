@@ -24,6 +24,8 @@ const depositosRouter = require("./routes/depositos");
 const equiposRoutes = require("./routes/equipos");
 const tecnicosRouter = require("./routes/tecnicos");
 const reparacionesPlanillaRouter = require("./routes/reparaciones_planilla");
+const stockRouter = require("./routes/stock");
+
 
 // ============================
 // Seguridad extra: forzar HTTPS en producción
@@ -101,17 +103,24 @@ app.use('/api/estadisticas', requireLogin, estadisticasRouter);
 app.use('/api/licitaciones', requireLogin, licitacionesRouter);
 app.use('/api/reparaciones_dota', requireLogin, require('./routes/reparaciones_dota'));
 app.use('/api/garantias_dota', requireLogin, garantiasDotaRouter);
-app.use('/api/productos', requireLogin, productosRouter);
+//app.use('/api/productos', requireLogin, productosRouter);//
+app.use('/api/productos', productosRouter);
 //app.use("/api/familias", requireLogin, require("./routes/familia"));//
 app.use("/api/familias", require("./routes/familia"));
-app.use("/api/grupo", requireLogin, require("./routes/grupo"));
-app.use("/api/marca", requireLogin, require("./routes/marca"));
-app.use("/api/categoria", requireLogin, require("./routes/categoria"));
-app.use("/api/proveedores", requireLogin, proveedoresRouter);
+//app.use("/api/grupo", requireLogin, require("./routes/grupo"));//
+//app.use("/api/marca", requireLogin, require("./routes/marca"));
+//app.use("/api/categoria", requireLogin, require("./routes/categoria"));//
+app.use("/api/grupo", require("./routes/grupo"));
+app.use("/api/marca", require("./routes/marca"));
+app.use("/api/categoria", require("./routes/categoria"));
+//app.use("/api/proveedores", requireLogin, proveedoresRouter);//
+app.use("/api/proveedores", proveedoresRouter);
 app.use("/api/depositos", requireLogin, depositosRouter);
 app.use("/api/equipos", requireLogin, equiposRoutes);
 app.use("/api/tecnicos", requireLogin, tecnicosRouter);
 app.use("/api/reparaciones_planilla", requireLogin, reparacionesPlanillaRouter);
+app.use("/api/stock", stockRouter);
+
 
 // ============================
 // Vistas protegidas
