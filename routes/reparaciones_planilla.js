@@ -10,30 +10,35 @@ router.get("/historial/:id_reparacion", async (req, res) => {
 
   try {
     const query = `
-      SELECT r.id,
-             r.id_reparacion,
-             r.coche_numero,
-             r.fecha,
-             r.hora_inicio,
-             r.hora_fin,
-             r.trabajo,
-             r.garantia,
-             r.observaciones,
-             f.nombre AS equipo,  -- 👈 ahora viene de familias
-             t.nombre AS tecnico,
-             COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
+      SELECT 
+        r.id,
+        r.id_reparacion,
+        r.coche_numero,
+        r.fecha,
+        r.hora_inicio,
+        r.hora_fin,
+        r.trabajo,
+        r.garantia,
+        r.observaciones,
+        r.id_dota,
+        r.ultimo_reparador,
+        ur.nombre AS ultimo_reparador_nombre,
+        r.resolucion,
+        f.descripcion AS equipo,
+        t.nombre AS tecnico,
+        COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
       FROM equipos_reparaciones r
-      LEFT JOIN familia f ON r.familia_id = f.id   -- 👈 cambio de equipos a familias
+      LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
+      LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
       LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE r.id_reparacion = $1
       ORDER BY r.fecha DESC, r.hora_inicio ASC
     `;
     const result = await pool.query(query, [id_reparacion]);
 
-    if (result.rows.length === 0) {
+    if (result.rows.length === 0)
       return res.status(404).json({ error: "No hay reparaciones para este equipo" });
-    }
 
     res.json(result.rows);
   } catch (err) {
@@ -41,6 +46,7 @@ router.get("/historial/:id_reparacion", async (req, res) => {
     res.status(500).json({ error: "Error al obtener historial" });
   }
 });
+
 
 // ============================
 // GET reparaciones por fecha (planilla diaria)
@@ -51,24 +57,30 @@ router.get("/", async (req, res) => {
 
   try {
     const query = `
-      SELECT r.id,
-             r.id_reparacion,
-             r.coche_numero,
-             r.familia_id,                      -- 👈 ahora familia_id
-             f.descripcion AS equipo,           -- 👈 usamos descripcion de familia
-             r.tecnico_id,
-             t.nombre AS tecnico,
-             r.cliente_id,
-             r.cliente_tipo,
-             COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
-             r.hora_inicio,
-             r.hora_fin,
-             r.trabajo,
-             r.garantia,
-             r.observaciones
+      SELECT 
+        r.id,
+        r.id_reparacion,
+        r.coche_numero,
+        r.familia_id,
+        f.descripcion AS equipo,
+        r.tecnico_id,
+        t.nombre AS tecnico,
+        r.cliente_id,
+        r.cliente_tipo,
+        COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
+        r.hora_inicio,
+        r.hora_fin,
+        r.trabajo,
+        r.garantia,
+        r.observaciones,
+        r.id_dota,
+        r.ultimo_reparador,
+        ur.nombre AS ultimo_reparador_nombre,
+        r.resolucion
       FROM equipos_reparaciones r
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
-      LEFT JOIN familia f ON r.familia_id = f.id      -- 👈 tabla correcta
+      LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
+      LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE r.fecha = $1::date
       ORDER BY r.hora_inicio ASC
@@ -83,136 +95,117 @@ router.get("/", async (req, res) => {
 
 
 
-// ============================
-// POST nueva reparación
-// ============================
+
+// POST - Crear nueva reparación
 router.post("/", async (req, res) => {
-  console.log("📥 POST recibido:", req.body);
-
-  const {
-    cliente_tipo,
-    cliente_id,   // null si es Dota
-    id_reparacion,
-    coche_numero,
-    familia_id,   // 👈 ahora viene de familia
-    tecnico_id,
-    hora_inicio,
-    hora_fin,
-    trabajo,
-    garantia,
-    observaciones,
-    fecha,
-  } = req.body;
-
-  if (!cliente_tipo || !fecha || !id_reparacion) {
-    return res.status(400).json({ error: "Faltan campos obligatorios" });
-  }
-
   try {
-    const query = `
-      INSERT INTO equipos_reparaciones
-      (id_reparacion, coche_numero, familia_id, tecnico_id,
-       hora_inicio, hora_fin, trabajo, garantia, observaciones,
-       fecha, cliente_id, cliente_tipo)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-      RETURNING *;
-    `;
-
-    const values = [
+    const {
+      cliente_tipo,
+      cliente_id,
       id_reparacion,
       coche_numero,
-      familia_id, // 👈 importante
+      familia_id,
       tecnico_id,
-      hora_inicio || null,
-      hora_fin || null,
+      hora_inicio,
+      hora_fin,
       trabajo,
-      garantia === "si" || garantia === true ? "si" : "no",
+      garantia,
       observaciones,
       fecha,
-      cliente_id || null,
-      cliente_tipo,
-    ];
+      id_dota,
+      ultimo_reparador,
+      resolucion
+    } = req.body;
 
-    const result = await pool.query(query, values);
+    const result = await pool.query(
+      `INSERT INTO equipos_reparaciones 
+        (cliente_tipo, cliente_id, id_reparacion, coche_numero, familia_id, tecnico_id,
+         hora_inicio, hora_fin, trabajo, garantia, observaciones, fecha,
+         id_dota, ultimo_reparador, resolucion)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+       RETURNING *`,
+      [
+        cliente_tipo,
+        cliente_id || null,
+        id_reparacion,
+        coche_numero || null,
+        familia_id,
+        tecnico_id,
+        hora_inicio || null,
+        hora_fin || null,
+        trabajo,
+        garantia,
+        observaciones || null,
+        fecha,
+        id_dota || null,
+        ultimo_reparador || null,
+        resolucion || null
+      ]
+    );
 
-    console.log("✅ Reparación guardada:", result.rows[0]);
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("❌ Error POST /reparaciones_planilla:", err);
-    res.status(500).json({ error: "Error al guardar reparación" });
+    console.error("❌ Error insertando reparación:", err);
+    res.status(500).json({ error: "Error al insertar reparación" });
   }
 });
 
-
-// ============================
-// PUT: actualizar una reparación existente
-// ============================
+// PUT - Actualizar reparación existente
 router.put("/:id", async (req, res) => {
-  const { id } = req.params;
-  const {
-    cliente_tipo,
-    cliente_id,
-    id_reparacion,
-    coche_numero,
-    familia_id,     // 👈 ahora usamos familia_id
-    tecnico_id,
-    hora_inicio,
-    hora_fin,
-    trabajo,
-    garantia,
-    observaciones,
-    fecha,
-  } = req.body;
-
   try {
-    const query = `
-      UPDATE equipos_reparaciones
-      SET 
-        id_reparacion = $1,
-        coche_numero = $2,
-        familia_id = $3,      -- 👈 actualizado
-        tecnico_id = $4,
-        hora_inicio = $5,
-        hora_fin = $6,
-        trabajo = $7,
-        garantia = $8,
-        observaciones = $9,
-        fecha = $10,
-        cliente_id = $11,
-        cliente_tipo = $12
-      WHERE id = $13
-      RETURNING *;
-    `;
-
-    const values = [
+    const {
+      cliente_tipo,
+      cliente_id,
       id_reparacion,
       coche_numero,
-      familia_id,   // 👈 en values también
+      familia_id,
       tecnico_id,
-      hora_inicio || null,
-      hora_fin || null,
+      hora_inicio,
+      hora_fin,
       trabajo,
-      garantia === "si" || garantia === true ? "si" : "no",
+      garantia,
       observaciones,
-      fecha,
-      cliente_id || null,
-      cliente_tipo,
-      id, // el ID real de la fila
-    ];
+      id_dota,
+      ultimo_reparador,
+      resolucion
+    } = req.body;
 
-    const result = await pool.query(query, values);
+    const result = await pool.query(
+      `UPDATE equipos_reparaciones
+       SET cliente_tipo=$1, cliente_id=$2, id_reparacion=$3, coche_numero=$4,
+           familia_id=$5, tecnico_id=$6, hora_inicio=$7, hora_fin=$8, trabajo=$9,
+           garantia=$10, observaciones=$11, id_dota=$12, ultimo_reparador=$13, resolucion=$14
+       WHERE id=$15
+       RETURNING *`,
+      [
+        cliente_tipo,
+        cliente_id || null,
+        id_reparacion,
+        coche_numero || null,
+        familia_id,
+        tecnico_id,
+        hora_inicio || null,
+        hora_fin || null,
+        trabajo,
+        garantia,
+        observaciones || null,
+        id_dota || null,
+        ultimo_reparador || null,
+        resolucion || null,
+        req.params.id
+      ]
+    );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "❌ Reparación no encontrada" });
-    }
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Reparación no encontrada" });
 
-    console.log("✏️ Reparación actualizada:", result.rows[0]);
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("❌ Error en PUT /reparaciones_planilla:", err);
+    console.error("❌ Error actualizando reparación:", err);
     res.status(500).json({ error: "Error al actualizar reparación" });
   }
 });
+
 
 
 

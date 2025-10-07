@@ -42,21 +42,22 @@ if (process.env.NODE_ENV === 'production') {
 // ============================
 // Configuración de sesión
 // ============================
-app.set('trust proxy', 1); // Render necesita esto
+app.set('trust proxy', 1);
 
 app.use(session({
   store: new pgSession({
-    pool: pool,            // 👈 usa el pool de tu db.js
-    tableName: "session"   // 👈 la tabla que creamos en la DB
+    pool,
+    tableName: "session"
   }),
   secret: process.env.SESSION_SECRET || 'secretoSuperSeguro',
   resave: false,
   saveUninitialized: false,
+  rolling: true,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // true solo si usás https en prod
     httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 1000 * 60 * 60 * 2 // 2 horas
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 1000 * 60 * 60 * 12
   }
 }));
 
