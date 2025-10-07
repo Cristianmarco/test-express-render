@@ -1,8 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   const tbody = document.getElementById("tbody-familias");
-  const modal = document.getElementById("modal-agregar-familia");
   const form = document.getElementById("form-familia");
-  let editando = null; // va a guardar el id de la fila seleccionada
+  let editando = null; // guarda el id de la fila seleccionada
 
   // 👉 Abrir modal
   function abrirModal(titulo, datos = null) {
@@ -12,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (datos) {
       form.codigo.value = datos.codigo;
       form.descripcion.value = datos.descripcion;
-      editando = datos.codigo;
+      editando = datos.id; // usamos id, no codigo
     } else {
       form.reset();
       editando = null;
@@ -22,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function cerrarModal() {
     document.getElementById("modal-familia").classList.remove("mostrar");
     form.reset();
+    editando = null;
   }
 
   window.cerrarModal = cerrarModal;
@@ -29,55 +29,71 @@ document.addEventListener("DOMContentLoaded", () => {
   // 👉 Cargar familias
   async function cargarFamilias() {
     try {
-      const res = await fetch("/api/familias");
+      const res = await fetch("/api/familias", { credentials: "include" });
+      if (!res.ok) {
+        throw new Error(`Error al cargar familias: ${res.status}`);
+      }
+
       const data = await res.json();
+      if (!Array.isArray(data)) {
+        console.error("❌ Respuesta inesperada:", data);
+        return;
+      }
+
       tbody.innerHTML = "";
 
       data.forEach(f => {
         const tr = document.createElement("tr");
-        tr.dataset.id = f.id; // ✅ guardar id como dataset
-        tr.innerHTML = `<td>${f.codigo}</td><td>${f.descripcion}</td>`;
-
+        tr.dataset.id = f.id; // guardamos id en la fila
+        tr.innerHTML = `
+          <td>${f.codigo}</td>
+          <td>${f.descripcion}</td>
+          <td>
+            <button class="editar">✏️</button>
+            <button class="eliminar">🗑️</button>
+          </td>
+        `;
+        // seleccionar fila
         tr.onclick = () => {
-          document.querySelectorAll("#tbody-familias tr").forEach(x => x.classList.remove("seleccionado"));
+          document.querySelectorAll("#tbody-familias tr")
+            .forEach(row => row.classList.remove("seleccionado"));
           tr.classList.add("seleccionado");
+        };
+
+        // botones inline
+        tr.querySelector(".editar").onclick = e => {
+          e.stopPropagation();
+          abrirModal("Modificar Familia", f);
+        };
+
+        tr.querySelector(".eliminar").onclick = async e => {
+          e.stopPropagation();
+          if (confirm("¿Eliminar familia?")) {
+            const resp = await fetch(`/api/familias/${f.id}`, {
+              method: "DELETE",
+              credentials: "include"
+            });
+            if (resp.ok) {
+              cargarFamilias();
+            } else {
+              alert("Error al eliminar familia");
+            }
+          }
         };
 
         tbody.appendChild(tr);
       });
 
-      document.getElementById("total-familias").textContent = data.length;
     } catch (err) {
-      console.error(err);
-      tbody.innerHTML = `<tr><td colspan="2">Error al cargar</td></tr>`;
+      console.error("❌ Error en cargarFamilias:", err);
     }
   }
 
   // 👉 Botón agregar
-  document.querySelector(".icon-button-erp.agregar").onclick = () => abrirModal("Nueva Familia");
-
-  // 👉 Botón modificar
-  document.querySelector(".icon-button-erp.modificar").onclick = () => {
-    const sel = document.querySelector("#tbody-familias tr.seleccionado");
-    if (!sel) return alert("Selecciona una familia");
-
-    abrirModal("Modificar Familia", {
-      id: sel.dataset.id,
-      codigo: sel.children[0].textContent,
-      descripcion: sel.children[1].textContent
-    });
-  };
-
-  // 👉 Botón eliminar
-  document.querySelector(".icon-button-erp.eliminar").onclick = async () => {
-    const sel = document.querySelector("#tbody-familias tr.seleccionado");
-    if (!sel) return alert("Selecciona una familia");
-
-    if (confirm("¿Eliminar familia?")) {
-      await fetch(`/api/familias/${sel.dataset.id}`, { method: "DELETE" });
-      cargarFamilias();
-    }
-  };
+  const btnAgregar = document.querySelector(".icon-button-erp.agregar");
+  if (btnAgregar) {
+    btnAgregar.onclick = () => abrirModal("Nueva Familia");
+  }
 
   // 👉 Guardar (crear o editar)
   form.onsubmit = async e => {
@@ -88,6 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const resp = await fetch(url, {
       method,
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(datos)
     });
@@ -104,5 +121,8 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarFamilias();
 
   // 👉 Botón cerrar modal
-  document.getElementById("cerrar-modal-familia").onclick = cerrarModal;
+  const btnCerrar = document.getElementById("cerrar-modal-familia");
+  if (btnCerrar) {
+    btnCerrar.onclick = cerrarModal;
+  }
 });

@@ -1,8 +1,11 @@
+// routes/stock.js
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 
-// Stock por producto
+// ============================
+// GET stock por producto
+// ============================
 router.get("/:productoId", async (req, res) => {
   const { productoId } = req.params;
   try {
@@ -15,25 +18,33 @@ router.get("/:productoId", async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error GET /stock/:productoId:", err);
     res.status(500).json({ error: "Error cargando stock" });
   }
 });
 
-// Movimiento de stock
+// ============================
+// POST movimiento de stock
+// ============================
 router.post("/movimiento", async (req, res) => {
   const { producto_id, deposito_id, tipo, cantidad, observacion } = req.body;
+
+  const cantidadNum = parseInt(cantidad, 10);
+  if (!producto_id || !deposito_id || !tipo || isNaN(cantidadNum) || cantidadNum <= 0) {
+    return res.status(400).json({ error: "Datos inválidos para movimiento de stock" });
+  }
+
   await pool.query("BEGIN");
   try {
-    const sign = tipo === "ENTRADA" ? 1 : -1;
+    const sign = (tipo && tipo.toUpperCase() === "ENTRADA") ? 1 : -1;
 
-    // Actualizar stock (si no existe crea, si existe actualiza)
+    // Actualizar stock
     await pool.query(
       `INSERT INTO stock (producto_id, deposito_id, cantidad)
        VALUES ($1,$2,$3)
        ON CONFLICT (producto_id, deposito_id)
        DO UPDATE SET cantidad = stock.cantidad + EXCLUDED.cantidad`,
-      [producto_id, deposito_id, sign * cantidad]
+      [producto_id, deposito_id, sign * cantidadNum]
     );
 
     // Registrar movimiento
@@ -41,14 +52,20 @@ router.post("/movimiento", async (req, res) => {
       `INSERT INTO movimientos_stock 
         (producto_id, deposito_id, tipo, cantidad, observacion) 
        VALUES ($1,$2,$3,$4,$5)`,
-      [producto_id, deposito_id, tipo, cantidad, observacion]
+      [producto_id, deposito_id, tipo.toUpperCase(), cantidadNum, observacion]
+    );
+
+    // Traer stock actualizado
+    const updated = await pool.query(
+      `SELECT cantidad FROM stock WHERE producto_id=$1 AND deposito_id=$2`,
+      [producto_id, deposito_id]
     );
 
     await pool.query("COMMIT");
-    res.json({ success: true });
+    res.json({ success: true, stock: updated.rows[0] });
   } catch (err) {
     await pool.query("ROLLBACK");
-    console.error(err);
+    console.error("❌ Error POST /stock/movimiento:", err);
     res.status(500).json({ error: "Error en movimiento de stock" });
   }
 });

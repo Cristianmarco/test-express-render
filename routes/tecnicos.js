@@ -1,4 +1,3 @@
-// routes/tecnicos.js
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
@@ -46,16 +45,25 @@ router.post("/", async (req, res) => {
   }
 });
 
-// PUT actualizar
+// ✅ PUT actualizar técnico (sin borrar QR existente)
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre, dni, qr_code } = req.body;
+    const { nombre, dni } = req.body;
+
+    // Traer el QR actual
+    const qrActual = await pool.query("SELECT qr_code FROM tecnicos WHERE id = $1", [id]);
+    if (qrActual.rows.length === 0)
+      return res.status(404).json({ error: "Técnico no encontrado" });
+
+    const qr_code = qrActual.rows[0].qr_code; // mantener el actual
+
+    // Actualizar datos, sin eliminar el QR
     const result = await pool.query(
-      "UPDATE tecnicos SET nombre=$1, dni=$2, qr_code=$3 WHERE id=$4 RETURNING *",
+      "UPDATE tecnicos SET nombre = $1, dni = $2, qr_code = $3 WHERE id = $4 RETURNING *",
       [nombre, dni, qr_code, id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: "No encontrado" });
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Error PUT /tecnicos:", err);

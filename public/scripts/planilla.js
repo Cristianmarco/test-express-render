@@ -72,7 +72,9 @@ function cerrarModalPlanilla() {
 
 async function cargarReparaciones(fecha) {
   try {
-    const res = await fetch(`/api/reparaciones_planilla?fecha=${fecha}`);
+    const res = await fetch(`/api/reparaciones_planilla?fecha=${fecha}`, {
+      credentials: "include"
+    });
     const data = await res.json();
     console.log("📊 Datos recibidos en la planilla:", data);
 
@@ -117,22 +119,37 @@ function seleccionarReparacion(tr, datos) {
 // Modal Detalle
 // ============================
 function abrirModalDetalle() {
-  if (!reparacionSeleccionada) return almostrarToast("Selecciona una reparación primero");
+  if (!reparacionSeleccionada) return mostrarToast("Selecciona una reparación primero");
 
-  document.getElementById("detalle-cliente").textContent = reparacionSeleccionada.cliente;
-  document.getElementById("detalle-id-reparacion").textContent = reparacionSeleccionada.id_reparacion;
-  document.getElementById("detalle-coche").textContent = reparacionSeleccionada.coche_numero || "-";
-  document.getElementById("detalle-equipo").textContent = reparacionSeleccionada.equipo;
-  document.getElementById("detalle-tecnico").textContent = reparacionSeleccionada.tecnico;
-  document.getElementById("detalle-hora-inicio").textContent = reparacionSeleccionada.hora_inicio || "-";
-  document.getElementById("detalle-hora-fin").textContent = reparacionSeleccionada.hora_fin || "-";
-  document.getElementById("detalle-trabajo").textContent = reparacionSeleccionada.trabajo;
+  const r = reparacionSeleccionada;
+
+  document.getElementById("detalle-cliente").textContent = r.cliente;
+  document.getElementById("detalle-id-reparacion").textContent = r.id_reparacion;
+  document.getElementById("detalle-coche").textContent = r.coche_numero || "-";
+  document.getElementById("detalle-equipo").textContent = r.equipo;
+  document.getElementById("detalle-tecnico").textContent = r.tecnico;
+  document.getElementById("detalle-hora-inicio").textContent = r.hora_inicio || "-";
+  document.getElementById("detalle-hora-fin").textContent = r.hora_fin || "-";
+  document.getElementById("detalle-trabajo").textContent = r.trabajo;
   document.getElementById("detalle-garantia").textContent =
-    reparacionSeleccionada.garantia === true || reparacionSeleccionada.garantia === "si" ? "✔️ Sí" : "❌ No";
-  document.getElementById("detalle-observaciones").textContent = reparacionSeleccionada.observaciones || "-";
+    r.garantia === true || r.garantia === "si" ? "✔️ Sí" : "❌ No";
+  document.getElementById("detalle-observaciones").textContent = r.observaciones || "-";
+
+  // ⚙️ Nuevos campos de garantía
+  const extra = document.getElementById("detalle-garantia-extra");
+  if (r.garantia === "si") {
+    extra.style.display = "block";
+    document.getElementById("detalle-id-dota").textContent = r.id_dota || "-";
+    document.getElementById("detalle-ultimo-reparador").textContent = r.ultimo_reparador_nombre || "-";
+    document.getElementById("detalle-resolucion").textContent =
+      r.resolucion ? r.resolucion.replace("_", " ").toUpperCase() : "-";
+  } else {
+    extra.style.display = "none";
+  }
 
   document.getElementById("modal-detalle").classList.add("mostrar");
 }
+
 function cerrarModalDetalle() {
   document.getElementById("modal-detalle").classList.remove("mostrar");
 }
@@ -152,21 +169,36 @@ async function abrirModalReparacion(titulo = "Nueva Reparación", datos = null) 
   if (!form) return;
   form.reset();
 
+  // Cargar selects
   await cargarOpcionesSelect("/api/clientes", "cliente_id", "id", "fantasia", datos ? datos.cliente_id : null);
-  await cargarOpcionesSelect("/api/equipos", "equipo_id", "id", "modelo", datos ? datos.equipo_id : null);
+  await cargarOpcionesSelect("/api/familias", "familia_id", "id", "descripcion", datos ? datos.familia_id : null);
   await cargarOpcionesSelect("/api/tecnicos", "tecnico_id", "id", "nombre", datos ? datos.tecnico_id : null);
 
+  // ⚙️ Campos extra de garantía
   const wrapper = document.getElementById("cliente_externo_wrapper");
+  const garantiaExtra = document.getElementById("garantia-extra-fields");
 
   if (datos) {
     for (const [k, v] of Object.entries(datos)) {
       if (form[k]) form[k].value = v;
     }
+
+    // Mostrar cliente externo si corresponde
     wrapper.style.display = datos.cliente_tipo === "externo" ? "block" : "none";
+
+    // Mostrar bloque de garantía si corresponde
+    if (datos.garantia === "si") {
+      garantiaExtra.style.display = "block";
+      await cargarOpcionesSelect("/api/tecnicos", "ultimo_reparador", "id", "nombre", datos.ultimo_reparador);
+    } else {
+      garantiaExtra.style.display = "none";
+    }
   } else {
     wrapper.style.display = "none";
+    garantiaExtra.style.display = "none";
   }
 }
+
 
 function cerrarModalReparacion() {
   document.getElementById("modal-reparacion").classList.remove("mostrar");
@@ -179,23 +211,26 @@ function cerrarModalReparacion() {
 // Helper: cargar selects
 // ============================
 async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto, valorSeleccionado = null) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { credentials: "include" });
+
+    // 🔐 Si la sesión expiró → redirigir al login
+    if (res.status === 401) {
+      console.warn(`⚠️ Sesión expirada al acceder a ${url}`);
+      mostrarToast("Tu sesión expiró. Inicia sesión nuevamente.");
+      setTimeout(() => window.location.href = "/login", 1500);
+      return;
+    }
+
     if (!res.ok) throw new Error(`Error cargando ${url}`);
+
     const data = await res.json();
     console.log("📥 Opciones cargadas en", selectId, data);
 
-    const select = document.getElementById(selectId);
-    if (!select) return;
     select.innerHTML = `<option value="">Seleccione</option>`;
-
-    if (!data.length) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "⚠️ No hay registros disponibles";
-      select.appendChild(opt);
-      return;
-    }
 
     data.forEach(item => {
       const opt = document.createElement("option");
@@ -207,9 +242,12 @@ async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto, valor
       select.appendChild(opt);
     });
   } catch (err) {
-    console.error("❌ Error cargando opciones de", url, err);
+    console.error(`❌ Error cargando opciones de ${url}`, err);
+    select.innerHTML = `<option value="">⚠️ Error al cargar</option>`;
   }
 }
+
+
 
 // ============================
 // Select cliente externo
@@ -247,7 +285,6 @@ document.addEventListener("DOMContentLoaded", () => {
     let url = "/api/reparaciones_planilla";
     let method = "POST";
 
-    // 👇 Confirmamos el estado global
     console.log("🔎 Estado antes de enviar:", {
       modoEdicion: window.modoEdicion,
       reparacionSeleccionada: window.reparacionSeleccionada
@@ -263,6 +300,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const res = await fetch(url, {
         method,
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(datos),
       });
@@ -275,7 +313,6 @@ document.addEventListener("DOMContentLoaded", () => {
       cerrarModalReparacion();
       cargarReparaciones(datos.fecha);
 
-      // Resetear estado
       window.reparacionSeleccionada = null;
       window.modoEdicion = false;
     } catch (err) {
@@ -284,21 +321,27 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-
   // === BUSCADOR ===
   const btnBuscar = document.getElementById("btn-buscar-historial");
   const inputBuscar = document.getElementById("buscar-reparacion");
+
   if (btnBuscar && inputBuscar) {
     btnBuscar.onclick = async () => {
-      const idReparacion = inputBuscar.value.trim();
-      if (!idReparacion) {
+      const valor = inputBuscar.value.trim();
+      if (!valor) {
         mostrarToast("Ingrese un ID de reparación");
         return;
       }
+
+      console.log(`🔎 Buscando historial para: ${valor}`);
+
       try {
-        const res = await fetch(`/api/reparaciones_planilla/historial/${idReparacion}`);
+        const res = await fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(valor)}`, {
+          credentials: "include"
+        });
         if (!res.ok) throw new Error("No se encontraron reparaciones");
         const data = await res.json();
+
         console.log("📜 Historial recibido:", data);
         if (data.length > 0) {
           abrirModalHistorial(data[0], data);
@@ -310,70 +353,88 @@ document.addEventListener("DOMContentLoaded", () => {
         mostrarToast("No se encontraron reparaciones para ese ID");
       }
     };
+
     inputBuscar.addEventListener("keyup", (e) => {
       if (e.key === "Enter") btnBuscar.click();
     });
   }
-});
 
-// ============================
-// Botones de acción
-// ============================
-document.getElementById("btn-agregar-rep").onclick = () => {
-  window.modoEdicion = false;
-  window.reparacionSeleccionada = null;
-  console.log("➕ Nueva reparación → POST");
-  abrirModalReparacion("Nueva Reparación");
-};
+  // ============================
+  // Botones de acción
+  // ============================
+  document.getElementById("btn-agregar-rep").onclick = () => {
+    window.modoEdicion = false;
+    window.reparacionSeleccionada = null;
+    console.log("➕ Nueva reparación → POST");
+    abrirModalReparacion("Nueva Reparación");
+  };
 
-document.getElementById("btn-modificar-rep").onclick = () => {
-  if (!window.reparacionSeleccionada) {
-    mostrarToast("Selecciona una reparación primero");
-    return;
+  document.getElementById("btn-modificar-rep").onclick = () => {
+    if (!window.reparacionSeleccionada) {
+      mostrarToast("Selecciona una reparación primero");
+      return;
+    }
+    window.modoEdicion = true;
+    console.log("✏️ Editando reparación ID:", window.reparacionSeleccionada.id, "→ PUT");
+    abrirModalReparacion("Editar Reparación", window.reparacionSeleccionada);
+  };
+
+  document.getElementById("btn-eliminar-rep").onclick = async () => {
+    if (!reparacionSeleccionada) return mostrarToast("Selecciona una reparación primero");
+    if (!confirm(`¿Eliminar reparación ${reparacionSeleccionada.id_reparacion}?`)) return;
+    try {
+      const res = await fetch(`/api/reparaciones_planilla/${reparacionSeleccionada.id}`, {
+        method: "DELETE",
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Error al eliminar");
+      mostrarToast("Reparación eliminada ✔️");
+      reparacionSeleccionada = null;
+      cargarReparaciones(document.getElementById("fecha-planilla").textContent);
+    } catch (err) {
+      console.error("❌ Error en DELETE:", err);
+      mostrarToast("❌ Error al eliminar reparación");
+    }
+  };
+
+  document.getElementById("btn-ver-detalle").onclick = abrirModalDetalle;
+
+  // Deseleccionar fila al hacer click fuera de la tabla
+  document.addEventListener("click", (e) => {
+    const tbody = document.getElementById("tbody-reparaciones");
+    const filaSeleccionada = document.querySelector("#tbody-reparaciones tr.seleccionado");
+    const modalPlanilla = document.getElementById("modal-planilla");
+    const modalReparacion = document.getElementById("modal-reparacion");
+
+    if (!filaSeleccionada) return;
+
+    if (modalReparacion.classList.contains("mostrar")) return;
+
+    if (tbody && !tbody.contains(e.target) && !modalPlanilla.contains(e.target)) {
+      filaSeleccionada.classList.remove("seleccionado");
+      reparacionSeleccionada = null;
+      console.log("ℹ️ Fila deseleccionada");
+    }
+  });
+
+  // === Mostrar/Ocultar campos extra de garantía ===
+  const garantiaSelect = document.getElementById("garantia");
+  const extraFields = document.getElementById("garantia-extra-fields");
+
+  if (garantiaSelect && extraFields) {
+    garantiaSelect.addEventListener("change", async (e) => {
+      if (e.target.value === "si") {
+        extraFields.style.display = "block";
+        await cargarOpcionesSelect("/api/tecnicos", "ultimo_reparador", "id", "nombre");
+      } else {
+        extraFields.style.display = "none";
+        document.getElementById("id_dota").value = "";
+        document.getElementById("ultimo_reparador").innerHTML = "<option value=''>Seleccione</option>";
+        document.getElementById("resolucion").value = "";
+      }
+    });
   }
-  window.modoEdicion = true;
-  console.log("✏️ Editando reparación ID:", window.reparacionSeleccionada.id, "→ PUT");
-  abrirModalReparacion("Editar Reparación", window.reparacionSeleccionada);
-};
-
-document.getElementById("btn-eliminar-rep").onclick = async () => {
-  if (!reparacionSeleccionada) return mostrarToast("Selecciona una reparación primero");
-  if (!confirm(`¿Eliminar reparación ${reparacionSeleccionada.id_reparacion}?`)) return;
-  try {
-    const res = await fetch(`/api/reparaciones_planilla/${reparacionSeleccionada.id}`, { method: "DELETE" });
-    if (!res.ok) throw new Error("Error al eliminar");
-    mostrarToast("Reparación eliminada ✔️");
-    reparacionSeleccionada = null;
-    cargarReparaciones(document.getElementById("fecha-planilla").textContent);
-  } catch (err) {
-    console.error("❌ Error en DELETE:", err);
-    mostrarToast("❌ Error al eliminar reparación");
-  }
-};
-document.getElementById("btn-ver-detalle").onclick = abrirModalDetalle;
-
-// Deseleccionar fila al hacer click fuera de la tabla,
-// excepto si el modal de reparación está abierto
-document.addEventListener("click", (e) => {
-  const tbody = document.getElementById("tbody-reparaciones");
-  const filaSeleccionada = document.querySelector("#tbody-reparaciones tr.seleccionado");
-  const modalPlanilla = document.getElementById("modal-planilla");
-  const modalReparacion = document.getElementById("modal-reparacion");
-
-  if (!filaSeleccionada) return;
-
-  // ❌ No deseleccionar si el modal de reparación está abierto
-  if (modalReparacion.classList.contains("mostrar")) {
-    return;
-  }
-
-  if (tbody && !tbody.contains(e.target) && !modalPlanilla.contains(e.target)) {
-    filaSeleccionada.classList.remove("seleccionado");
-    reparacionSeleccionada = null;
-    console.log("ℹ️ Fila deseleccionada");
-  }
-});
-
+}); // 👈 cierre FINAL del DOMContentLoaded
 
 
 // ============================
@@ -386,6 +447,20 @@ function abrirModalHistorial(datosEquipo, historial) {
   document.getElementById("historial-equipo").textContent = datosEquipo.equipo;
   document.getElementById("historial-coche").textContent = datosEquipo.coche_numero || "-";
 
+  // ⚙️ Bloque extra de garantía
+  const bloqueGarantia = document.getElementById("historial-garantia-extra");
+  if (datosEquipo.garantia === "si") {
+    bloqueGarantia.style.display = "flex";
+    document.getElementById("historial-id-dota").textContent = datosEquipo.id_dota || "-";
+    document.getElementById("historial-ultimo-reparador").textContent = datosEquipo.ultimo_reparador_nombre || "-";
+    document.getElementById("historial-resolucion").textContent =
+      datosEquipo.resolucion
+        ? datosEquipo.resolucion.replace("_", " ").toUpperCase()
+        : "-";
+  } else {
+    bloqueGarantia.style.display = "none";
+  }
+
   // Cargar tabla
   const tbody = document.getElementById("tbody-historial");
   tbody.innerHTML = "";
@@ -393,16 +468,15 @@ function abrirModalHistorial(datosEquipo, historial) {
   historial.forEach(r => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-    <td>${new Date(r.fecha).toLocaleDateString("es-AR")}</td>
-    <td>${r.trabajo}</td>
-    <td>${r.hora_inicio || "-"}</td>
-    <td>${r.hora_fin || "-"}</td>
-    <td>${r.tecnico || "-"}</td>
-    <td>${r.garantia === "si" ? "✔️" : "❌"}</td>
-  `;
+      <td>${new Date(r.fecha).toLocaleDateString("es-AR")}</td>
+      <td>${r.trabajo}</td>
+      <td>${r.hora_inicio || "-"}</td>
+      <td>${r.hora_fin || "-"}</td>
+      <td>${r.tecnico || "-"}</td>
+      <td>${r.garantia === "si" ? "✔️" : "❌"}</td>
+    `;
     tbody.appendChild(tr);
   });
-
 
   // Mostrar modal
   document.getElementById("modal-historial").classList.add("mostrar");

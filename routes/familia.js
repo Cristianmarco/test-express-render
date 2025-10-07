@@ -1,55 +1,94 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const db = require('../db');
+const db = require("../db");
 
-// Listar
-router.get('/', async (req, res, next) => {
+// ============================
+// GET: Listar todas las familias
+// ============================
+router.get("/", async (req, res) => {
   try {
-    const result = await db.query(
-      'SELECT id, codigo, descripcion FROM familia ORDER BY codigo ASC'
-    );
+    const result = await db.query(`
+      SELECT 
+        id, 
+        codigo, 
+        descripcion, 
+        descripcion AS nombre  -- 👈 alias para planilla.js
+      FROM familia
+      ORDER BY codigo ASC
+    `);
     res.json(result.rows);
-  } catch (e) {
-    next(e);
+  } catch (err) {
+    console.error("❌ Error GET /api/familias:", err);
+    res.status(500).json({ error: "Error al obtener familias" });
   }
 });
 
-
-// Crear
-router.post('/', async (req, res, next) => {
+// ============================
+// POST: Crear nueva familia
+// ============================
+router.post("/", async (req, res) => {
   try {
     const { codigo, descripcion } = req.body;
-    if (!codigo || !descripcion) return res.status(400).json({ error: "Datos obligatorios" });
-    await db.query('INSERT INTO familia (codigo, descripcion) VALUES ($1, $2)', [codigo, descripcion]);
-    res.status(201).json({ mensaje: "Familia creada" });
-  } catch (e) {
-    next(e);
+    if (!codigo || !descripcion) {
+      return res.status(400).json({ error: "Datos obligatorios" });
+    }
+
+    const result = await db.query(
+      "INSERT INTO familia (codigo, descripcion) VALUES ($1, $2) RETURNING *",
+      [codigo, descripcion]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("❌ Error POST /api/familias:", err);
+    res.status(500).json({ error: "Error al crear familia" });
   }
 });
 
-
-// Editar
-router.put('/:id', async (req, res, next) => {
+// ============================
+// PUT: Actualizar familia
+// ============================
+router.put("/:id", async (req, res) => {
   try {
     const { codigo, descripcion } = req.body;
-    await db.query(
-      'UPDATE familia SET codigo=$1, descripcion=$2 WHERE id=$3',
+    if (!codigo || !descripcion) {
+      return res.status(400).json({ error: "Datos obligatorios" });
+    }
+
+    const result = await db.query(
+      "UPDATE familia SET codigo=$1, descripcion=$2 WHERE id=$3 RETURNING *",
       [codigo, descripcion, req.params.id]
     );
-    res.json({ mensaje: "Familia actualizada" });
-  } catch (e) {
-    next(e);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Familia no encontrada" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("❌ Error PUT /api/familias:", err);
+    res.status(500).json({ error: "Error al actualizar familia" });
   }
 });
 
-
-// Eliminar
-router.delete('/:id', async (req, res, next) => {
+// ============================
+// DELETE: Eliminar familia
+// ============================
+router.delete("/:id", async (req, res) => {
   try {
-    await db.query('DELETE FROM familia WHERE id=$1', [req.params.id]);
+    const result = await db.query(
+      "DELETE FROM familia WHERE id=$1 RETURNING *",
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Familia no encontrada" });
+    }
+
     res.json({ mensaje: "Familia eliminada" });
-  } catch (e) {
-    next(e);
+  } catch (err) {
+    console.error("❌ Error DELETE /api/familias:", err);
+    res.status(500).json({ error: "Error al eliminar familia" });
   }
 });
 

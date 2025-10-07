@@ -114,6 +114,27 @@
     .buscador-historial button:hover {
       background: #1a5a90;
     }
+
+    .historial-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      gap: 20px;
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px 15px;
+      margin-bottom: 10px;
+    }
+
+    .historial-header div {
+      flex: 1 1 200px;
+    }
+
+    .garantia-extra {
+      background: #eef8ff;
+      border-color: #b5daff;
+    }
   </style>
 </head>
 
@@ -263,9 +284,9 @@
         <!-- Equipo -->
         <div class="form-grid">
           <div>
-            <label>Equipo *</label>
-            <select id="equipo_id" name="equipo_id" required>
-              <option value="">Seleccione un equipo</option>
+            <label>Equipo/Familia *</label>
+            <select id="familia_id" name="familia_id"></select>
+            <option value="">Seleccione un equipo</option>
             </select>
           </div>
         </div>
@@ -304,12 +325,40 @@
         <div class="form-grid">
           <div>
             <label>¿Es garantía?</label>
-            <select name="garantia">
+            <select name="garantia" id="garantia">
               <option value="no">No</option>
               <option value="si">Sí</option>
             </select>
           </div>
         </div>
+
+        <!-- Campos visibles solo si es garantía -->
+        <div id="garantia-extra-fields" style="display: none; margin-top: 10px;">
+          <div class="form-grid">
+            <div>
+              <label for="id_dota">ID DOTA</label>
+              <input type="number" name="id_dota" id="id_dota" placeholder="N° DOTA" />
+            </div>
+
+            <div>
+              <label for="ultimo_reparador">Último Reparador</label>
+              <select name="ultimo_reparador" id="ultimo_reparador">
+                <option value="">Seleccione</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="resolucion">Resolución</label>
+              <select name="resolucion" id="resolucion">
+                <option value="">Seleccione</option>
+                <option value="aceptada">Aceptada</option>
+                <option value="rechazada">Rechazada (Facturada)</option>
+                <option value="funciona_ok">Funciona OK (Devolución)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
 
         <!-- Observaciones -->
         <div class="form-grid">
@@ -346,6 +395,14 @@
         <p><b>Trabajo:</b> <span id="detalle-trabajo"></span></p>
         <p><b>Garantía:</b> <span id="detalle-garantia"></span></p>
         <p><b>Observaciones:</b> <span id="detalle-observaciones"></span></p>
+        <!-- Bloque extra solo visible si es garantía -->
+        <div id="detalle-garantia-extra" style="display: none; margin-top: 10px;">
+          <hr>
+          <p><b>ID DOTA:</b> <span id="detalle-id-dota"></span></p>
+          <p><b>Último Reparador:</b> <span id="detalle-ultimo-reparador"></span></p>
+          <p><b>Resolución:</b> <span id="detalle-resolucion"></span></p>
+        </div>
+
       </div>
     </div>
   </div>
@@ -365,6 +422,15 @@
         <div><b>Equipo:</b> <span id="historial-equipo"></span></div>
         <div><b>Nº Coche:</b> <span id="historial-coche"></span></div>
       </div>
+
+      <!-- Datos de garantía -->
+      <div id="historial-garantia-extra" class="historial-header garantia-extra" style="display:none;">
+        <div><b>ID DOTA:</b> <span id="historial-id-dota">-</span></div>
+        <div><b>Último reparador:</b> <span id="historial-ultimo-reparador">-</span></div>
+        <div><b>Resolución:</b> <span id="historial-resolucion">-</span></div>
+      </div>
+
+
 
       <!-- Tabla de reparaciones -->
       <div class="erp-table-card historial-tabla">
@@ -389,6 +455,16 @@
 
   <script src="/scripts/planilla.js"></script>
   <script src="/scripts/logout.js"></script>
+  <script>
+    // 🔄 Si el usuario vuelve desde caché del navegador, forzar recarga real
+    window.addEventListener("pageshow", function (event) {
+      if (event.persisted || performance.getEntriesByType("navigation")[0].type === "back_forward") {
+        console.log("♻️ Recarga forzada para restaurar sesión real");
+        window.location.reload();
+      }
+    });
+  </script>
+
 
 </body>
 

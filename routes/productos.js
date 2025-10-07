@@ -7,55 +7,113 @@ const db = require('../db');
 router.get('/', async (req, res, next) => {
   try {
     const result = await db.query(`
-      SELECT *
-      FROM productos
+      SELECT 
+        p.id, p.codigo, p.descripcion, p.equivalencia, p.descripcion_adicional,
+        p.origen, p.iva_tipo, p.codigo_barra, p.fecha_alta,
+        f.descripcion AS familia,
+        g.descripcion AS grupo,
+        m.descripcion AS marca,
+        c.descripcion AS categoria,
+        pr.razon_social AS proveedor   -- 👈 usamos razon_social
+      FROM productos p
+      LEFT JOIN familia f ON p.familia_id = f.id
+      LEFT JOIN grupo g ON p.grupo_id = g.id
+      LEFT JOIN marca m ON p.marca_id = m.id
+      LEFT JOIN categoria c ON p.categoria_id = c.id
+      LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
       ORDER BY
-        regexp_replace(codigo, '[0-9]', '', 'g'),
-        NULLIF(regexp_replace(codigo, '[^0-9]', '', 'g'), '')::int
+        regexp_replace(p.codigo, '[0-9]', '', 'g'),
+        NULLIF(regexp_replace(p.codigo, '[^0-9]', '', 'g'), '')::int
     `);
     res.json(result.rows);
   } catch (e) {
+    console.error("❌ Error GET /api/productos:", e);
+    res.status(500).json({ error: "Error al obtener productos" });
+  }
+});
+
+
+// ============================
+// POST: Crear producto
+// ============================
+router.post('/', async (req, res, next) => {
+  try {
+    const {
+      codigo, descripcion, equivalencia,
+      descripcion_adicional, familia_id, grupo_id,
+      marca_id, categoria_id, proveedor_id,
+      origen, iva_tipo, codigo_barra
+    } = req.body;
+
+    if (!codigo || !descripcion)
+      return res.status(400).json({ error: "Datos obligatorios" });
+
+    await db.query(`
+      INSERT INTO productos (
+        codigo, descripcion, equivalencia, descripcion_adicional,
+        familia_id, grupo_id, marca_id, categoria_id, proveedor_id,
+        origen, iva_tipo, codigo_barra, fecha_alta
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW()
+      )
+    `, [
+      codigo, descripcion, equivalencia || null,
+      descripcion_adicional || null, familia_id || null, grupo_id || null,
+      marca_id || null, categoria_id || null, proveedor_id || null,
+      origen || null, iva_tipo || null, codigo_barra || null
+    ]);
+
+    res.status(201).json({ mensaje: "Producto agregado" });
+  } catch (e) {
+    console.error("❌ Error POST /api/productos:", e);
+    next(e);
+  }
+});
+
+// PUT: Actualizar producto
+router.put("/:id", async (req, res, next) => {
+  try {
+    const {
+      codigo, descripcion, equivalencia,
+      descripcion_adicional, familia_id, grupo_id,
+      marca_id, categoria_id, proveedor_id,
+      origen, iva_tipo, codigo_barra
+    } = req.body;
+
+    await db.query(`
+      UPDATE productos
+      SET codigo=$1, descripcion=$2, equivalencia=$3,
+          descripcion_adicional=$4, familia_id=$5, grupo_id=$6,
+          marca_id=$7, categoria_id=$8, proveedor_id=$9,
+          origen=$10, iva_tipo=$11, codigo_barra=$12
+      WHERE id=$13
+    `, [
+      codigo, descripcion, equivalencia || null,
+      descripcion_adicional || null, familia_id || null, grupo_id || null,
+      marca_id || null, categoria_id || null, proveedor_id || null,
+      origen || null, iva_tipo || null, codigo_barra || null,
+      req.params.id
+    ]);
+
+    res.json({ mensaje: "Producto actualizado correctamente" });
+  } catch (e) {
+    console.error("❌ Error PUT /api/productos/:id", e);
     next(e);
   }
 });
 
 
-// POST: Crear producto
-router.post('/', async (req, res, next) => {
-  try {
-    const {
-      codigo, descripcion, equivalencia,
-      descripcion_adicional, codigo_familia, codigo_grupo,
-      codigo_marca, codigo_categoria, codigo_proveedor,
-      origen, iva_tipo, codigo_barra
-    } = req.body;
-    if (!codigo || !descripcion) return res.status(400).json({error:'Datos obligatorios'});
-    await db.query(`
-      INSERT INTO productos (
-        codigo, descripcion, equivalencia,
-        descripcion_adicional, codigo_familia, codigo_grupo,
-        codigo_marca, codigo_categoria, codigo_proveedor,
-        origen, iva_tipo, codigo_barra
-      ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
-      )`, [
-        codigo, descripcion, equivalencia || null,
-        descripcion_adicional || null, codigo_familia || null, codigo_grupo || null,
-        codigo_marca || null, codigo_categoria || null, codigo_proveedor || null,
-        origen || null, iva_tipo || null, codigo_barra || null
-      ]);
-    res.status(201).json({mensaje:'Producto agregado'});
-  } catch(e) { next(e);}
-});
-
-// PATCH: Modificar producto
-router.patch('/:id', async (req, res, next) => {
-  // UPDATE productos SET ... WHERE id=...
-});
-
+// ============================
 // DELETE: Eliminar producto
+// ============================
 router.delete('/:id', async (req, res, next) => {
-  // DELETE FROM productos WHERE id=...
+  try {
+    await db.query("DELETE FROM productos WHERE id=$1", [req.params.id]);
+    res.json({ mensaje: "Producto eliminado" });
+  } catch (e) {
+    console.error("❌ Error DELETE /api/productos:", e);
+    next(e);
+  }
 });
 
 module.exports = router;
