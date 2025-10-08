@@ -3,34 +3,69 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// GET: Listar productos ordenados alfanuméricamente por codigo
+// ============================
+// GET: Listar productos (opcionalmente filtrados por grupo)
+// con suma total del stock desde la tabla "stock"
+// ============================
 router.get('/', async (req, res, next) => {
   try {
-    const result = await db.query(`
+    const { grupo_id } = req.query;
+
+    let query = `
       SELECT 
-        p.id, p.codigo, p.descripcion, p.equivalencia, p.descripcion_adicional,
-        p.origen, p.iva_tipo, p.codigo_barra, p.fecha_alta,
+        p.id, 
+        p.codigo, 
+        p.descripcion,
+        COALESCE(SUM(s.cantidad), 0) AS stock_total,  -- 👈 suma de los dos depósitos
+        p.equivalencia, 
+        p.descripcion_adicional,
+        p.origen, 
+        p.iva_tipo, 
+        p.codigo_barra, 
+        p.fecha_alta,
         f.descripcion AS familia,
         g.descripcion AS grupo,
         m.descripcion AS marca,
         c.descripcion AS categoria,
-        pr.razon_social AS proveedor   -- 👈 usamos razon_social
+        pr.razon_social AS proveedor
       FROM productos p
       LEFT JOIN familia f ON p.familia_id = f.id
       LEFT JOIN grupo g ON p.grupo_id = g.id
       LEFT JOIN marca m ON p.marca_id = m.id
       LEFT JOIN categoria c ON p.categoria_id = c.id
       LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
+      LEFT JOIN stock s ON s.producto_id = p.id   -- 👈 unión con tu tabla de stock
+    `;
+
+    const params = [];
+
+    // 👇 filtro opcional por grupo
+    if (grupo_id) {
+      query += ` WHERE p.grupo_id = $1 `;
+      params.push(grupo_id);
+    }
+
+    query += `
+      GROUP BY 
+        p.id, p.codigo, p.descripcion, p.equivalencia, 
+        p.descripcion_adicional, p.origen, p.iva_tipo, 
+        p.codigo_barra, p.fecha_alta, 
+        f.descripcion, g.descripcion, m.descripcion, 
+        c.descripcion, pr.razon_social
       ORDER BY
         regexp_replace(p.codigo, '[0-9]', '', 'g'),
         NULLIF(regexp_replace(p.codigo, '[^0-9]', '', 'g'), '')::int
-    `);
+    `;
+
+    const result = await db.query(query, params);
     res.json(result.rows);
   } catch (e) {
     console.error("❌ Error GET /api/productos:", e);
     res.status(500).json({ error: "Error al obtener productos" });
   }
 });
+
+
 
 
 // ============================

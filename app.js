@@ -116,7 +116,8 @@ app.use("/api/marca", require("./routes/marca"));
 app.use("/api/categoria", require("./routes/categoria"));
 //app.use("/api/proveedores", requireLogin, proveedoresRouter);//
 app.use("/api/proveedores", proveedoresRouter);
-app.use("/api/depositos", requireLogin, depositosRouter);
+//app.use("/api/depositos", requireLogin, depositosRouter);//
+app.use("/api/depositos", depositosRouter);
 app.use("/api/equipos", requireLogin, equiposRoutes);
 app.use("/api/tecnicos", requireLogin, tecnicosRouter);
 app.use("/api/reparaciones_planilla", requireLogin, reparacionesPlanillaRouter);

@@ -6,6 +6,7 @@ window.reparacionSeleccionada = null;
 window.modoEdicion = false;
 
 
+
 // ============================
 // Render Calendario
 // ============================
@@ -434,6 +435,26 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // === Validación dinámica del campo "trabajo" según resolución ===
+  document.getElementById("resolucion").addEventListener("change", (e) => {
+    const trabajoField = document.getElementById("trabajo");
+    const btnRepuesto = document.getElementById("btn-seleccionar-repuesto");
+    const valor = e.target.value;
+
+    if (valor === "funciona_ok") {
+      // 🔹 Caso devolución: sin reparación
+      trabajoField.removeAttribute("required");
+      trabajoField.value = "";
+      trabajoField.placeholder = "Sin reparación (devolución)";
+      if (btnRepuesto) btnRepuesto.style.display = "none"; // opcional: oculta el botón de repuesto
+    } else {
+      // 🔹 Otros casos: trabajo obligatorio
+      trabajoField.setAttribute("required", "required");
+      trabajoField.placeholder = "Detalle del trabajo o repuestos utilizados...";
+      if (btnRepuesto) btnRepuesto.style.display = "inline-block"; // muestra el botón
+    }
+  });
 }); // 👈 cierre FINAL del DOMContentLoaded
 
 
@@ -510,4 +531,126 @@ function mostrarToast(mensaje, tipo = "info") {
     toast.classList.remove("mostrar");
     setTimeout(() => toast.remove(), 400);
   }, 3000);
+}
+// ============================
+// MODALES DE REPUESTOS
+// ============================
+
+const modalGrupos = document.getElementById("modal-grupos");
+const modalProductos = document.getElementById("modal-productos");
+
+// --- Abrir modal de grupos desde el botón ---
+document.getElementById("btn-seleccionar-repuesto").addEventListener("click", async () => {
+  await cargarGrupos();
+});
+
+// --- Cargar lista de grupos ---
+async function cargarGrupos() {
+  try {
+    const res = await fetch("/api/grupo", { credentials: "include" });
+    if (!res.ok) throw new Error("Error al cargar grupos");
+
+    const grupos = await res.json();
+    const tbody = document.getElementById("tbody-grupos");
+    tbody.innerHTML = "";
+
+    if (!grupos.length) {
+      tbody.innerHTML = `<tr><td colspan="2" style="text-align:center;">No hay grupos registrados</td></tr>`;
+      modalGrupos.classList.add("mostrar");
+      return;
+    }
+
+    grupos.forEach(g => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input type="checkbox" data-id="${g.id}" /></td>
+        <td>${g.descripcion}</td>
+      `;
+
+      // ✅ Cuando clickeás un grupo, se cierra el modal y se abre el de productos
+      tr.onclick = () => {
+        cerrarModalGrupos();
+        cargarProductosPorGrupo(g.id);
+      };
+
+      tbody.appendChild(tr);
+    });
+
+    modalGrupos.classList.add("mostrar");
+  } catch (err) {
+    console.error("❌ Error cargando grupos:", err);
+  }
+}
+
+// --- Cargar productos del grupo seleccionado ---
+async function cargarProductosPorGrupo(grupoId) {
+  try {
+    const res = await fetch(`/api/productos?grupo_id=${grupoId}`, { credentials: "include" });
+    if (!res.ok) throw new Error("Error al cargar productos");
+
+    const productos = await res.json();
+    const tbody = document.getElementById("tbody-productos");
+    tbody.innerHTML = "";
+
+    if (!productos.length) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Sin repuestos en este grupo</td></tr>`;
+      modalProductos.classList.add("mostrar");
+      return;
+    }
+
+    productos.forEach(p => {
+      const stockTexto = p.stock_total > 0
+        ? `<span style="color:green;font-weight:bold;">${p.stock_total}</span>`
+        : `<span style="color:red;">Sin stock</span>`;
+
+      const tr = document.createElement("tr");
+
+      // ✅ escapamos comillas simples y dobles en la descripción
+      const descripcionEscapada = p.descripcion
+        ? p.descripcion.replace(/'/g, "\\'").replace(/"/g, "&quot;")
+        : "";
+
+      tr.innerHTML = `
+        <td>
+          <button class="btn-secundario" type="button"
+            onclick="seleccionarProducto('${p.codigo}', '${descripcionEscapada}')"
+            ${p.stock_total <= 0 ? "disabled" : ""}>
+            <i class="fas fa-plus"></i> Elegir
+          </button>
+        </td>
+        <td>${p.descripcion}</td>
+        <td>${p.codigo || "-"}</td>
+        <td>${stockTexto}</td>
+      `;
+
+      // 👇 Doble clic también agrega el repuesto
+      if (p.stock_total > 0) {
+        tr.ondblclick = () => seleccionarProducto(p.codigo, p.descripcion);
+      }
+
+      tbody.appendChild(tr);
+    });
+
+    modalProductos.classList.add("mostrar");
+  } catch (err) {
+    console.error("❌ Error cargando productos:", err);
+  }
+}
+
+
+// --- Seleccionar producto y agregarlo al textarea ---
+function seleccionarProducto(codigo, descripcion) {
+  const textarea = document.getElementById("trabajo");
+  const texto = `${descripcion} (${codigo})`;
+  textarea.value = textarea.value ? `${textarea.value}\n${texto}` : texto;
+  cerrarModalProductos();
+  mostrarToast(`Producto agregado: ${descripcion}`, "success");
+}
+
+// --- Cerrar modales ---
+function cerrarModalGrupos() {
+  modalGrupos.classList.remove("mostrar");
+}
+function cerrarModalProductos() {
+  modalProductos.classList.remove("mostrar");
 }

@@ -95,60 +95,153 @@ router.get("/", async (req, res) => {
 
 
 
-
-// POST - Crear nueva reparación
+// ===============================================
+// POST - Crear reparación y descontar stock usado
+// ===============================================
 router.post("/", async (req, res) => {
+  const client = await pool.connect();
   try {
-    const {
-      cliente_tipo,
-      cliente_id,
+    let {
       id_reparacion,
-      coche_numero,
-      familia_id,
+      cliente_id,
+      cliente_tipo,
       tecnico_id,
-      hora_inicio,
-      hora_fin,
       trabajo,
-      garantia,
       observaciones,
       fecha,
+      garantia,
       id_dota,
       ultimo_reparador,
       resolucion
     } = req.body;
 
-    const result = await pool.query(
-      `INSERT INTO equipos_reparaciones 
-        (cliente_tipo, cliente_id, id_reparacion, coche_numero, familia_id, tecnico_id,
-         hora_inicio, hora_fin, trabajo, garantia, observaciones, fecha,
-         id_dota, ultimo_reparador, resolucion)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-       RETURNING *`,
+    // 🧹 Normalizamos valores vacíos
+    id_reparacion = id_reparacion || null;
+    cliente_id = cliente_id || null;
+    cliente_tipo = cliente_tipo || "dota"; // 👈 por defecto
+    tecnico_id = tecnico_id || null;
+    id_dota = id_dota || null;
+    ultimo_reparador = ultimo_reparador || null;
+    resolucion = resolucion || null;
+    garantia = garantia === "si" ? "si" : "no";
+
+    await client.query("BEGIN");
+
+    // 🧾 Inserta la reparación
+    const result = await client.query(
+      `
+      INSERT INTO equipos_reparaciones
+        (id_reparacion, cliente_id, cliente_tipo, tecnico_id, trabajo, observaciones, fecha, garantia,
+         id_dota, ultimo_reparador, resolucion, coche_numero, familia_id, hora_inicio, hora_fin)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      RETURNING id;
+    `,
       [
-        cliente_tipo,
-        cliente_id || null,
-        id_reparacion,
-        coche_numero || null,
-        familia_id,
-        tecnico_id,
-        hora_inicio || null,
-        hora_fin || null,
-        trabajo,
-        garantia,
-        observaciones || null,
-        fecha,
-        id_dota || null,
-        ultimo_reparador || null,
-        resolucion || null
+        id_reparacion,      // $1
+        cliente_id,         // $2
+        cliente_tipo,       // $3
+        tecnico_id,         // $4
+        trabajo,            // $5
+        observaciones,      // $6
+        fecha,              // $7
+        garantia,           // $8
+        id_dota,            // $9
+        ultimo_reparador,   // $10
+        resolucion,         // $11
+        req.body.coche_numero || null, // $12
+        req.body.familia_id || null,   // $13
+        req.body.hora_inicio || null,  // $14
+        req.body.hora_fin || null      // $15
       ]
     );
 
-    res.json(result.rows[0]);
+    const reparacionId = result.rows[0].id;
+
+    // 🧩 Detectar productos usados (busca códigos entre paréntesis)
+    const productosUsados = [];
+    if (trabajo) {
+      const regex = /\((.*?)\)/g;
+      let match;
+      while ((match = regex.exec(trabajo)) !== null) {
+        productosUsados.push(match[1]);
+      }
+    }
+
+    // 📦 Descontar stock y registrar movimientos
+    for (const codigoRaw of productosUsados) {
+      const codigo = codigoRaw.trim().replace(/\s+/g, "");
+      console.log(`📦 Intentando descontar stock de producto: [${codigo}]`);
+
+      // Buscar producto por código
+      const prod = await client.query(
+        `SELECT id, codigo FROM productos 
+         WHERE REPLACE(codigo, ' ', '') = $1 LIMIT 1`,
+        [codigo]
+      );
+
+      if (prod.rowCount === 0) {
+        console.warn(`⚠️ Producto no encontrado para código: [${codigo}]`);
+        continue;
+      }
+
+      const productoId = prod.rows[0].id;
+
+      // 🔍 Buscar en qué depósito tiene stock disponible (>0)
+      const stockRes = await client.query(
+        `SELECT deposito_id, cantidad 
+         FROM stock 
+         WHERE producto_id = $1
+         ORDER BY cantidad DESC
+         LIMIT 1`,
+        [productoId]
+      );
+
+      let depositoId = 1; // valor por defecto
+      if (stockRes.rowCount > 0) {
+        depositoId = stockRes.rows[0].deposito_id;
+        console.log(`🏬 Usando depósito ${depositoId} (cantidad actual ${stockRes.rows[0].cantidad})`);
+      } else {
+        console.warn(`⚠️ No hay stock registrado, se usará depósito 1 por defecto`);
+      }
+
+      // 📉 Descontar stock real
+      await client.query(
+        `UPDATE stock
+         SET cantidad = GREATEST(cantidad - 1, 0)
+         WHERE producto_id = $1 AND deposito_id = $2`,
+        [productoId, depositoId]
+      );
+
+      // 🧾 Registrar movimiento
+      await client.query(
+        `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, fecha, observacion)
+         VALUES ($1, $2, 'SALIDA', 1, NOW(), $3)`,
+        [productoId, depositoId, `Usado en reparación ID ${reparacionId}`]
+      );
+
+      console.log(`✅ Stock actualizado y movimiento registrado para ${codigo}`);
+    }
+
+    await client.query("COMMIT");
+
+    res.json({
+      ok: true,
+      id: reparacionId,
+      ...(productosUsados.length ? { productos_usados: productosUsados } : {})
+    });
+
   } catch (err) {
-    console.error("❌ Error insertando reparación:", err);
-    res.status(500).json({ error: "Error al insertar reparación" });
+    await client.query("ROLLBACK");
+    console.error("❌ Error al guardar reparación:", err);
+    res.status(500).json({ error: "Error al guardar reparación" });
+  } finally {
+    client.release();
   }
 });
+
+
+
+
 
 // PUT - Actualizar reparación existente
 router.put("/:id", async (req, res) => {
