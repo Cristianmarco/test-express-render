@@ -168,6 +168,29 @@ app.use((err, req, res, next) => {
 });
 
 // ============================
+// Layout Refactorizado (nuevo entorno visual)
+// ============================
+
+const refactorRouter = require("./refactor/routes/refactor.js");
+
+// Configurar EJS para vistas dinámicas del refactor
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "refactor/views"));
+
+// Archivos estáticos del refactor (CSS, JS, etc.)
+app.use("/static", express.static(path.join(__dirname, "refactor/public")));
+
+// Middleware global para pasar el usuario a todas las vistas EJS
+app.use((req, res, next) => {
+  res.locals.user = req.session?.user || null;
+  next();
+});
+
+// Ruta principal del nuevo sistema unificado
+app.use("/refactor", refactorRouter);
+
+
+// ============================
 // Iniciar servidor
 // ============================
 const PORT = process.env.PORT || 3000;

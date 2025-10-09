@@ -7,56 +7,68 @@ window.modoEdicion = false;
 
 
 
+
 // ============================
-// Render Calendario
+// Render Calendario (corregido)
 // ============================
-const calendarTitle = document.getElementById("calendarTitle");
-const calendarGrid = document.getElementById("calendarGrid");
+document.addEventListener("DOMContentLoaded", () => {
+  const calendarTitle = document.getElementById("calendarTitle");
+  const calendarGrid = document.getElementById("calendarGrid");
 
-function renderCalendar(date) {
-  calendarGrid.innerHTML = "";
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const monthName = date.toLocaleString("es-ES", { month: "long", year: "numeric" });
-  calendarTitle.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-
-  const weekdays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-  weekdays.forEach(day => {
-    const div = document.createElement("div");
-    div.textContent = day;
-    div.classList.add("calendar-weekday");
-    calendarGrid.appendChild(div);
-  });
-
-  const firstDay = new Date(year, month, 1);
-  const startDay = (firstDay.getDay() + 6) % 7;
-  const totalDays = new Date(year, month + 1, 0).getDate();
-
-  for (let i = 0; i < startDay; i++) {
-    const emptyDiv = document.createElement("div");
-    emptyDiv.classList.add("calendar-day", "empty");
-    calendarGrid.appendChild(emptyDiv);
+  if (!calendarTitle || !calendarGrid) {
+    console.warn("⚠️ Elementos del calendario no encontrados en el DOM");
+    return;
   }
 
-  for (let day = 1; day <= totalDays; day++) {
-    const div = document.createElement("div");
-    div.classList.add("calendar-day");
-    div.textContent = day;
-    const fecha = new Date(year, month, day).toISOString().split("T")[0];
-    div.onclick = () => abrirModalPlanilla(fecha);
-    calendarGrid.appendChild(div);
-  }
-}
+  function renderCalendar(date) {
+    calendarGrid.innerHTML = "";
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const monthName = date.toLocaleString("es-ES", { month: "long", year: "numeric" });
+    calendarTitle.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
-document.getElementById("prevMonth").onclick = () => {
-  currentDate.setMonth(currentDate.getMonth() - 1);
+    const weekdays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+    weekdays.forEach(day => {
+      const div = document.createElement("div");
+      div.textContent = day;
+      div.classList.add("calendar-weekday");
+      calendarGrid.appendChild(div);
+    });
+
+    const firstDay = new Date(year, month, 1);
+    const startDay = (firstDay.getDay() + 6) % 7;
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    for (let i = 0; i < startDay; i++) {
+      const emptyDiv = document.createElement("div");
+      emptyDiv.classList.add("calendar-day", "empty");
+      calendarGrid.appendChild(emptyDiv);
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      const div = document.createElement("div");
+      div.classList.add("calendar-day");
+      div.textContent = day;
+      const fecha = new Date(year, month, day).toISOString().split("T")[0];
+      div.onclick = () => abrirModalPlanilla(fecha);
+      calendarGrid.appendChild(div);
+    }
+  }
+
+  // Navegación mensual
+  document.getElementById("prevMonth").onclick = () => {
+    currentDate.setMonth(currentDate.getMonth() - 1);
+    renderCalendar(currentDate);
+  };
+  document.getElementById("nextMonth").onclick = () => {
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    renderCalendar(currentDate);
+  };
+
+  // Render inicial
   renderCalendar(currentDate);
-};
-document.getElementById("nextMonth").onclick = () => {
-  currentDate.setMonth(currentDate.getMonth() + 1);
-  renderCalendar(currentDate);
-};
-renderCalendar(currentDate);
+});
+
 
 // ============================
 // Planilla Diaria
@@ -654,3 +666,23 @@ function cerrarModalGrupos() {
 function cerrarModalProductos() {
   modalProductos.classList.remove("mostrar");
 }
+
+// === MANEJO DE MODALES (abrir / cerrar / navegación) ===
+const modalReparacion = document.getElementById("modal-reparacion");
+const modalDetalle = document.getElementById("modal-detalle");
+
+document.getElementById("btn-agregar-rep")?.addEventListener("click", () => {
+  modalReparacion.style.display = "flex";
+});
+
+document.getElementById("btn-ver-detalle")?.addEventListener("click", () => {
+  modalDetalle.style.display = "flex";
+});
+
+window.cerrarModalReparacion = () => {
+  modalReparacion.style.display = "none";
+};
+
+window.cerrarModalDetalle = () => {
+  modalDetalle.style.display = "none";
+};

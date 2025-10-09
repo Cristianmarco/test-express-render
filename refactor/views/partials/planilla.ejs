@@ -1,0 +1,48 @@
+<section class="planilla-section">
+  <div class="erp-main-card">
+    <!-- Título principal -->
+    <div class="erp-header-row">
+      <div class="titulo-dota">
+        <i class="fas fa-calendar-alt"></i> Planilla Diaria
+      </div>
+    </div>
+
+    <!-- BUSCADOR -->
+    <div class="buscador-historial">
+      <input
+        type="text"
+        id="buscar-reparacion"
+        class="input-buscar"
+        placeholder="🔍 Buscar por ID Reparación..."
+      />
+      <button id="btn-buscar-historial" class="btn-primary">
+        <i class="fas fa-search"></i> Buscar
+      </button>
+    </div>
+
+    <!-- CALENDARIO -->
+    <div class="calendar-container">
+      <div class="calendar-header">
+        <button id="prevMonth" class="icon-button-erp visualizar">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <h2 id="calendarTitle" class="calendar-title"></h2>
+        <button id="nextMonth" class="icon-button-erp visualizar">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+
+      <!-- Contenedor donde JS generará los días -->
+      <div class="calendar-grid" id="calendarGrid"></div>
+    </div>
+  </div>
+
+  <!-- MODALES -->
+  <div class="planilla-modales">
+    <%- include("../partials/modales/planilla_modales.ejs") %>
+  </div>
+</section>
+
+<!-- === Estilos y scripts del módulo Planilla === -->
+<link rel="stylesheet" href="/static/css/planilla-refactor.css" />
+<script src="/static/scripts/planilla.js"></script>
