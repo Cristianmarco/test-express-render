@@ -21,7 +21,50 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.href = '/views/reparaciones-vigentes.html';
     }
   }
+  // Handlers globales para modales clásicos (.modal)
+  bindGlobalClassicModals();
 });
+
+// Cierre suave genérico para modales clásicos
+function smoothCloseClassicModal(modal) {
+  if (!modal) return;
+  const content = modal.querySelector('.modal-contenido');
+  modal.classList.add('closing');
+  if (content) content.classList.add('closing');
+  setTimeout(() => {
+    modal.style.display = 'none';
+    modal.classList.remove('closing', 'open', 'mostrar');
+    if (content) content.classList.remove('closing');
+  }, 180);
+}
+
+function bindGlobalClassicModals() {
+  if (window.__classicModalsBound) return;
+  window.__classicModalsBound = true;
+
+  // Cerrar al clickear el overlay
+  document.addEventListener('click', (e) => {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+      if (!modal || (modal.style.display !== 'flex' && modal.style.display !== 'block' && !modal.classList.contains('mostrar') && !modal.classList.contains('open'))) return;
+      const content = modal.querySelector('.modal-contenido');
+      if (e.target === modal && (!content || !content.contains(e.target))) {
+        smoothCloseClassicModal(modal);
+      }
+    });
+  });
+
+  // Cerrar con tecla Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+      if (modal && (modal.style.display === 'flex' || modal.style.display === 'block' || modal.classList.contains('mostrar') || modal.classList.contains('open'))) {
+        smoothCloseClassicModal(modal);
+      }
+    });
+  });
+}
 
 // Función global para navegación de sidebar
 function irA(seccion) {

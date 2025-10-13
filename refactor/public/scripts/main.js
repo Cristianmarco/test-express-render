@@ -4,7 +4,6 @@ const mainContent = document.getElementById("main-content");
 const tabsContainer = document.getElementById("tabs");
 let openTabs = [];
 
-// === Cargar vista (HTML dinámico desde servidor)
 async function loadView(view) {
   // Si ya existe, solo activarla
   const existing = openTabs.find(t => t.view === view);
@@ -41,67 +40,71 @@ async function loadView(view) {
   // Mostrar la pestaña
   activateTab(view);
 
+  // 🔔 Avisar a otros scripts que una nueva vista fue cargada
+  const event = new CustomEvent("view:changed", { detail: view });
+  document.dispatchEvent(event);
+
   // Ejecutar el JS asociado si aplica
   ejecutarScriptVista(view);
-}
+} 
 
-// === Activar pestaña
-function activateTab(view) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach(c => (c.style.display = "none"));
+  // === Activar pestaña
+  function activateTab(view) {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(c => (c.style.display = "none"));
 
-  const current = openTabs.find(t => t.view === view);
-  if (current) current.tab.classList.add("active");
+    const current = openTabs.find(t => t.view === view);
+    if (current) current.tab.classList.add("active");
 
-  const content = mainContent.querySelector(`.tab-content[data-view="${view}"]`);
-  if (content) content.style.display = "block";
-}
-
-// === Cerrar pestaña
-function closeTab(view) {
-  const idx = openTabs.findIndex(t => t.view === view);
-  if (idx === -1) return;
-
-  const { tab } = openTabs[idx];
-  tab.remove();
-
-  const content = mainContent.querySelector(`.tab-content[data-view="${view}"]`);
-  if (content) content.remove();
-
-  openTabs.splice(idx, 1);
-  if (openTabs.length > 0) activateTab(openTabs[openTabs.length - 1].view);
-  else mainContent.innerHTML = "";
-}
-
-// === Ejecutar JS específico según la vista cargada
-function ejecutarScriptVista(view) {
-  console.log(`🚀 Ejecutando script para vista: ${view}`);
-
-  switch (view) {
-    case "planilla":
-      cargarScript("/static/scripts/planilla.js");
-      break;
-
-    case "inicio":
-      cargarScript("/static/scripts/inicio.js");
-      break;
-
-    // ⚡ Podés agregar más casos a medida que agregues vistas
-    default:
-      console.log(`ℹ️ No hay script específico para ${view}`);
+    const content = mainContent.querySelector(`.tab-content[data-view="${view}"]`);
+    if (content) content.style.display = "block";
   }
-}
 
-// === Cargar y ejecutar script externo
-function cargarScript(src) {
-  const script = document.createElement("script");
-  script.src = src;
-  script.defer = true;
-  document.body.appendChild(script);
-}
+  // === Cerrar pestaña
+  function closeTab(view) {
+    const idx = openTabs.findIndex(t => t.view === view);
+    if (idx === -1) return;
 
-// === Eventos de menú
-document.querySelectorAll(".menu-item").forEach(btn => {
+    const { tab } = openTabs[idx];
+    tab.remove();
+
+    const content = mainContent.querySelector(`.tab-content[data-view="${view}"]`);
+    if (content) content.remove();
+
+    openTabs.splice(idx, 1);
+    if (openTabs.length > 0) activateTab(openTabs[openTabs.length - 1].view);
+    else mainContent.innerHTML = "";
+  }
+
+  // === Ejecutar JS específico según la vista cargada
+  function ejecutarScriptVista(view) {
+    console.log(`🚀 Ejecutando script para vista: ${view}`);
+
+    switch (view) {
+      case "planilla":
+        cargarScript("/static/scripts/planilla.js");
+        break;
+
+      case "inicio":
+        cargarScript("/static/scripts/inicio.js");
+        break;
+
+      // ⚡ Podés agregar más casos a medida que agregues vistas
+      default:
+        console.log(`ℹ️ No hay script específico para ${view}`);
+    }
+  }
+
+  // === Cargar y ejecutar script externo
+  function cargarScript(src) {
+    const script = document.createElement("script");
+    script.src = src;
+    script.defer = true;
+    document.body.appendChild(script);
+  }
+
+  // === Eventos de menú
+document.querySelectorAll(".menu-link").forEach(btn => {
   btn.addEventListener("click", e => {
     e.preventDefault();
     const view = btn.dataset.view;
@@ -111,3 +114,5 @@ document.querySelectorAll(".menu-item").forEach(btn => {
 
 // === Cargar inicio automáticamente
 document.addEventListener("DOMContentLoaded", () => loadView("inicio"));
+
+

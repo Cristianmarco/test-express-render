@@ -180,14 +180,16 @@ app.set("views", path.join(__dirname, "refactor/views"));
 // Archivos estáticos del refactor (CSS, JS, etc.)
 app.use("/static", express.static(path.join(__dirname, "refactor/public")));
 
-// Middleware global para pasar el usuario a todas las vistas EJS
+// ✅ Primero protegemos todo el entorno refactor con login
+app.use("/refactor", requireLogin, refactorRouter);
+
+// ✅ Después pasamos el usuario autenticado a las vistas EJS
 app.use((req, res, next) => {
   res.locals.user = req.session?.user || null;
   next();
 });
 
-// Ruta principal del nuevo sistema unificado
-app.use("/refactor", refactorRouter);
+
 
 
 // ============================

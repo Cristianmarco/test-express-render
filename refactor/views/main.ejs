@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Amorim ERP Refactor</title>
+    <link rel="stylesheet" href="/static/css/global.css" />
+    <link rel="stylesheet" href="/static/css/sidebar.css" />
+    <link rel="stylesheet" href="/static/css/header.css" />
+    <link rel="stylesheet" href="/static/css/inicio.css">
+    <link rel="stylesheet" href="/static/css/planilla.css">
+    <link rel="stylesheet" href="/static/css/planilla-refactor.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+
+<body>
+    <header class="header">
+        <div class="left-section">
+            <img src="/static/images/logo.png" alt="Amorim" class="logo-img" />
+            <span class="logo-erp">ERP</span>
+        </div>
+
+        <div class="right-section">
+            <div class="user-info">
+                <i class="fa fa-user-circle"></i>
+                <span>Bienvenido, <%= user || 'Invitado' %></span>
+            </div>
+            <form action="/api/logout" method="post" style="display:inline;">
+                <button class="logout-btn">Salir</button>
+            </form>
+        </div>
+    </header>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <ul class="menu">
+                <li class="menu-section">General</li>
+                <li><a href="#" class="menu-link" data-view="inicio"><i class="fa fa-home"></i> Inicio</a></li>
+                <li><a href="#" class="menu-link" data-view="ventas"><i class="fa fa-dollar-sign"></i> Ventas</a></li>
+                <li><a href="#" class="menu-link" data-view="clientes"><i class="fa fa-users"></i> Clientes</a></li>
+                <li><a href="#" class="menu-link" data-view="productos"><i class="fa fa-box"></i> Productos</a></li>
+                <li><a href="#" class="menu-link" data-view="compras"><i class="fa fa-cart-shopping"></i> Compras</a>
+                </li>
+                <li><a href="#" class="menu-link" data-view="stock"><i class="fa fa-warehouse"></i> Stock</a></li>
+                <li><a href="#" class="menu-link" data-view="proveedores"><i class="fa fa-truck"></i> Proveedores</a>
+                </li>
+                <li><a href="#" class="menu-link" data-view="planilla"><i class="fa fa-calendar-check"></i> Planilla
+                        diaria</a></li>
+
+                <li class="menu-section">Operaciones</li>
+                <li><a href="#" class="menu-link" data-view="reportes"><i class="fa fa-chart-pie"></i> Reportes</a></li>
+                <li><a href="#" class="menu-link" data-view="configuracion"><i class="fa fa-gear"></i> Configuración</a>
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div id="tabs" class="tabs"></div>
+            <div id="main-content" class="content"></div>
+        </main>
+    </div>
+
+    <script src="/static/scripts/main.js"></script>
+</body>
+
+</html>

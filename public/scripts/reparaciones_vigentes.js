@@ -62,6 +62,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
+// === Utils: Apertura/Cierre suave de modales ===
+function smoothOpenModalById(id) {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  const content = modal.querySelector('.modal-contenido');
+  modal.classList.remove('closing');
+  if (content) content.classList.remove('closing');
+  modal.style.display = 'flex';
+  modal.classList.add('open');
+}
+
+function smoothCloseModalById(id) {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  const content = modal.querySelector('.modal-contenido');
+  modal.classList.add('closing');
+  if (content) content.classList.add('closing');
+  setTimeout(() => {
+    modal.style.display = 'none';
+    modal.classList.remove('closing', 'open', 'mostrar');
+    if (content) content.classList.remove('closing');
+  }, 180);
+}
+
 
 // ========== Cargar mapa de clientes ==========
 async function cargarMapaClientes() {
@@ -322,14 +346,13 @@ function abrirModalAgregar() {
   if (campoFecha) campoFecha.value = hoy;
 
   const modal = document.getElementById("modal-agregar");
-  if (modal) modal.style.display = "flex";
+  if (modal) smoothOpenModalById("modal-agregar");
 }
 
 
 
 function cerrarModalAgregar() {
-  const modal = document.getElementById("modal-agregar");
-  if (modal) modal.style.display = "none";
+  smoothCloseModalById("modal-agregar");
 }
 
 // ========== Modal Modificar ==========
@@ -378,7 +401,7 @@ function abrirModalModificar() {
   codigoOriginal = rep.codigo;
   codigoActual = rep.codigo;
 
-  document.getElementById("modal-modificar").style.display = "flex";
+  smoothOpenModalById("modal-modificar");
 }
 
 
@@ -424,13 +447,13 @@ async function visualizarReparacion() {
     `).join('<hr>');
   }
 
-  document.getElementById("modal-historial").style.display = "flex";
+  smoothOpenModalById("modal-historial");
 }
 
 
 
 function cerrarModalHistorial() {
-  document.getElementById("modal-historial").style.display = "none";
+  smoothCloseModalById("modal-historial");
 }
 
 // ========== Modal Agregar Historial ==========
@@ -440,13 +463,12 @@ function abrirModalAgregarHistorial() {
     alert("Selecciona una reparación primero.");
     return;
   }
-  document.getElementById("modal-agregar-historial").style.display = "flex";
+  smoothOpenModalById("modal-agregar-historial");
 }
 
 
 function cerrarModalAgregarHistorial() {
-  const modal = document.getElementById("modal-agregar-historial");
-  if (modal) modal.style.display = "none";
+  smoothCloseModalById("modal-agregar-historial");
 
   // Limpiar todos los campos
   const campos = [
