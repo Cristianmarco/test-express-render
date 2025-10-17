@@ -86,3 +86,8 @@ body {
 .main-content::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+/* === Refactor: Configuración · Tablas Generales === */
+.configuracion-section { margin-top: 10px; }
+.configuracion-section .titulo-dota .muted { opacity: 0.6; font-weight: 500; }
+.configuracion-section .titulo-dota .accent { font-weight: 700; }

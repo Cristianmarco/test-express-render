@@ -156,6 +156,24 @@ function abrirModalDetalle() {
     document.getElementById("detalle-ultimo-reparador").textContent = r.ultimo_reparador_nombre || "-";
     document.getElementById("detalle-resolucion").textContent =
       r.resolucion ? r.resolucion.replace("_", " ").toUpperCase() : "-";
+    // Fallback: si faltan campos, intentar completarlos desde historial
+    if (!r.id_dota || !r.ultimo_reparador_nombre || !r.resolucion) {
+      const idRep = r.id_reparacion || r.id;
+      if (idRep) {
+        try {
+          fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(idRep)}`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : [])
+            .then(arr => {
+              if (Array.isArray(arr) && arr.length) {
+                const f = arr[0];
+                document.getElementById("detalle-id-dota").textContent = f.id_dota || document.getElementById("detalle-id-dota").textContent;
+                document.getElementById("detalle-ultimo-reparador").textContent = f.ultimo_reparador_nombre || document.getElementById("detalle-ultimo-reparador").textContent;
+                document.getElementById("detalle-resolucion").textContent = f.resolucion ? String(f.resolucion).replace('_',' ').toUpperCase() : document.getElementById("detalle-resolucion").textContent;
+              }
+            }).catch(()=>{});
+        } catch {}
+      }
+    }
   } else {
     extra.style.display = "none";
   }
@@ -625,7 +643,7 @@ async function cargarProductosPorGrupo(grupoId) {
       tr.innerHTML = `
         <td>
           <button class="btn-secundario" type="button"
-            onclick="seleccionarProducto('${p.codigo}', '${descripcionEscapada}')"
+            onclick="seleccionarProducto(${p.id}, '${p.codigo}', '${descripcionEscapada}')"
             ${p.stock_total <= 0 ? "disabled" : ""}>
             <i class="fas fa-plus"></i> Elegir
           </button>
@@ -637,7 +655,7 @@ async function cargarProductosPorGrupo(grupoId) {
 
       // 👇 Doble clic también agrega el repuesto
       if (p.stock_total > 0) {
-        tr.ondblclick = () => seleccionarProducto(p.codigo, p.descripcion);
+        tr.ondblclick = () => seleccionarProducto(p.id, p.codigo, p.descripcion);
       }
 
       tbody.appendChild(tr);
@@ -651,12 +669,51 @@ async function cargarProductosPorGrupo(grupoId) {
 
 
 // --- Seleccionar producto y agregarlo al textarea ---
-function seleccionarProducto(codigo, descripcion) {
+function seleccionarProducto(productoId, codigo, descripcion) {
   const textarea = document.getElementById("trabajo");
   const texto = `${descripcion} (${codigo})`;
   textarea.value = textarea.value ? `${textarea.value}\n${texto}` : texto;
   cerrarModalProductos();
   mostrarToast(`Producto agregado: ${descripcion}`, "success");
+  registrarUsoRepuesto(productoId);
+}
+
+// Registrar salida de 1 unidad del repuesto seleccionado
+async function registrarUsoRepuesto(productoId) {
+  try {
+    // Elegir deposito con mayor stock, o 1 por defecto
+    let depositoId = 1;
+    try {
+      const resStock = await fetch(`/api/stock/${productoId}`, { credentials: 'include' });
+      if (resStock.ok) {
+        const lista = await resStock.json();
+        const mejor = Array.isArray(lista) ? lista.reduce((a,b)=> (b.cantidad> (a?.cantidad||0)? b:a), null) : null;
+        if (mejor && Number.isInteger(mejor.deposito_id)) depositoId = mejor.deposito_id;
+      }
+    } catch {}
+
+    const body = {
+      producto_id: productoId,
+      deposito_id: depositoId,
+      tipo: 'SALIDA',
+      cantidad: 1,
+      observacion: 'Uso en planilla',
+      reparacion_id: (window.reparacionSeleccionada && window.reparacionSeleccionada.id) ? window.reparacionSeleccionada.id : null
+    };
+
+    const res = await fetch('/api/stock/movimiento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      console.warn('No se pudo registrar movimiento de stock:', err.error || res.status);
+    }
+  } catch (e) {
+    console.warn('Fallo registrando uso de repuesto:', e);
+  }
 }
 
 // --- Cerrar modales ---
@@ -686,3 +743,127 @@ window.cerrarModalReparacion = () => {
 window.cerrarModalDetalle = () => {
   modalDetalle.style.display = "none";
 };
+
+// ============================
+// Buscador Historial (sin tildes)
+// ============================
+function bindHistorialSearch() {
+  const input = document.getElementById("buscar-reparacion");
+  const btn = document.getElementById("btn-buscar-historial");
+  if (!input || !btn) return;
+
+  // Limpia listeners previos clonando nodos (evita doble binding)
+  const newBtn = btn.cloneNode(true);
+  btn.parentNode.replaceChild(newBtn, btn);
+  const newInput = input.cloneNode(true);
+  input.parentNode.replaceChild(newInput, input);
+
+  const buscar = async () => {
+    const id = (newInput.value || "").trim();
+    if (!id) {
+      mostrarToast("Ingrese ID de reparacion");
+      return;
+    }
+    try {
+      const modal = document.getElementById("modal-historial");
+      const tbody = document.getElementById("tbody-historial");
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:#666"><i class='fas fa-spinner fa-spin'></i> Buscando...</td></tr>`;
+
+      const res = await fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(id)}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al buscar historial");
+
+      const first = Array.isArray(data) && data.length > 0 ? data[0] : null;
+      const safeText = (v) => (v == null || v === "") ? '-' : String(v);
+      document.getElementById("historial-id")?.replaceChildren(document.createTextNode(id));
+      document.getElementById("historial-cliente")?.replaceChildren(document.createTextNode(safeText(first?.cliente)));
+      document.getElementById("historial-equipo")?.replaceChildren(document.createTextNode(safeText(first?.equipo)));
+      document.getElementById("historial-coche")?.replaceChildren(document.createTextNode(safeText(first?.coche_numero)));
+
+      const extra = document.getElementById("historial-garantia-extra");
+      if (extra) {
+        const showExtra = !!(first && (first.id_dota || first.ultimo_reparador_nombre || first.resolucion || first.garantia === 'si'));
+        extra.style.display = showExtra ? 'flex' : 'none';
+        document.getElementById("historial-id-dota")?.replaceChildren(document.createTextNode(safeText(first?.id_dota)));
+        document.getElementById("historial-ultimo-reparador")?.replaceChildren(document.createTextNode(safeText(first?.ultimo_reparador_nombre)));
+        document.getElementById("historial-resolucion")?.replaceChildren(document.createTextNode(safeText(first?.resolucion)));
+      }
+
+      if (!Array.isArray(data) || data.length === 0) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:#666">Sin historial disponible.</td></tr>`;
+      } else {
+        const fmt = (v) => (v == null || v === "") ? "-" : v;
+        const fmtFecha = (f) => { if (!f) return "-"; try { return new Date(f).toLocaleDateString('es-AR'); } catch { return String(f); } };
+        const fmtHora = (h) => { if (!h) return "-"; if (typeof h === 'string') return h.slice(0,5); try { return new Date(`1970-01-01T${h}`).toTimeString().slice(0,5); } catch { return String(h); } };
+
+        const rows = data.map(r => `
+          <tr>
+            <td>${fmtFecha(r.fecha)}</td>
+            <td>${fmt(r.trabajo)}</td>
+            <td>${fmtHora(r.hora_inicio)}</td>
+            <td>${fmtHora(r.hora_fin)}</td>
+            <td>${fmt(r.tecnico)}</td>
+            <td>${r.garantia === 'si' ? 'Si' : 'No'}</td>
+          </tr>
+        `).join("");
+        if (tbody) tbody.innerHTML = rows;
+      }
+
+      if (modal) modal.classList.add('mostrar');
+    } catch (err) {
+      console.error('Error historial:', err);
+      const tbody = document.getElementById('tbody-historial');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:red">Error al buscar historial.</td></tr>`;
+    }
+  };
+
+  newBtn.onclick = buscar;
+  newInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      buscar();
+    }
+  });
+}
+
+// Asegurar inicializacion aunque existan otros bindings
+if (document.readyState !== 'loading') {
+  bindHistorialSearch();
+} else {
+  document.addEventListener('DOMContentLoaded', bindHistorialSearch);
+}
+
+// ============================
+// Handlers globales de modales (click fuera/Escape)
+// ============================
+function smoothCloseModal(modal) {
+  try {
+    modal.classList.remove('mostrar');
+  } catch {}
+}
+
+function bindGlobalModalHandlers() {
+  const selector = '#modal-planilla,#modal-detalle,#modal-reparacion,#modal-historial,#modal-grupos,#modal-productos';
+  const modales = Array.from(document.querySelectorAll(selector));
+
+  // Cerrar al clickear fuera del contenido
+  modales.forEach(modal => {
+    modal.addEventListener('mousedown', (e) => {
+      if (e.target === modal) smoothCloseModal(modal);
+    });
+  });
+
+  // Cerrar con Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const abiertos = modales.filter(m => m.classList.contains('mostrar'));
+      abiertos.forEach(smoothCloseModal);
+    }
+  });
+}
+
+if (document.readyState !== 'loading') {
+  bindGlobalModalHandlers();
+} else {
+  document.addEventListener('DOMContentLoaded', bindGlobalModalHandlers);
+}

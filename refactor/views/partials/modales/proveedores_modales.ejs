@@ -1,0 +1,43 @@
+<!-- Modal: Alta/Edición Proveedor -->
+<div id="modal-proveedor-ref" class="modal-refactor" style="display:none;">
+  <div class="modal-contenido-refactor modal-erp-producto">
+    <span class="cerrar" onclick="document.getElementById('modal-proveedor-ref').style.display='none'">&times;</span>
+    <h2 class="modal-titulo-principal"><i class="fas fa-truck"></i> Proveedor</h2>
+
+    <form id="form-proveedor-ref" autocomplete="off">
+      <div class="form-grid doble">
+        <div>
+          <label>Código *</label>
+          <input name="codigo" required />
+        </div>
+        <div>
+          <label>Razón Social *</label>
+          <input name="razon_social" required />
+        </div>
+      </div>
+
+      <div class="form-grid doble">
+        <div>
+          <label>Teléfono</label>
+          <input name="telefono" />
+        </div>
+        <div>
+          <label>Email</label>
+          <input type="email" name="email" />
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div>
+          <label>Web</label>
+          <input name="web" placeholder="https://..." />
+        </div>
+      </div>
+
+      <button type="submit" class="btn-guardar">
+        <i class="fas fa-save"></i> Guardar
+      </button>
+    </form>
+  </div>
+</div>
+

@@ -1,2 +1,47 @@
-<h2>Configuración</h2>
-<p>Página de prueba para el módulo de configuración del sistema.</p>
+﻿<section class="configuracion-section">
+  <div class="erp-header-row">
+    <div class="titulo-dota">
+      <i class="fas fa-gear"></i>
+      <span class="muted">Configuración</span>
+      <span style="opacity:.5; margin: 0 6px;">/</span>
+      <span class="accent">Tablas Generales</span>
+    </div>
+  </div>
+
+  <!-- Submenú de tablas generales -->
+  <div class="erp-main-card" style="padding: 12px 16px;">
+    <div id="subtabs-config" style="display:flex; flex-wrap:wrap; gap:8px;">
+      <button class="tab subtab active" data-entity="familias">Familias</button>
+      <button class="tab subtab" data-entity="grupo">Grupos</button>
+      <button class="tab subtab" data-entity="marca">Marcas</button>
+      <button class="tab subtab" data-entity="categoria">Categorías</button>
+      <button class="tab subtab" data-entity="tecnicos">Técnicos</button>
+      <button class="tab subtab" data-entity="depositos">Depósitos</button>
+    </div>
+  </div>
+
+  <!-- Contenido: tabla dinámica -->
+  <div class="erp-main-card" style="margin-top: 12px;">
+    <div class="erp-table-card">
+      <table class="tabla-erp">
+        <thead>
+          <tr id="thead-config">
+            <!-- JS completa columnas -->
+          </tr>
+        </thead>
+        <tbody id="tbody-config"></tbody>
+      </table>
+    </div>
+
+    <div class="erp-panel-flotante">
+      <button id="btn-conf-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
+      <button id="btn-conf-modificar" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
+      <button id="btn-conf-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+    </div>
+  </div>
+
+  <!-- Modal genérico -->
+  <div class="config-modales">
+    <%- include("../partials/modales/configuracion_tablas.ejs") %>
+  </div>
+</section>

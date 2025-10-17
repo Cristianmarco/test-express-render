@@ -1,0 +1,23 @@
+<!-- Modal: Movimientos de Stock por producto -->
+<div id="modal-movimientos" class="modal-refactor" style="display:none;">
+  <div class="modal-contenido-refactor modal-erp-producto">
+    <span class="cerrar" onclick="document.getElementById('modal-movimientos').style.display='none'">&times;</span>
+    <h2 class="modal-titulo-principal"><i class="fas fa-exchange-alt"></i> Movimientos de Stock</h2>
+
+    <div class="erp-table-card">
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Depósito</th>
+            <th>Cantidad</th>
+            <th>ID_reparacion</th>
+            <th>Observación</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-movimientos"></tbody>
+      </table>
+    </div>
+  </div>
+</div>

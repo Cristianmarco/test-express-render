@@ -179,6 +179,62 @@
   font-size: 0.95rem;
 }
 
+.tabla-erp tbody tr { cursor: pointer; }
+
+/* Hora en tabla de movimientos: separada y más sutil */
+.hora-mov {
+  margin-left: 8px;
+  color: #64748b; /* slate-500 */
+  font-weight: 500;
+}
+
+/* ========== Modal Nueva Reparación: scroll interno + botón visible ========= */
+#modal-reparacion .modal-contenido-refactor {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden; /* evita doble scroll en el contenedor */
+}
+
+#modal-reparacion form#form-reparacion {
+  flex: 1 1 auto;
+  overflow-y: auto; /* el contenido del formulario scrollea */
+  padding-bottom: 12px; /* respiro para el botón */
+}
+
+#modal-reparacion form#form-reparacion .btn-guardar {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  z-index: 1; /* por encima del contenido scrolleable */
+}
+
+/* Sutil separación visual sin alterar el color del botón */
+#modal-reparacion form#form-reparacion .btn-guardar::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 100%;
+  height: 8px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(0,0,0,0.06));
+  border: 0;
+}
+
+/* Botón seleccionar repuesto mejorado */
+#btn-seleccionar-repuesto.btn-secundario {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+#btn-seleccionar-repuesto.btn-secundario:hover {
+  background: #2563eb;
+}
+
 .tabla-erp th {
   background: #f3f4f6;
   font-weight: 600;
@@ -189,18 +245,44 @@
   background: #f9fafb;
 }
 
+/* Fila seleccionada (estilo sobrio igual a reparaciones) */
+.tabla-erp tbody tr.selected {
+  background-color: #e0f2fe !important; /* celeste suave */
+  border-left: 4px solid #0ea5e9;
+}
+
 /* === PANEL FLOTANTE === */
 .erp-panel-flotante {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
+  position: static; /* por defecto dentro del contenedor */
   display: flex;
   gap: 10px;
-  background: white;
-  padding: 10px 14px;
-  border-radius: 12px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  z-index: 999;
+  background: transparent;
+  padding: 8px 0;
+  border-radius: 0;
+  box-shadow: none;
+  z-index: auto;
+}
+
+/* En modales: panel de acciones fijo abajo y que scrollee solo la tabla */
+.modal-contenido-refactor.modal-erp-producto {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow-y: hidden; /* evita doble scroll y permite sticky del panel */
+}
+
+.modal-contenido-refactor.modal-erp-producto .erp-table-card {
+  flex: 1 1 auto;
+  overflow-y: auto; /* la tabla scrollea dentro del modal */
+  max-height: none; /* gestionado por el contenedor flex */
+}
+
+.modal-contenido-refactor.modal-erp-producto .erp-panel-flotante {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding: 10px 12px;
+  border-top: 1px solid #e5e7eb;
 }
 
 /* Base */
@@ -502,6 +584,73 @@ form#form-reparacion .btn-guardar {
   cursor: pointer;
 }
 
+/* Asegurar X visible en modales chicos (detalle, grupos, productos) */
+.modal-contenido.modal-erp-producto.tabla-chica { position: relative; }
+.modal-contenido.modal-erp-producto.tabla-chica .cerrar {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  float: none;
+  font-size: 20px;
+  color: #666;
+  cursor: pointer;
+}
+
+/* Botones inline para familia/grupo */
+.small-actions { margin-top: 6px; display: flex; gap: 8px; align-items: center; }
+.btn-inline { padding: 6px 10px; font-size: 0.85rem; }
+.btn-terciario { background: #e5e7eb; color: #111827; border: none; border-radius: 6px; cursor: pointer; }
+.btn-terciario:hover { background: #d1d5db; }
+
+.grupo-seleccion-resumen { margin-top: 6px; font-size: 0.9rem; color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 6px 8px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; }
+.grupo-seleccion-resumen i { color: #059669; }
+
+/* Botones compactos dentro de tablas (Elegir / Agregar) */
+.tabla-erp .btn-secundario {
+  appearance: none;
+  background: #f3f4f6; /* gris claro */
+  color: #111827;
+  border: 1px solid #d1d5db;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background .15s ease, box-shadow .15s ease, transform .05s ease;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+}
+.tabla-erp .btn-secundario:hover {
+  background: #e5e7eb;
+  box-shadow: 0 2px 6px rgba(0,0,0,.06);
+}
+.tabla-erp .btn-secundario:active {
+  transform: translateY(0.5px) scale(0.98);
+}
+.tabla-erp .btn-secundario i { color: #2563eb; }
+
+/* Alinear celda de acción */
+.tabla-erp td:first-child { white-space: nowrap; }
+
+/* Multiselección con checkboxes (familias) */
+.multi-boxes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  max-height: 150px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+.multi-boxes label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .92rem; color: #111827;
+}
+
 .historial-header {
   display: flex;
   flex-wrap: wrap;
@@ -533,3 +682,39 @@ form#form-reparacion .btn-guardar {
 
 /* Separación extra antes de la tabla del historial */
 .erp-table-card.historial-tabla { margin-top: 10px; }
+
+/* Modal Nuevo Producto: asegurar scroll vertical cuando el contenido es alto */
+.modal-contenido-refactor.modal-agregar-producto-grande {
+  box-sizing: border-box;
+  max-height: 90vh;
+  overflow-y: auto;
+  width: 96%;
+  max-width: 980px;
+}
+
+@media (max-width: 768px) {
+  .modal-contenido-refactor.modal-agregar-producto-grande {
+    width: 98%;
+    max-width: 98vw;
+    max-height: 92vh;
+  }
+}
+
+/* Botón Guardar (Nueva Reparación) fijo abajo dentro del modal */
+/* Espacio inferior en el contenedor scroll para que el sticky no tape campos */
+.modal-contenido-refactor.modal-agregar-producto-grande { padding-bottom: 80px; }
+
+/* Botón Guardar centrado y anclado al borde inferior del área visible del modal */
+#form-reparacion .btn-guardar {
+  position: sticky;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  width: max-content;          /* ancho como antes */
+  margin: 14px auto 0 auto;    /* centrado visual */
+  z-index: 2;
+}
+
+/* Pequeño colchón para que no quede pegado al borde del modal */
+#form-reparacion { padding-bottom: 16px; }

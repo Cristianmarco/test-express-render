@@ -1,2 +1,61 @@
-<h2>Módulo de Clientes</h2>
-<p>Sección en desarrollo.</p>
+<section class="clientes-section">
+  <div class="erp-header-row">
+    <div class="titulo-dota">
+      <i class="fas fa-users"></i> Clientes
+    </div>
+  </div>
+
+  <div class="erp-two-col" style="display:grid; grid-template-columns: 2fr 1fr; gap: 12px; align-items: start;">
+    <!-- Columna izquierda: listado -->
+    <div class="erp-main-card">
+      <div class="buscador-historial">
+        <input type="text" id="buscar-cliente" class="input-buscar" placeholder="Buscar por código, fantasía o razón social..." />
+        <button id="btn-buscar-cliente" class="btn-primary">
+          <i class="fas fa-search"></i> Buscar
+        </button>
+      </div>
+
+      <div class="erp-table-card">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre Fantasía</th>
+              <th>Razón Social</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-clientes-ref"></tbody>
+        </table>
+      </div>
+
+      <div class="erp-panel-flotante">
+        <button id="btn-cli-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
+        <button id="btn-cli-modificar" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
+        <button id="btn-cli-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>
+
+    <!-- Columna derecha: ficha -->
+    <aside class="erp-main-card">
+      <h3 style="margin:0 0 8px 0; font-weight:600;">Ficha de cliente</h3>
+      <div class="detalle-grid">
+        <p><b>Código:</b> <span id="cli-codigo">-</span></p>
+        <p><b>Nombre Fantasía:</b> <span id="cli-fantasia">-</span></p>
+        <p><b>Razón Social:</b> <span id="cli-razon">-</span></p>
+        <p><b>Dirección:</b> <span id="cli-direccion">-</span></p>
+        <p><b>Localidad:</b> <span id="cli-localidad">-</span></p>
+        <p><b>Provincia:</b> <span id="cli-provincia">-</span></p>
+        <p><b>Teléfono:</b> <span id="cli-telefono">-</span></p>
+        <p><b>Email:</b> <span id="cli-mail">-</span></p>
+        <p><b>CUIT:</b> <span id="cli-cuit">-</span></p>
+        <p><b>Contacto:</b> <span id="cli-contacto">-</span></p>
+        <p><b>Web:</b> <span id="cli-web">-</span></p>
+        <p><b>Categoría:</b> <span id="cli-categoria">-</span></p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="clientes-modales">
+    <%- include("../partials/modales/clientes_modales.ejs") %>
+  </div>
+</section>

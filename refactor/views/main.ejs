@@ -24,7 +24,7 @@
         <div class="right-section">
             <div class="user-info">
                 <i class="fa fa-user-circle"></i>
-                <span>Bienvenido, <%= user || 'Invitado' %></span>
+                <span>Bienvenido, <%= (user && (user.email || user.nombre || user.username)) || 'Invitado' %></span>
             </div>
             <form action="/api/logout" method="post" style="display:inline;">
                 <button class="logout-btn">Salir</button>
@@ -50,6 +50,7 @@
 
                 <li class="menu-section">Operaciones</li>
                 <li><a href="#" class="menu-link" data-view="reportes"><i class="fa fa-chart-pie"></i> Reportes</a></li>
+<li><a href="#" class="menu-link" data-view="usuarios"><i class="fa fa-user-cog"></i> Usuarios</a></li>
                 <li><a href="#" class="menu-link" data-view="configuracion"><i class="fa fa-gear"></i> Configuración</a>
                 </li>
             </ul>
@@ -62,6 +63,11 @@
     </div>
 
     <script src="/static/scripts/main.js"></script>
+    <script src="/static/scripts/productos.js" defer></script>
+    <script src="/static/scripts/proveedores.js" defer></script>
+    <script src="/static/scripts/configuracion.js" defer></script>
+    <script src="/static/scripts/clientes.js" defer></script>
+    <script src="/static/scripts/stock.js" defer></script>
 </body>
 
 </html>

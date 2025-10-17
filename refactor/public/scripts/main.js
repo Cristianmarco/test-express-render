@@ -88,6 +88,9 @@ async function loadView(view) {
       case "inicio":
         cargarScript("/static/scripts/inicio.js");
         break;
+      case "usuarios":
+        cargarScript("/static/scripts/usuarios.js");
+        break;
 
       // ⚡ Podés agregar más casos a medida que agregues vistas
       default:
@@ -114,5 +117,18 @@ document.querySelectorAll(".menu-link").forEach(btn => {
 
 // === Cargar inicio automáticamente
 document.addEventListener("DOMContentLoaded", () => loadView("inicio"));
+document.addEventListener("DOMContentLoaded", () => {
+  // Cargar inicio por defecto
+  loadView("inicio");
+  const logoutBtn = document.querySelector(".logout-btn");
+  if (logoutBtn && !logoutBtn._bound) {
+    logoutBtn._bound = true;
+    logoutBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try { await fetch("/api/logout", { method: "POST", credentials: "include" }); } catch(_) {}
+      window.location.href = "/login";
+    });
+  }
+});
 
 

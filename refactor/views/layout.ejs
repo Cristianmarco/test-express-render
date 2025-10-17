@@ -24,7 +24,7 @@
         <div class="right-section">
             <div class="user-info">
                 <i class="fa fa-user-circle"></i>
-                <span>Bienvenido, <%= user || 'Invitado' %></span>
+                <span>Bienvenido, <%= (user && (user.email || user.nombre || user.username)) || 'Invitado' %></span>
             </div>
             <button class="logout-btn">Salir</button>
         </div>
