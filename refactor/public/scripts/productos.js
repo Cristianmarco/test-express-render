@@ -124,7 +124,7 @@
 
   // ---- Helpers de filtrado dependiente ----
   function poblarFamiliasFiltradas(grupoId) {
-    const sel = qs('prod-familias'); if (!sel) return;
+    const sel = qs('prod-familia_id'); if (!sel) return;
     const todas = cache.familias || [];
     let permitidas = todas;
     try {
@@ -138,13 +138,12 @@
         }
       }
     } catch {}
-    // mantener selección si sigue siendo válida
-    const selected = new Set(Array.from(sel.selectedOptions || []).map(o => o.value));
-    sel.innerHTML = '';
+    const selected = sel.value;
+    sel.innerHTML = '<option value="">Seleccione</option>';
     permitidas.forEach(f => {
       const opt = document.createElement('option');
       opt.value = f.id; opt.textContent = `${f.codigo ? f.codigo + ' - ' : ''}${f.descripcion || f.nombre || f.id}`;
-      if (selected.has(String(f.id))) opt.selected = true;
+      if (String(selected) === String(f.id)) opt.selected = true;
       sel.appendChild(opt);
     });
   }
@@ -152,14 +151,11 @@
   function poblarCategoriasDesdeFamilias() {
     const selC = qs('prod-categoria_id'); if (!selC) return;
     const todas = cache.categorias || [];
-    const famSel = Array.from(qs('prod-familias')?.selectedOptions || []).map(o => o.value);
-    // obtener categoria_id desde familias seleccionadas
-    const catIds = new Set((cache.familias || [])
-      .filter(f => famSel.includes(String(f.id)))
-      .map(f => String(f.categoria_id))
-      .filter(Boolean));
+    const famSel = qs('prod-familia_id')?.value;
+    const fam = (cache.familias || []).find(f => String(f.id) === String(famSel));
+    const catId = fam && fam.categoria_id ? String(fam.categoria_id) : null;
     let permitidas = todas;
-    if (catIds.size > 0) permitidas = todas.filter(c => catIds.has(String(c.id)));
+    if (catId) permitidas = todas.filter(c => String(c.id) === catId);
     const selected = selC.value;
     selC.innerHTML = '<option value="">Seleccione</option>';
     permitidas.forEach(c => {
@@ -168,6 +164,8 @@
       if (String(selected) === String(c.id)) opt.selected = true;
       selC.appendChild(opt);
     });
+    // si hay una única categoría permitida, seleccionarla por conveniencia
+    if (permitidas.length === 1) selC.value = String(permitidas[0].id);
   }
 
   function bindAcciones() {
@@ -177,7 +175,7 @@
       const form = qs("form-producto-refactor");
       if (form) form.reset();
       await Promise.all([
-        cargarOpcionesSelect("/api/familias", "prod-familias", "id", "descripcion", "codigo"),
+        cargarOpcionesSelect("/api/familias", "prod-familia_id", "id", "descripcion", "codigo"),
         cargarOpcionesSelect("/api/grupo", "prod-grupo_id", "id", "descripcion", "codigo"),
         cargarOpcionesSelect("/api/marca", "prod-marca_id", "id", "descripcion", "codigo"),
         cargarOpcionesSelect("/api/categoria", "prod-categoria_id", "id", "descripcion", "codigo"),
@@ -190,8 +188,8 @@
       // bind dependencias una sola vez
       const gSel = qs('prod-grupo_id');
       if (gSel && !gSel._bound) { gSel._bound = true; gSel.addEventListener('change', () => { poblarFamiliasFiltradas(gSel.value); poblarCategoriasDesdeFamilias(); }); }
-      const fSel = qs('prod-familias');
-      if (fSel && !fSel._bound) { fSel._bound = true; fSel.addEventListener('change', poblarCategoriasDesdeFamilias); enhanceMultiSelect(fSel); }
+      const fSel = qs('prod-familia_id');
+      if (fSel && !fSel._bound) { fSel._bound = true; fSel.addEventListener('change', poblarCategoriasDesdeFamilias); }
       qs("modal-agregar-producto").style.display = "flex";
     };
 
@@ -199,7 +197,7 @@
     if (btnModificar) btnModificar.onclick = async () => {
       if (!productoSeleccionado) return alert("Selecciona un producto");
       await Promise.all([
-        cargarOpcionesSelect("/api/familias", "prod-familias", "id", "descripcion", "codigo"),
+        cargarOpcionesSelect("/api/familias", "prod-familia_id", "id", "descripcion", "codigo"),
         cargarOpcionesSelect("/api/grupo", "prod-grupo_id", "id", "descripcion", "codigo"),
         cargarOpcionesSelect("/api/marca", "prod-marca_id", "id", "descripcion", "codigo"),
         cargarOpcionesSelect("/api/categoria", "prod-categoria_id", "id", "descripcion", "codigo"),
@@ -211,13 +209,6 @@
           const input = form.querySelector(`[name='${k}']`);
           if (input) input.value = v || "";
         }
-        // Selecciones múltiples (familias/categorias)
-        const setMulti = (selId, items)=>{
-          const sel = qs(selId); if(!sel) return;
-          const values = (Array.isArray(items)? items : []).map(x=> String(x.id||x));
-          Array.from(sel.options).forEach(o=>{ o.selected = values.includes(String(o.value)); });
-        };
-        setMulti('prod-familias', productoSeleccionado.familias);
         // categoría principal si viene en arreglo (M2M)
         if (productoSeleccionado.categorias && productoSeleccionado.categorias.length) {
           qs('prod-categoria_id').value = String(productoSeleccionado.categorias[0].id);
@@ -225,15 +216,18 @@
         // aplicar filtros dependientes según grupo del producto
         poblarFamiliasFiltradas(qs('prod-grupo_id')?.value);
         poblarCategoriasDesdeFamilias();
-        // volver a seleccionar tras repoblar
-        setMulti('prod-familias', productoSeleccionado.familias);
-        setMulti('prod-categorias', productoSeleccionado.categorias);
+        // seleccionar familia principal si viene en arreglo (M2M)
+        if (productoSeleccionado.familias && productoSeleccionado.familias.length) {
+          const famId = String(productoSeleccionado.familias[0].id);
+          const fSel2 = qs('prod-familia_id'); if (fSel2) fSel2.value = famId;
+          poblarCategoriasDesdeFamilias();
+        }
       }
       // bind dependencias si no están
       const gSel = qs('prod-grupo_id');
       if (gSel && !gSel._bound) { gSel._bound = true; gSel.addEventListener('change', () => { poblarFamiliasFiltradas(gSel.value); poblarCategoriasDesdeFamilias(); }); }
-      const fSel = qs('prod-familias');
-      if (fSel && !fSel._bound) { fSel._bound = true; fSel.addEventListener('change', poblarCategoriasDesdeFamilias); enhanceMultiSelect(fSel); }
+      const fSel = qs('prod-familia_id');
+      if (fSel && !fSel._bound) { fSel._bound = true; fSel.addEventListener('change', poblarCategoriasDesdeFamilias); }
       qs("modal-agregar-producto").style.display = "flex";
     };
 
@@ -272,10 +266,9 @@
       e.preventDefault();
       const fd = new FormData(formProd);
       const datos = Object.fromEntries(fd.entries());
-      // familias múltiples
-      const familiasSel = Array.from(qs('prod-familias')?.selectedOptions || []).map(o=>o.value).filter(Boolean);
-      datos.familias = familiasSel;
-      if (!datos.familia_id && familiasSel.length) datos.familia_id = familiasSel[0];
+      // familia única
+      const famVal = qs('prod-familia_id')?.value || '';
+      datos.familia_id = famVal || null;
       const editMode = !!(productoSeleccionado && productoSeleccionado.id);
       const url = editMode ? `/api/productos/${productoSeleccionado.id}` : "/api/productos";
       const method = editMode ? "PUT" : "POST";

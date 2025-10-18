@@ -203,21 +203,15 @@
 }
 
 #modal-reparacion form#form-reparacion .btn-guardar {
-  position: sticky;
-  bottom: 0;
+  position: static; /* que no flote; queda dentro del flujo */
+  bottom: auto;
   margin-top: 12px;
-  z-index: 1; /* por encima del contenido scrolleable */
+  z-index: auto;
+  align-self: flex-end; /* alinear a la derecha dentro del form */
 }
 
-/* Sutil separación visual sin alterar el color del botón */
-#modal-reparacion form#form-reparacion .btn-guardar::before {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: 100%;
-  height: 8px;
-  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(0,0,0,0.06));
-  border: 0;
-}
+/* Quitar pseudo separador para que no tape contenido */
+#modal-reparacion form#form-reparacion .btn-guardar::before { content: none; }
 
 /* Botón seleccionar repuesto mejorado */
 #btn-seleccionar-repuesto.btn-secundario {
@@ -227,7 +221,9 @@
   background: #3b82f6;
   color: #fff;
   border: none;
-  padding: 8px 12px;
+  /* igualar alto del input */
+  padding: 10px 12px;
+  font-size: 0.95rem;
   border-radius: 8px;
   cursor: pointer;
 }
@@ -458,12 +454,40 @@
 .form-grid > div {
   display: flex;
   flex-direction: column;
+  align-items: flex-start; /* asegura que botones queden a la izquierda */
   min-width: 0; /* evita encimado por ancho mínimo implícito */
 }
 
 /* Botón secundario dentro del bloque de trabajo */
 #btn-seleccionar-repuesto {
+  margin-top: 0px;
+  margin-left: 0;   /* evitar centrado accidental */
+  margin-right: 0;
+  align-self: auto; /* será controlado por contenedor de acciones */
+}
+
+/* Acciones de repuestos: input + botones alineados */
+.repuestos-actions {
+  display: flex;
+  gap: 10px;
   margin-top: 10px;
+  align-items: stretch;
+  width: 100%;
+}
+.repuestos-actions #scan-codigo-repuesto {
+  flex: 1 1 auto;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+.repuestos-actions .repuestos-buttons {
+  display: flex;
+  gap: 8px;
+}
+@media (max-width: 768px) {
+  .repuestos-actions { flex-direction: column; align-items: stretch; }
+  .repuestos-actions .repuestos-buttons { justify-content: flex-end; }
 }
 
 /* Botón guardar alineado a la derecha, tamaño compacto */
@@ -474,7 +498,7 @@ form#form-reparacion {
 }
 form#form-reparacion .btn-guardar {
   margin-top: 12px;
-  align-self: center;
+  align-self: flex-end; /* alinear a la derecha */
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -700,21 +724,23 @@ form#form-reparacion .btn-guardar {
   }
 }
 
-/* Botón Guardar (Nueva Reparación) fijo abajo dentro del modal */
-/* Espacio inferior en el contenedor scroll para que el sticky no tape campos */
-.modal-contenido-refactor.modal-agregar-producto-grande { padding-bottom: 80px; }
+/* Espaciado estándar del contenedor del modal */
+.modal-contenido-refactor.modal-agregar-producto-grande { padding-bottom: 24px; }
 
-/* Botón Guardar centrado y anclado al borde inferior del área visible del modal */
+/* Botón Guardar dentro del flujo y alineado a la izquierda */
 #form-reparacion .btn-guardar {
-  position: sticky;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  position: static;
+  bottom: auto;
+  left: auto;
+  transform: none;
   display: inline-flex;
-  width: max-content;          /* ancho como antes */
-  margin: 14px auto 0 auto;    /* centrado visual */
-  z-index: 2;
+  width: auto;
+  margin: 12px 0 0 0;
+  z-index: auto;
 }
 
-/* Pequeño colchón para que no quede pegado al borde del modal */
-#form-reparacion { padding-bottom: 16px; }
+/* Espaciado inferior normal del formulario */
+#form-reparacion { padding-bottom: 0; }
+
+/* Ocultar boton de escanear producto en planilla */
+#btn-scan-repuesto { display: none !important; }

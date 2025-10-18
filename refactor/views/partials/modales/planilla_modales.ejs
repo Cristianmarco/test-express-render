@@ -101,7 +101,13 @@
         <div>
           <label>Trabajo realizado / Repuestos *</label>
           <textarea name="trabajo" id="trabajo" rows="3" required></textarea>
-          <button type="button" id="btn-seleccionar-repuesto" class="btn-secundario"><i class="fas fa-cubes"></i> Seleccionar Repuesto</button>
+          <div class="repuestos-actions">
+            <input type="text" id="scan-codigo-repuesto" placeholder="Escanear o escribir código de producto y Enter" />
+            <div class="repuestos-buttons">
+              <button type="button" id="btn-seleccionar-repuesto" class="btn-secundario"><i class="fas fa-cubes"></i> Seleccionar</button>
+              <button type="button" id="btn-scan-repuesto" class="btn-secundario"><i class="fas fa-barcode"></i> Escanear Código</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -148,6 +154,22 @@
 
       <button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar Reparacion</button>
     </form>
+  </div>
+</div>
+
+<!-- MODAL SCANNER CODIGO/QR -->
+<div id="modal-scanner" class="modal-refactor" style="display:none;">
+  <div class="modal-contenido-refactor modal-erp-producto" style="max-width:680px;">
+    <span class="cerrar" onclick="cerrarModalScanner()">&times;</span>
+    <h2 class="modal-titulo-principal"><i class="fas fa-barcode"></i> Escanear Código o QR</h2>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <video id="scanner-video" playsinline style="width:100%; border-radius:8px; background:#000"></video>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input id="manual-scan-code" class="input-buscar" placeholder="Ingresar código manualmente" style="flex:1" />
+        <button id="btn-add-by-code" class="btn-primary"><i class="fas fa-plus"></i> Agregar</button>
+      </div>
+      <small style="color:#64748b;">Tip: Permití el uso de la cámara. Si tu navegador no soporta detector, ingresá el código manualmente.</small>
+    </div>
   </div>
 </div>
 

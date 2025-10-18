@@ -2,6 +2,8 @@
 // Avoids encoding issues and restores calendar + planilla flow
 
 console.log('planilla.js loaded');
+// Track scanned items to auto-revert stock when removed from textarea
+const _repuestosTrack = new Map(); // code -> { id: number, count: number }
 
 let currentDate = new Date();
 
@@ -298,9 +300,16 @@ function bindPlanillaActions() {
 
   if (btnAgregar) btnAgregar.onclick = () => {
     const modal = document.getElementById('modal-reparacion'); const form=document.getElementById('form-reparacion');
-    if (modal) modal.style.display='flex'; if (form) form.reset();
-  prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
-  bindClienteExternoToggle(true);
+    if (modal) modal.style.display='flex';
+    if (form) {
+      form.reset();
+      try{ _repuestosTrack.clear(); }catch(_){ }
+      const selGar = document.getElementById('garantia'); if (selGar) selGar.value = 'no';
+      const extra = document.getElementById('garantia-extra-fields'); if (extra) extra.style.display = 'none';
+    }
+    prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
+    bindClienteExternoToggle(true);
+    bindGarantiaToggle(true);
   };
 
   if (btnEditar) btnEditar.onclick = async () => {
@@ -326,7 +335,7 @@ function bindPlanillaActions() {
     // Garantia + extras
     const selGar = document.getElementById('garantia');
     if(selGar){ selGar.value = (String(seleccion.garantia||'no').toLowerCase().startsWith('s') ? 'si' : 'no'); }
-    toggleGarantiaExtra();
+    bindGarantiaToggle(true);
     setVal("input[name='id_dota']", seleccion.id_dota);
     await prepararSelectTecnicos();
     const tec=document.getElementById('tecnico_id'); if(tec && seleccion.tecnico_id) tec.value=String(seleccion.tecnico_id);
@@ -475,6 +484,76 @@ document.addEventListener('click', (e)=>{
     t.style.display = 'none';
   }
 });
+
+// Watch textarea to revert stock when scanned items are removed
+function bindTrabajoWatcher(){
+  const area = document.getElementById('trabajo');
+  if(!area || area._watchBound) return; area._watchBound = true;
+  const getCounts = (text)=>{
+    const counts = new Map();
+    const re = /\(([^)]+)\)/g; // matches (CODE)
+    let m;
+    while((m = re.exec(text||''))){
+      const code = (m[1]||'').trim();
+      if(_repuestosTrack.has(code)){
+        counts.set(code, (counts.get(code)||0)+1);
+      }
+    }
+    return counts;
+  };
+  area.addEventListener('input', async ()=>{
+    try{
+      const current = getCounts(area.value||'');
+      for(const [code, data] of _repuestosTrack){
+        const prev = data.count||0;
+        const now = current.get(code)||0;
+        if(now < prev){
+          const diff = prev - now;
+          try{ await aumentarStockProducto(data.id, diff, `Reversion (${code})`); }catch(e){ console.warn('No se pudo revertir stock:', e); }
+          data.count = now; // update downwards
+        } else if(now > prev){
+          // Do not auto discount on manual duplicates; clamp to previous
+          data.count = prev;
+        }
+      }
+    }catch(err){ console.warn('Watcher trabajo error:', err); }
+  });
+}
+
+// Interceptar Enter en el input de código y evitar submit del form
+function bindCodigoRepuestoEnter(){
+  const scanInput = document.getElementById('scan-codigo-repuesto');
+  const form = document.getElementById('form-reparacion');
+  if(scanInput && !scanInput._enterBound){
+    scanInput._enterBound = true;
+    const handle = ()=>{
+      const v = (scanInput.value||'').trim();
+      if(v){ try{ agregarPorCodigo(v); }catch(_){} scanInput.value=''; scanInput.focus(); }
+    };
+    ['keydown','keypress','keyup'].forEach(type=>{
+      scanInput.addEventListener(type, (e)=>{
+        if(e.key === 'Enter'){
+          e.preventDefault(); e.stopPropagation();
+          if(type === 'keyup') handle();
+          return false;
+        }
+      }, true);
+    });
+  }
+  if(form && !form._scanSubmitGuard){
+    form._scanSubmitGuard = true;
+    form.addEventListener('submit', (e)=>{
+      const scan = document.getElementById('scan-codigo-repuesto');
+      const active = document.activeElement;
+      if(scan && (active === scan || (scan.value && !e.submitter))){
+        e.preventDefault(); e.stopPropagation();
+        const v = (scan.value||'').trim();
+        if(v){ try{ agregarPorCodigo(v); }catch(_){} scan.value=''; scan.focus(); }
+        return false;
+      }
+    }, true);
+  }
+}
 
 // ---------- Productos: abrir listado con buscador ----------
 function bindProductoSelectorSimple(){
@@ -646,6 +725,20 @@ async function descontarStockProducto(productoId, observacion){
     return true;
   } catch(err){ throw err; }
 }
+// Incrementar stock (ENTRADA) para reversion al borrar linea del trabajo
+async function aumentarStockProducto(productoId, cantidad, observacion){
+  try{
+    const res = await fetch(`/api/stock/${encodeURIComponent(productoId)}`, { credentials:'include' });
+    const depos = await res.json();
+    const arr = Array.isArray(depos)? depos : [];
+    let deposito = 1, max = -Infinity;
+    arr.forEach(d=>{ const cant = typeof d.cantidad==='number'? d.cantidad : parseInt(d.cantidad||'0',10); if(cant>max){ max=cant; deposito=d.deposito_id; } });
+    const payload = { producto_id: Number(productoId), deposito_id: Number(deposito), tipo: 'ENTRADA', cantidad: Math.max(1, Number(cantidad)||1), observacion: observacion||'Reversion planilla' };
+    const resMv = await fetch('/api/stock/movimiento', { method:'POST', headers:{ 'Content-Type':'application/json' }, credentials:'include', body: JSON.stringify(payload) });
+    if(!resMv.ok){ const e=await resMv.json().catch(()=>({})); throw new Error(e && e.error || 'movimiento_failed'); }
+    return true;
+  } catch(err){ throw err; }
+}
 
 // ---------- Productos (selección para trabajo) ----------
 function bindProductoSelector(){
@@ -785,21 +878,196 @@ function initPlanilla(){
   bindPlanillaActions();
   bindProductoSelectorSimple();
   prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
+  bindCodigoRepuestoEnter();
+  bindTrabajoWatcher();
 }
 
 if (document.getElementById('calendarGrid')) {
   initPlanilla();
+  bindGarantiaToggle(true);
 } else {
-  document.addEventListener('view:changed', (e)=>{ if(e.detail==='planilla') setTimeout(initPlanilla,100); });
+  document.addEventListener('view:changed', (e)=>{
+    if(e.detail==='planilla') setTimeout(()=>{ initPlanilla(); bindGarantiaToggle(true); bindCodigoRepuestoEnter(); bindTrabajoWatcher(); },100);
+  });
+
+  // Capturar Enter en el input para evitar submit + validación del formulario
+  if(!document._scanEnterGuard){
+    document._scanEnterGuard = true;
+    document.addEventListener('keydown', (e)=>{
+      if(e && e.key === 'Enter'){
+        const t = e.target;
+        if(t && t.id === 'scan-codigo-repuesto'){
+          e.preventDefault();
+          const v = (t.value||'').trim();
+          if(v){ agregarPorCodigo(v); t.value=''; t.focus(); }
+        }
+      }
+    }, true);
+  }
 }
 
-// Bind toggles for garantia on DOM ready
-document.addEventListener('DOMContentLoaded', ()=>{
+// ---------- Scanner de códigos/QR para agregar repuestos ----------
+(function(){
+  let stream = null;
+  let scanning = false;
+  let rafId = null;
+  let detector = null;
+  let canvas = null, ctx = null;
+
+  async function startScanner(){
+    const video = document.getElementById('scanner-video');
+    if(!video) return;
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = stream; await video.play();
+      canvas = document.createElement('canvas');
+      ctx = canvas.getContext('2d');
+      if('BarcodeDetector' in window){
+        try{ detector = new window.BarcodeDetector({ formats: ['qr_code','ean_13','code_128','code_39','upc_a'] }); }catch{ detector = new window.BarcodeDetector(); }
+      } else {
+        detector = null;
+      }
+      scanning = true;
+      loop();
+    }catch(err){
+      console.warn('No se pudo iniciar cámara', err);
+    }
+  }
+
+  function stopScanner(){
+    scanning = false;
+    if(rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    if(stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; }
+  }
+
+  async function loop(){
+    if(!scanning) return;
+    const video = document.getElementById('scanner-video');
+    if(video && video.readyState >= 2){
+      const w = video.videoWidth, h = video.videoHeight;
+      if(w && h){
+        canvas.width = w; canvas.height = h; ctx.drawImage(video, 0, 0, w, h);
+        if(detector){
+          try{
+            const codes = await detector.detect(canvas);
+            if(codes && codes.length){
+              const raw = codes[0].rawValue || codes[0].raw || '';
+              onCodeDetected(raw);
+              return; // detener al primer hallazgo
+            }
+          }catch(e){ /* ignore per frame */ }
+        }
+      }
+    }
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function normalizeScanned(text){
+    if(!text) return '';
+    let t = String(text).trim();
+    try{ const obj = JSON.parse(t); if(obj && obj.codigo) return String(obj.codigo).trim(); }catch{}
+    const m = t.match(/([A-Z0-9\-\.]+)/i); // toma bloque alfanumérico más útil
+    return (m? m[1] : t).trim();
+  }
+
+  async function agregarPorCodigo(codigo){
+    if(!codigo) return;
+    const code = String(codigo).trim();
+    try{
+      const res = await fetch('/api/productos', { credentials:'include' });
+      const data = await res.json();
+      const lista = Array.isArray(data)? data : [];
+      const prod = lista.find(p => {
+        const c = String(p.codigo||'').trim().toLowerCase();
+        const b = String(p.codigo_barra||'').trim();
+        const bLower = b.toLowerCase();
+        const stripZeros = (s)=> String(s||'').replace(/^0+/, '');
+        return (c === code.toLowerCase() || bLower === code.toLowerCase() || stripZeros(b) === stripZeros(code));
+      });
+      const area = document.getElementById('trabajo');
+      if(prod){
+        const prefix = area && area.value && !area.value.endsWith('\n') ? '\n' : '';
+        const label = `(${prod.codigo}) - ${prod.descripcion||''}`;
+        if(area){ area.value = (area.value||'') + prefix + label; area.dispatchEvent(new Event('input',{bubbles:true})); }
+        // descuento automático al agregar por código
+        try{
+          await descontarStockProducto(prod.id, `Codigo (${prod.codigo})`);
+        }catch(_){ }
+        // registrar para posible reversión si el usuario borra la línea
+        try{
+          const info = _repuestosTrack.get(prod.codigo) || { id: prod.id, count: 0 };
+          info.id = prod.id; info.count = (info.count||0) + 1; _repuestosTrack.set(prod.codigo, info);
+        }catch(_){ }
+        cerrarModalScanner();
+      } else {
+        alert('No se encontró producto con código: ' + code);
+      }
+    }catch(err){ console.error('Error buscando productos por código', err); alert('No se pudo consultar productos.'); }
+  }
+
+  // Exponer para posibles llamados externos (evitar problemas de scope)
+  try{ window.agregarPorCodigo = agregarPorCodigo; }catch(_){ }
+
+  function onCodeDetected(raw){
+    stopScanner();
+    const code = normalizeScanned(raw);
+    if(!code){ alert('Código inválido.'); return; }
+    agregarPorCodigo(code);
+  }
+
+  // Expuestos globales para el HTML
+  window.cerrarModalScanner = function(){
+    const m = document.getElementById('modal-scanner'); if(m) m.style.display='none';
+    stopScanner();
+  };
+  window.abrirModalScanner = function(){
+    const m = document.getElementById('modal-scanner'); if(m) m.style.display='flex';
+    startScanner();
+  };
+
+  // Bind botones
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const btn = document.getElementById('btn-scan-repuesto');
+    if(btn && !btn._bound){ btn._bound = true; btn.addEventListener('click', ()=>{ window.abrirModalScanner(); }); }
+    const addByCode = document.getElementById('btn-add-by-code');
+    const input = document.getElementById('manual-scan-code');
+    if(addByCode && !addByCode._bound){ addByCode._bound = true; addByCode.addEventListener('click', ()=>{ const v=input && input.value; if(v) agregarPorCodigo(v); }); }
+    if(input && !input._bound){ input._bound = true; input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); const v=input.value.trim(); if(v) agregarPorCodigo(v); } }); }
+    const scanInput = document.getElementById('scan-codigo-repuesto');
+    if(scanInput && !scanInput._bound){
+      scanInput._bound = true;
+      const handle = ()=>{ const v=scanInput.value.trim(); if(v){ agregarPorCodigo(v); scanInput.value=''; scanInput.focus(); } };
+      scanInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); handle(); } });
+      scanInput.addEventListener('change', ()=>{ /* para algunos escaners que envían blur */ handle(); });
+    }
+  });
+  document.addEventListener('view:changed', (e)=>{
+    if(e.detail==='planilla'){
+      // rebind in case the view was dynamically injected
+      const btn = document.getElementById('btn-scan-repuesto');
+      if(btn && !btn._bound){ btn._bound = true; btn.addEventListener('click', ()=>{ window.abrirModalScanner(); }); }
+      const addByCode = document.getElementById('btn-add-by-code');
+      const input = document.getElementById('manual-scan-code');
+      if(addByCode && !addByCode._bound){ addByCode._bound = true; addByCode.addEventListener('click', ()=>{ const v=input && input.value; if(v) agregarPorCodigo(v); }); }
+      if(input && !input._bound){ input._bound = true; input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); const v=input.value.trim(); if(v) agregarPorCodigo(v); } }); }
+      const scanInput = document.getElementById('scan-codigo-repuesto');
+      if(scanInput && !scanInput._bound){
+        scanInput._bound = true;
+        const handle = ()=>{ const v=scanInput.value.trim(); if(v){ agregarPorCodigo(v); scanInput.value=''; scanInput.focus(); } };
+        scanInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); handle(); } });
+        scanInput.addEventListener('change', ()=>{ handle(); });
+      }
+    }
+  });
+})();
+
+// Garantia: bind robusto para vista cargada dinámicamente
+function bindGarantiaToggle(forceApply){
   const g = document.getElementById('garantia');
   if(g && !g._bound){ g._bound = true; g.addEventListener('change', toggleGarantiaExtra); }
-  // toggle cliente externo on load if present
-  bindClienteExternoToggle(false);
-});
+  if (forceApply) toggleGarantiaExtra();
+}
 
 // Mostrar/ocultar select de cliente externo según tipo
 function bindClienteExternoToggle(forceApply){
@@ -817,3 +1085,15 @@ function bindClienteExternoToggle(forceApply){
   if(!sel._bound){ sel._bound=true; sel.addEventListener('change', apply); }
   if(forceApply || sel.value){ apply(); }
 }
+
+// Ajuste de placeholder cuando no hay escaneo: mantener solo input + selector
+document.addEventListener('DOMContentLoaded', ()=>{
+  const inp = document.getElementById('scan-codigo-repuesto');
+  if(inp) inp.setAttribute('placeholder', 'Escribir codigo de producto y Enter');
+});
+document.addEventListener('view:changed', (e)=>{
+  if(e && e.detail==='planilla'){
+    const inp = document.getElementById('scan-codigo-repuesto');
+    if(inp) inp.setAttribute('placeholder', 'Escribir codigo de producto y Enter');
+  }
+});
