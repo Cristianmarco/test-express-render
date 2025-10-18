@@ -207,3 +207,33 @@
   background: #d6ebff;
   color: #0a4f91;
 }
+
+/* ====== Botón secundario moderno ====== */
+.btn-secundario {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #f4f4f4;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secundario i {
+  color: #555;
+  transition: color 0.2s ease;
+}
+
+.btn-secundario:hover {
+  background-color: #007bff;
+  color: #fff;
+  border-color: #007bff;
+}
+
+.btn-secundario:hover i {
+  color: #fff;
+}

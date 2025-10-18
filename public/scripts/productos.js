@@ -109,9 +109,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnStock = document.getElementById("btn-mov-stock");
   if (btnStock) {
     btnStock.onclick = async () => {
+      console.log("🟢 Click en Movimiento de stock");
       if (!productoSeleccionado) return alert("Selecciona un producto");
-      document.getElementById("modal-mov-stock").classList.add("mostrar");
+
+      const modal = document.getElementById("modal-mov-stock");
+      modal.classList.add("mostrar");
+
+      console.log("📦 Cargando depósitos...");
       await cargarOpcionesSelect("/api/depositos", "mov-deposito", "id", "nombre");
+      console.log("✅ Depósitos cargados (o intento terminado)");
     };
   }
 
@@ -140,12 +146,20 @@ document.addEventListener("DOMContentLoaded", () => {
   // 👉 Función utilitaria para cargar selects
   async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto) {
     try {
+      console.log("🔍 Fetch →", url);
       const res = await fetch(url, { credentials: "include" });
+      console.log("📡 Respuesta:", res.status);
+
       if (!res.ok) throw new Error(`Error cargando ${url}`);
       const data = await res.json();
+      console.log("📥 Datos recibidos:", data);
 
       const select = document.getElementById(selectId);
-      if (!select) return;
+      if (!select) {
+        console.warn(`⚠️ No se encontró select con id=${selectId}`);
+        return;
+      }
+
       select.innerHTML = `<option value="">Seleccione</option>`;
       data.forEach(item => {
         const opt = document.createElement("option");
@@ -153,10 +167,13 @@ document.addEventListener("DOMContentLoaded", () => {
         opt.textContent = item[campoTexto];
         select.appendChild(opt);
       });
+
+      console.log(`✅ ${data.length} opciones cargadas en #${selectId}`);
     } catch (err) {
       console.error("❌ cargarOpcionesSelect:", url, err);
     }
   }
+
 
   // 👉 Botón visualizar
   const btnVisualizar = document.getElementById("btn-visualizar");

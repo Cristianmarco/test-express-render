@@ -1,0 +1,65 @@
+﻿<section class="configuracion-section">
+  <div class="erp-header-row">
+    <div class="titulo-dota">
+      <i class="fas fa-user-cog"></i>
+      <span class="muted">ConfiguraciÃ³n</span>
+      <span style="opacity:.5; margin: 0 6px;">/</span>
+      <span class="accent">Usuarios</span>
+    </div>
+  </div>
+
+  <div class="erp-main-card" style="margin-top:12px;">
+    <div class="erp-table-card">
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Email</th>
+            <th>Rol</th>
+            <th>Cliente</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-usuarios"></tbody>
+      </table>
+    </div>
+
+    <div class="erp-panel-flotante">
+      <button id="btn-user-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
+      <button id="btn-user-modificar" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
+      <button id="btn-user-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+    </div>
+  </div>
+
+  <div id="modal-usuario" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor modal-erp-producto">
+      <span class="cerrar" onclick="document.getElementById('modal-usuario').style.display='none'">&times;</span>
+      <h2 class="modal-titulo-principal" id="modal-user-title"><i class="fas fa-user"></i> Usuario</h2>
+      <form id="form-usuario" autocomplete="off">
+        <div class="form-grid">
+          <div>
+            <label>Email *</label>
+            <input type="email" name="email" required />
+          </div>
+          <div>
+            <label>Rol *</label>
+            <select name="rol" required>
+              <option value="">Seleccione</option>
+              <option value="admin">admin</option>
+              <option value="cliente">cliente</option>
+            </select>
+          </div>
+          <div>
+            <label>Cliente (cÃ³digo)</label>
+            <input type="text" name="cliente_codigo" />
+          </div>
+          <div>
+            <label>Contraseña <small>(solo alta o cambio)</small></label><div style="position:relative; display:flex; align-items:center;"><input id="user-password" type="password" name="password" style="flex:1; padding-right:34px;" /><button type="button" id="toggle-user-password" class="icon-button-erp" title="Mostrar/Ocultar" style="position:absolute; right:6px; background:transparent; border:none; cursor:pointer; color:#555"><i class="fa fa-eye"></i></button></div>
+          </div>
+        </div>
+        <button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+

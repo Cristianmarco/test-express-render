@@ -1,0 +1,126 @@
+<!-- Modal: Alta/Edición de Producto -->
+<div id="modal-agregar-producto" class="modal-refactor" style="display:none;">
+  <div class="modal-contenido-refactor modal-erp-producto modal-agregar-producto-grande">
+    <span class="cerrar" onclick="document.getElementById('modal-agregar-producto').style.display='none'">&times;</span>
+    <h2 class="modal-titulo-principal"><i class="fas fa-box"></i> Producto</h2>
+
+    <form id="form-producto-refactor" autocomplete="off">
+      <div class="form-grid doble">
+        <div>
+          <label>Código *</label>
+          <input name="codigo" required />
+        </div>
+        <div>
+          <label>Descripción *</label>
+          <input name="descripcion" required />
+        </div>
+      </div>
+
+      <div class="form-grid doble">
+        <div>
+          <label>Equivalencia</label>
+          <input name="equivalencia" />
+        </div>
+        <div>
+          <label>Código de barras</label>
+          <input name="codigo_barra" />
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div>
+          <label>Descripción adicional</label>
+          <textarea name="descripcion_adicional" rows="2"></textarea>
+        </div>
+      </div>
+
+      <div class="form-grid doble">
+        <div>
+          <label>Familia</label>
+          <select id="prod-familia_id" name="familia_id"></select>
+        </div>
+        <div>
+          <label>Grupo</label>
+          <select id="prod-grupo_id" name="grupo_id"></select>
+        </div>
+      </div>
+
+      <div class="form-grid doble">
+        <div>
+          <label>Marca</label>
+          <select id="prod-marca_id" name="marca_id"></select>
+        </div>
+        <div>
+          <label>Categoría (una)</label>
+          <select id="prod-categoria_id" name="categoria_id"></select>
+        </div>
+      </div>
+
+      <div class="form-grid doble">
+        <div>
+          <label>Proveedor</label>
+          <select id="prod-proveedor_id" name="proveedor_id"></select>
+        </div>
+        <div>
+          <label>Origen</label>
+          <input name="origen" />
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div>
+          <label>IVA</label>
+          <select name="iva_tipo">
+            <option value="">-</option>
+            <option value="0">0%</option>
+            <option value="10.5">10.5%</option>
+            <option value="21">21%</option>
+          </select>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-guardar">
+        <i class="fas fa-save"></i> Guardar
+      </button>
+    </form>
+  </div>
+  </div>
+
+<!-- Modal: Movimiento de Stock -->
+<div id="modal-mov-stock" class="modal-refactor" style="display:none;">
+  <div class="modal-contenido-refactor modal-erp-producto">
+    <span class="cerrar" onclick="document.getElementById('modal-mov-stock').style.display='none'">&times;</span>
+    <h2 class="modal-titulo-principal"><i class="fas fa-dolly"></i> Movimiento de Stock</h2>
+
+    <form id="form-mov-stock-refactor" autocomplete="off">
+      <div class="form-grid doble">
+        <div>
+          <label>Depósito</label>
+          <select id="mov-deposito" name="deposito_id" required></select>
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select id="mov-tipo" name="tipo" required>
+            <option value="ENTRADA">Entrada</option>
+            <option value="SALIDA">Salida</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label>Cantidad</label>
+          <input type="number" min="1" step="1" id="mov-cantidad" name="cantidad" required />
+        </div>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label>Observación</label>
+          <textarea id="mov-observacion" name="observacion" rows="2"></textarea>
+        </div>
+      </div>
+      <button type="submit" class="btn-guardar">
+        <i class="fas fa-save"></i> Confirmar movimiento
+      </button>
+    </form>
+  </div>
+</div>

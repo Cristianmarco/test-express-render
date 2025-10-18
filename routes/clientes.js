@@ -37,8 +37,12 @@ router.post(
         return res.status(400).json({ error: 'Código ya existente' });
       }
       await db.query(
-        `INSERT INTO clientes (codigo, razon_social, fantasia, domicilio, localidad, provincia, telefono, mail, documento)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        `INSERT INTO clientes (
+           codigo, razon_social, fantasia, domicilio, localidad, provincia,
+           telefono, mail, documento, web, contacto, categoria
+         ) VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+         )`,
         [
           nuevo.codigo,
           nuevo.razon_social,
@@ -48,7 +52,10 @@ router.post(
           nuevo.provincia || '',
           nuevo.telefono || '',
           nuevo.mail || '',
-          nuevo.documento || ''
+          nuevo.documento || '',
+          nuevo.web || '',
+          nuevo.contacto || '',
+          nuevo.categoria || 'externo'
         ]
       );
       res.status(201).json({ mensaje: 'Cliente agregado' });
@@ -78,8 +85,8 @@ router.put(
       const result = await db.query(
         `UPDATE clientes
          SET razon_social=$1, fantasia=$2, domicilio=$3, localidad=$4, provincia=$5,
-             telefono=$6, mail=$7, documento=$8
-         WHERE codigo=$9`,
+             telefono=$6, mail=$7, documento=$8, web=$9, contacto=$10, categoria=$11
+         WHERE codigo=$12`,
         [
           actualizado.razon_social,
           actualizado.fantasia || '',
@@ -89,6 +96,9 @@ router.put(
           actualizado.telefono || '',
           actualizado.mail || '',
           actualizado.documento || '',
+          actualizado.web || '',
+          actualizado.contacto || '',
+          actualizado.categoria || 'externo',
           codigo
         ]
       );

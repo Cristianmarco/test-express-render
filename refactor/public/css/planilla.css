@@ -1,0 +1,332 @@
+.planilla-diaria {
+  padding: 20px;
+}
+
+.planilla-diaria h2 {
+  color: #175ea9;
+  margin-bottom: 16px;
+}
+
+.planilla-container {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  padding: 16px;
+  overflow-x: auto;
+}
+
+.planilla-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.planilla-tabla th {
+  background: #22c55e;
+  color: white;
+  text-align: left;
+  padding: 10px;
+  border-bottom: 2px solid #16a34a;
+}
+
+.planilla-tabla td {
+  padding: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.planilla-tabla tr:hover {
+  background-color: #f9fafb;
+}
+
+.calendar-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 700px;
+}
+
+.calendar-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #2176bd;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 700px;
+}
+
+.calendar-day {
+  background: #f9fbfd;
+  border: 1px solid #dce6f5;
+  border-radius: 8px;
+  height: 90px;
+  padding: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  font-size: 0.9rem;
+}
+
+.calendar-day:hover {
+  background: #eaf5ff;
+}
+
+.calendar-day.empty {
+  background: transparent;
+  border: none;
+  cursor: default;
+}
+
+.calendar-weekday {
+  font-weight: bold;
+  text-align: center;
+  padding: 6px 0;
+  color: #333;
+}
+
+.buscador-historial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 15px auto;
+  padding: 10px 15px;
+  max-width: 600px;
+  background: #f9fbfd;
+  border: 1px solid #dce6f5;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.buscador-historial input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #c5d8ef;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.buscador-historial input:focus {
+  border-color: #2176bd;
+  outline: none;
+  box-shadow: 0 0 4px rgba(33, 118, 189, 0.3);
+}
+
+.buscador-historial button {
+  background: #2176bd;
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.buscador-historial button:hover {
+  background: #1a5a90;
+}
+
+.historial-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 20px;
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px 15px;
+  margin-bottom: 10px;
+}
+
+.historial-header div {
+  flex: 1 1 200px;
+}
+
+.garantia-extra {
+  background: #eef8ff;
+  border-color: #b5daff;
+}
+
+.modal-erp-producto.tabla-chica {
+  max-width: 700px;
+  padding: 20px;
+}
+
+#btn-seleccionar-repuesto {
+  display: block;
+  margin: 10px auto 0;
+}
+
+.btn-secundario:active {
+  transform: scale(0.96);
+}
+
+/* ==== MODALES REFACTOR - Compatibles con AmorimERP Unificado ==== */
+.modal-refactor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 5000;
+}
+
+.modal-contenido-refactor {
+  background: #fff;
+  padding: 25px 35px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 900px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  position: relative;
+  animation: modalShow 0.2s ease-out;
+}
+
+.modal-titulo-principal {
+  color: #155e75;
+  border-bottom: 2px solid #d1fae5;
+  padding-bottom: 8px;
+  margin-bottom: 20px;
+  font-size: 1.3rem;
+}
+
+.cerrar {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  cursor: pointer;
+  font-size: 1.5rem;
+  color: #666;
+}
+
+.cerrar:hover {
+  color: #dc2626;
+}
+
+@keyframes modalShow {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fa-spinner {
+  color: #22c55e;
+  font-size: 1.2rem;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.day {
+  position: relative;
+}
+
+.day-dot {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: #22c55e;
+  /* verde sutil */
+  border-radius: 50%;
+  opacity: 0.75;
+}
+
+/* ==========================================
+   ESTILOS PARA CALENDARIO PLANILLA DIARIA
+   ========================================== */
+
+/* Asegura que cada día pueda tener pseudo-elementos posicionados */
+.day {
+  position: relative;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+/* Días del mes */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+/* Día con reparaciones: línea sutil inferior */
+.day.has-data::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  left: 10%;
+  width: 80%;
+  height: 3px;
+  background-color: rgba(76, 175, 80, 0.7); /* Verde sobrio */
+  border-radius: 2px;
+}
+
+/* Día actual */
+.day.today {
+  outline: 2px solid #2196f3;
+  font-weight: bold;
+}
+
+/* Día vacío */
+.day.empty {
+  background-color: transparent;
+  pointer-events: none;
+}
+
+/* Hover visual */
+.day:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transform: scale(1.02);
+}
+
+/* Grilla general */
+.calendar-container {
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* Header del calendario */
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}

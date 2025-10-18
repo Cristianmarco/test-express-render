@@ -1,0 +1,60 @@
+<section class="proveedores-section">
+  <div class="erp-header-row">
+    <div class="titulo-dota">
+      <i class="fas fa-truck"></i> Proveedores
+    </div>
+  </div>
+
+  <div class="erp-two-col" style="display:grid; grid-template-columns: 2fr 1fr; gap: 12px; align-items: start;">
+    <!-- Columna izquierda: listado -->
+    <div class="erp-main-card">
+      <div class="buscador-historial">
+        <input type="text" id="buscar-proveedor" class="input-buscar" placeholder="Buscar por código, fantasía o razón social..." />
+        <button id="btn-buscar-proveedor" class="btn-primary">
+          <i class="fas fa-search"></i> Buscar
+        </button>
+      </div>
+
+      <div class="erp-table-card">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre Fantasía</th>
+              <th>Razón Social</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-proveedores-ref"></tbody>
+        </table>
+      </div>
+
+      <div class="erp-panel-flotante">
+        <button id="btn-prov-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
+        <button id="btn-prov-modificar" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
+        <button id="btn-prov-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>
+
+    <!-- Columna derecha: ficha -->
+    <aside class="erp-main-card">
+      <h3 style="margin:0 0 8px 0; font-weight:600;">Ficha de proveedor</h3>
+      <div class="detalle-grid">
+        <p><b>Código:</b> <span id="prov-codigo">-</span></p>
+        <p><b>Nombre Fantasía:</b> <span id="prov-fantasia">-</span></p>
+        <p><b>Razón Social:</b> <span id="prov-razon">-</span></p>
+        <p><b>Teléfono:</b> <span id="prov-telefono">-</span></p>
+        <p><b>Email:</b> <span id="prov-email">-</span></p>
+        <p><b>Web:</b> <span id="prov-web">-</span></p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Modales -->
+  <div class="proveedores-modales">
+    <%- include("../partials/modales/proveedores_modales.ejs") %>
+  </div>
+</section>
+
+<!-- Script específico de proveedores (modo global; inicia con view:changed) -->
+<script defer src="/static/scripts/proveedores.js"></script>
+

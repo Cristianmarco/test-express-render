@@ -116,7 +116,8 @@ app.use("/api/marca", require("./routes/marca"));
 app.use("/api/categoria", require("./routes/categoria"));
 //app.use("/api/proveedores", requireLogin, proveedoresRouter);//
 app.use("/api/proveedores", proveedoresRouter);
-app.use("/api/depositos", requireLogin, depositosRouter);
+//app.use("/api/depositos", requireLogin, depositosRouter);//
+app.use("/api/depositos", depositosRouter);
 app.use("/api/equipos", requireLogin, equiposRoutes);
 app.use("/api/tecnicos", requireLogin, tecnicosRouter);
 app.use("/api/reparaciones_planilla", requireLogin, reparacionesPlanillaRouter);
@@ -165,6 +166,31 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Error interno del servidor' });
 });
+
+// ============================
+// Layout Refactorizado (nuevo entorno visual)
+// ============================
+
+const refactorRouter = require("./refactor/routes/refactor.js");
+
+// Configurar EJS para vistas dinámicas del refactor
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "refactor/views"));
+
+// Archivos estáticos del refactor (CSS, JS, etc.)
+app.use("/static", express.static(path.join(__dirname, "refactor/public")));
+
+// ✅ Primero protegemos todo el entorno refactor con login
+app.use("/refactor", requireLogin, refactorRouter);
+
+// ✅ Después pasamos el usuario autenticado a las vistas EJS
+app.use((req, res, next) => {
+  res.locals.user = req.session?.user || null;
+  next();
+});
+
+
+
 
 // ============================
 // Iniciar servidor

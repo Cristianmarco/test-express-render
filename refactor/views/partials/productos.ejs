@@ -1,0 +1,74 @@
+<section class="productos-section">
+  <div class="erp-header-row">
+    <div class="titulo-dota">
+      <i class="fas fa-box"></i> Gestión de Productos
+    </div>
+  </div>
+
+  <div class="erp-two-col" style="display:grid; grid-template-columns: 2fr 1fr; gap: 12px; align-items: start;">
+    <!-- Columna izquierda: listado -->
+    <div class="erp-main-card">
+      <div class="buscador-historial">
+        <input type="text" id="buscar-producto" class="input-buscar" placeholder="Buscar por código o descripción..." />
+        <button id="btn-buscar-producto" class="btn-primary">
+          <i class="fas fa-search"></i> Buscar
+        </button>
+      </div>
+
+      <div class="erp-table-card">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Equivalencia</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-productos-refactor"></tbody>
+        </table>
+      </div>
+
+      <div class="erp-panel-flotante">
+        <button id="btn-prod-ver" class="icon-button-erp visualizar" title="Ver"><i class="fas fa-eye"></i></button>
+        <button id="btn-prod-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
+        <button id="btn-prod-modificar" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
+        <button id="btn-prod-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+        <button id="btn-prod-stock" class="icon-button-erp" title="Movimiento de stock"><i class="fas fa-dolly"></i></button>
+      </div>
+    </div>
+
+    <!-- Columna derecha: ficha + stock -->
+    <aside class="erp-main-card">
+      <h3 style="margin:0 0 8px 0; font-weight:600;">Ficha de producto</h3>
+      <div class="detalle-grid">
+        <p><b>Código:</b> <span id="detalle-codigo-ref">-</span></p>
+        <p><b>Descripción:</b> <span id="detalle-descripcion-ref">-</span></p>
+        <p><b>Familia:</b> <span id="detalle-familia-ref">-</span></p>
+        <p><b>Grupo:</b> <span id="detalle-grupo-ref">-</span></p>
+        <p><b>Marca:</b> <span id="detalle-marca-ref">-</span></p>
+        <p><b>Categoría:</b> <span id="detalle-categoria-ref">-</span></p>
+        <p><b>Proveedor:</b> <span id="detalle-proveedor-ref">-</span></p>
+        <p><b>Origen:</b> <span id="detalle-origen-ref">-</span></p>
+        <p><b>IVA:</b> <span id="detalle-iva-ref">-</span></p>
+        <p><b>Código de barras:</b> <span id="detalle-codbarra-ref">-</span></p>
+      </div>
+
+      <div class="erp-table-card" style="margin-top:10px;">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Depósito</th>
+              <th>Cantidad</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-stock-refactor"></tbody>
+        </table>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Modales de productos -->
+  <div class="productos-modales">
+    <%- include("../partials/modales/productos_modales.ejs") %>
+  </div>
+</section>

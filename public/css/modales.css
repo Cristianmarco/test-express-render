@@ -7,13 +7,25 @@
   top: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   justify-content: center;
   align-items: center;
 }
 
 .modal.mostrar {
   display: flex;
+}
+
+/* Apertura/Cierre suave genérico */
+.modal.open { display: flex; }
+.modal.closing { pointer-events: none; }
+.modal-contenido.closing { animation: modalHide 0.18s ease forwards; }
+
+@keyframes modalHide {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.97); }
 }
 
 .modal-contenido {

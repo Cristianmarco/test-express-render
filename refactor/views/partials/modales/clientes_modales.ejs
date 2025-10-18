@@ -1,0 +1,83 @@
+<!-- Modal: Alta/Edición Cliente -->
+<div id="modal-cliente-ref" class="modal-refactor" style="display:none;">
+  <div class="modal-contenido-refactor modal-erp-producto">
+    <span class="cerrar" onclick="document.getElementById('modal-cliente-ref').style.display='none'">&times;</span>
+    <h2 class="modal-titulo-principal"><i class="fas fa-user"></i> Cliente</h2>
+
+    <form id="form-cliente-ref" autocomplete="off">
+      <div class="form-grid doble">
+        <div>
+          <label>Código *</label>
+          <input name="codigo" required />
+        </div>
+        <div>
+          <label>Razón Social *</label>
+          <input name="razon_social" required />
+        </div>
+      </div>
+
+      <div class="form-grid doble">
+        <div>
+          <label>Nombre Fantasía</label>
+          <input name="fantasia" />
+        </div>
+        <div>
+          <label>CUIT</label>
+          <input name="documento" />
+        </div>
+      </div>
+
+      <div class="form-grid doble">
+        <div>
+          <label>Dirección</label>
+          <input name="domicilio" />
+        </div>
+        <div>
+          <label>Teléfono</label>
+          <input name="telefono" />
+        </div>
+      </div>
+
+      <div class="form-grid doble">
+        <div>
+          <label>Email</label>
+          <input type="email" name="mail" />
+        </div>
+        <div>
+          <label>Web</label>
+          <input name="web" />
+        </div>
+      </div>
+
+      <div class="form-grid doble">
+        <div>
+          <label>Localidad</label>
+          <input name="localidad" />
+        </div>
+        <div>
+          <label>Provincia</label>
+          <input name="provincia" />
+        </div>
+      </div>
+
+      <div class="form-grid doble">
+        <div>
+          <label>Contacto</label>
+          <input name="contacto" />
+        </div>
+        <div>
+          <label>Categoría</label>
+          <select name="categoria">
+            <option value="externo">Externo</option>
+            <option value="interno">Interno</option>
+          </select>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-guardar">
+        <i class="fas fa-save"></i> Guardar
+      </button>
+    </form>
+  </div>
+</div>
+

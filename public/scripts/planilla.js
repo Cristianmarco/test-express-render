@@ -6,56 +6,69 @@ window.reparacionSeleccionada = null;
 window.modoEdicion = false;
 
 
+
+
 // ============================
-// Render Calendario
+// Render Calendario (corregido)
 // ============================
-const calendarTitle = document.getElementById("calendarTitle");
-const calendarGrid = document.getElementById("calendarGrid");
+document.addEventListener("DOMContentLoaded", () => {
+  const calendarTitle = document.getElementById("calendarTitle");
+  const calendarGrid = document.getElementById("calendarGrid");
 
-function renderCalendar(date) {
-  calendarGrid.innerHTML = "";
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const monthName = date.toLocaleString("es-ES", { month: "long", year: "numeric" });
-  calendarTitle.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-
-  const weekdays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-  weekdays.forEach(day => {
-    const div = document.createElement("div");
-    div.textContent = day;
-    div.classList.add("calendar-weekday");
-    calendarGrid.appendChild(div);
-  });
-
-  const firstDay = new Date(year, month, 1);
-  const startDay = (firstDay.getDay() + 6) % 7;
-  const totalDays = new Date(year, month + 1, 0).getDate();
-
-  for (let i = 0; i < startDay; i++) {
-    const emptyDiv = document.createElement("div");
-    emptyDiv.classList.add("calendar-day", "empty");
-    calendarGrid.appendChild(emptyDiv);
+  if (!calendarTitle || !calendarGrid) {
+    console.warn("⚠️ Elementos del calendario no encontrados en el DOM");
+    return;
   }
 
-  for (let day = 1; day <= totalDays; day++) {
-    const div = document.createElement("div");
-    div.classList.add("calendar-day");
-    div.textContent = day;
-    const fecha = new Date(year, month, day).toISOString().split("T")[0];
-    div.onclick = () => abrirModalPlanilla(fecha);
-    calendarGrid.appendChild(div);
-  }
-}
+  function renderCalendar(date) {
+    calendarGrid.innerHTML = "";
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const monthName = date.toLocaleString("es-ES", { month: "long", year: "numeric" });
+    calendarTitle.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
-document.getElementById("prevMonth").onclick = () => {
-  currentDate.setMonth(currentDate.getMonth() - 1);
+    const weekdays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+    weekdays.forEach(day => {
+      const div = document.createElement("div");
+      div.textContent = day;
+      div.classList.add("calendar-weekday");
+      calendarGrid.appendChild(div);
+    });
+
+    const firstDay = new Date(year, month, 1);
+    const startDay = (firstDay.getDay() + 6) % 7;
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    for (let i = 0; i < startDay; i++) {
+      const emptyDiv = document.createElement("div");
+      emptyDiv.classList.add("calendar-day", "empty");
+      calendarGrid.appendChild(emptyDiv);
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      const div = document.createElement("div");
+      div.classList.add("calendar-day");
+      div.textContent = day;
+      const fecha = new Date(year, month, day).toISOString().split("T")[0];
+      div.onclick = () => abrirModalPlanilla(fecha);
+      calendarGrid.appendChild(div);
+    }
+  }
+
+  // Navegación mensual
+  document.getElementById("prevMonth").onclick = () => {
+    currentDate.setMonth(currentDate.getMonth() - 1);
+    renderCalendar(currentDate);
+  };
+  document.getElementById("nextMonth").onclick = () => {
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    renderCalendar(currentDate);
+  };
+
+  // Render inicial
   renderCalendar(currentDate);
-};
-document.getElementById("nextMonth").onclick = () => {
-  currentDate.setMonth(currentDate.getMonth() + 1);
-  renderCalendar(currentDate);
-};
-renderCalendar(currentDate);
+});
+
 
 // ============================
 // Planilla Diaria
@@ -143,6 +156,24 @@ function abrirModalDetalle() {
     document.getElementById("detalle-ultimo-reparador").textContent = r.ultimo_reparador_nombre || "-";
     document.getElementById("detalle-resolucion").textContent =
       r.resolucion ? r.resolucion.replace("_", " ").toUpperCase() : "-";
+    // Fallback: si faltan campos, intentar completarlos desde historial
+    if (!r.id_dota || !r.ultimo_reparador_nombre || !r.resolucion) {
+      const idRep = r.id_reparacion || r.id;
+      if (idRep) {
+        try {
+          fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(idRep)}`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : [])
+            .then(arr => {
+              if (Array.isArray(arr) && arr.length) {
+                const f = arr[0];
+                document.getElementById("detalle-id-dota").textContent = f.id_dota || document.getElementById("detalle-id-dota").textContent;
+                document.getElementById("detalle-ultimo-reparador").textContent = f.ultimo_reparador_nombre || document.getElementById("detalle-ultimo-reparador").textContent;
+                document.getElementById("detalle-resolucion").textContent = f.resolucion ? String(f.resolucion).replace('_',' ').toUpperCase() : document.getElementById("detalle-resolucion").textContent;
+              }
+            }).catch(()=>{});
+        } catch {}
+      }
+    }
   } else {
     extra.style.display = "none";
   }
@@ -434,6 +465,26 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // === Validación dinámica del campo "trabajo" según resolución ===
+  document.getElementById("resolucion").addEventListener("change", (e) => {
+    const trabajoField = document.getElementById("trabajo");
+    const btnRepuesto = document.getElementById("btn-seleccionar-repuesto");
+    const valor = e.target.value;
+
+    if (valor === "funciona_ok") {
+      // 🔹 Caso devolución: sin reparación
+      trabajoField.removeAttribute("required");
+      trabajoField.value = "";
+      trabajoField.placeholder = "Sin reparación (devolución)";
+      if (btnRepuesto) btnRepuesto.style.display = "none"; // opcional: oculta el botón de repuesto
+    } else {
+      // 🔹 Otros casos: trabajo obligatorio
+      trabajoField.setAttribute("required", "required");
+      trabajoField.placeholder = "Detalle del trabajo o repuestos utilizados...";
+      if (btnRepuesto) btnRepuesto.style.display = "inline-block"; // muestra el botón
+    }
+  });
 }); // 👈 cierre FINAL del DOMContentLoaded
 
 
@@ -510,4 +561,309 @@ function mostrarToast(mensaje, tipo = "info") {
     toast.classList.remove("mostrar");
     setTimeout(() => toast.remove(), 400);
   }, 3000);
+}
+// ============================
+// MODALES DE REPUESTOS
+// ============================
+
+const modalGrupos = document.getElementById("modal-grupos");
+const modalProductos = document.getElementById("modal-productos");
+
+// --- Abrir modal de grupos desde el botón ---
+document.getElementById("btn-seleccionar-repuesto").addEventListener("click", async () => {
+  await cargarGrupos();
+});
+
+// --- Cargar lista de grupos ---
+async function cargarGrupos() {
+  try {
+    const res = await fetch("/api/grupo", { credentials: "include" });
+    if (!res.ok) throw new Error("Error al cargar grupos");
+
+    const grupos = await res.json();
+    const tbody = document.getElementById("tbody-grupos");
+    tbody.innerHTML = "";
+
+    if (!grupos.length) {
+      tbody.innerHTML = `<tr><td colspan="2" style="text-align:center;">No hay grupos registrados</td></tr>`;
+      modalGrupos.classList.add("mostrar");
+      return;
+    }
+
+    grupos.forEach(g => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input type="checkbox" data-id="${g.id}" /></td>
+        <td>${g.descripcion}</td>
+      `;
+
+      // ✅ Cuando clickeás un grupo, se cierra el modal y se abre el de productos
+      tr.onclick = () => {
+        cerrarModalGrupos();
+        cargarProductosPorGrupo(g.id);
+      };
+
+      tbody.appendChild(tr);
+    });
+
+    modalGrupos.classList.add("mostrar");
+  } catch (err) {
+    console.error("❌ Error cargando grupos:", err);
+  }
+}
+
+// --- Cargar productos del grupo seleccionado ---
+async function cargarProductosPorGrupo(grupoId) {
+  try {
+    const res = await fetch(`/api/productos?grupo_id=${grupoId}`, { credentials: "include" });
+    if (!res.ok) throw new Error("Error al cargar productos");
+
+    const productos = await res.json();
+    const tbody = document.getElementById("tbody-productos");
+    tbody.innerHTML = "";
+
+    if (!productos.length) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Sin repuestos en este grupo</td></tr>`;
+      modalProductos.classList.add("mostrar");
+      return;
+    }
+
+    productos.forEach(p => {
+      const stockTexto = p.stock_total > 0
+        ? `<span style="color:green;font-weight:bold;">${p.stock_total}</span>`
+        : `<span style="color:red;">Sin stock</span>`;
+
+      const tr = document.createElement("tr");
+
+      // ✅ escapamos comillas simples y dobles en la descripción
+      const descripcionEscapada = p.descripcion
+        ? p.descripcion.replace(/'/g, "\\'").replace(/"/g, "&quot;")
+        : "";
+
+      tr.innerHTML = `
+        <td>
+          <button class="btn-secundario" type="button"
+            onclick="seleccionarProducto(${p.id}, '${p.codigo}', '${descripcionEscapada}')"
+            ${p.stock_total <= 0 ? "disabled" : ""}>
+            <i class="fas fa-plus"></i> Elegir
+          </button>
+        </td>
+        <td>${p.descripcion}</td>
+        <td>${p.codigo || "-"}</td>
+        <td>${stockTexto}</td>
+      `;
+
+      // 👇 Doble clic también agrega el repuesto
+      if (p.stock_total > 0) {
+        tr.ondblclick = () => seleccionarProducto(p.id, p.codigo, p.descripcion);
+      }
+
+      tbody.appendChild(tr);
+    });
+
+    modalProductos.classList.add("mostrar");
+  } catch (err) {
+    console.error("❌ Error cargando productos:", err);
+  }
+}
+
+
+// --- Seleccionar producto y agregarlo al textarea ---
+function seleccionarProducto(productoId, codigo, descripcion) {
+  const textarea = document.getElementById("trabajo");
+  const texto = `${descripcion} (${codigo})`;
+  textarea.value = textarea.value ? `${textarea.value}\n${texto}` : texto;
+  cerrarModalProductos();
+  mostrarToast(`Producto agregado: ${descripcion}`, "success");
+  registrarUsoRepuesto(productoId);
+}
+
+// Registrar salida de 1 unidad del repuesto seleccionado
+async function registrarUsoRepuesto(productoId) {
+  try {
+    // Elegir deposito con mayor stock, o 1 por defecto
+    let depositoId = 1;
+    try {
+      const resStock = await fetch(`/api/stock/${productoId}`, { credentials: 'include' });
+      if (resStock.ok) {
+        const lista = await resStock.json();
+        const mejor = Array.isArray(lista) ? lista.reduce((a,b)=> (b.cantidad> (a?.cantidad||0)? b:a), null) : null;
+        if (mejor && Number.isInteger(mejor.deposito_id)) depositoId = mejor.deposito_id;
+      }
+    } catch {}
+
+    const body = {
+      producto_id: productoId,
+      deposito_id: depositoId,
+      tipo: 'SALIDA',
+      cantidad: 1,
+      observacion: 'Uso en planilla',
+      reparacion_id: (window.reparacionSeleccionada && window.reparacionSeleccionada.id) ? window.reparacionSeleccionada.id : null
+    };
+
+    const res = await fetch('/api/stock/movimiento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      console.warn('No se pudo registrar movimiento de stock:', err.error || res.status);
+    }
+  } catch (e) {
+    console.warn('Fallo registrando uso de repuesto:', e);
+  }
+}
+
+// --- Cerrar modales ---
+function cerrarModalGrupos() {
+  modalGrupos.classList.remove("mostrar");
+}
+function cerrarModalProductos() {
+  modalProductos.classList.remove("mostrar");
+}
+
+// === MANEJO DE MODALES (abrir / cerrar / navegación) ===
+const modalReparacion = document.getElementById("modal-reparacion");
+const modalDetalle = document.getElementById("modal-detalle");
+
+document.getElementById("btn-agregar-rep")?.addEventListener("click", () => {
+  modalReparacion.style.display = "flex";
+});
+
+document.getElementById("btn-ver-detalle")?.addEventListener("click", () => {
+  modalDetalle.style.display = "flex";
+});
+
+window.cerrarModalReparacion = () => {
+  modalReparacion.style.display = "none";
+};
+
+window.cerrarModalDetalle = () => {
+  modalDetalle.style.display = "none";
+};
+
+// ============================
+// Buscador Historial (sin tildes)
+// ============================
+function bindHistorialSearch() {
+  const input = document.getElementById("buscar-reparacion");
+  const btn = document.getElementById("btn-buscar-historial");
+  if (!input || !btn) return;
+
+  // Limpia listeners previos clonando nodos (evita doble binding)
+  const newBtn = btn.cloneNode(true);
+  btn.parentNode.replaceChild(newBtn, btn);
+  const newInput = input.cloneNode(true);
+  input.parentNode.replaceChild(newInput, input);
+
+  const buscar = async () => {
+    const id = (newInput.value || "").trim();
+    if (!id) {
+      mostrarToast("Ingrese ID de reparacion");
+      return;
+    }
+    try {
+      const modal = document.getElementById("modal-historial");
+      const tbody = document.getElementById("tbody-historial");
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:#666"><i class='fas fa-spinner fa-spin'></i> Buscando...</td></tr>`;
+
+      const res = await fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(id)}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al buscar historial");
+
+      const first = Array.isArray(data) && data.length > 0 ? data[0] : null;
+      const safeText = (v) => (v == null || v === "") ? '-' : String(v);
+      document.getElementById("historial-id")?.replaceChildren(document.createTextNode(id));
+      document.getElementById("historial-cliente")?.replaceChildren(document.createTextNode(safeText(first?.cliente)));
+      document.getElementById("historial-equipo")?.replaceChildren(document.createTextNode(safeText(first?.equipo)));
+      document.getElementById("historial-coche")?.replaceChildren(document.createTextNode(safeText(first?.coche_numero)));
+
+      const extra = document.getElementById("historial-garantia-extra");
+      if (extra) {
+        const showExtra = !!(first && (first.id_dota || first.ultimo_reparador_nombre || first.resolucion || first.garantia === 'si'));
+        extra.style.display = showExtra ? 'flex' : 'none';
+        document.getElementById("historial-id-dota")?.replaceChildren(document.createTextNode(safeText(first?.id_dota)));
+        document.getElementById("historial-ultimo-reparador")?.replaceChildren(document.createTextNode(safeText(first?.ultimo_reparador_nombre)));
+        document.getElementById("historial-resolucion")?.replaceChildren(document.createTextNode(safeText(first?.resolucion)));
+      }
+
+      if (!Array.isArray(data) || data.length === 0) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:#666">Sin historial disponible.</td></tr>`;
+      } else {
+        const fmt = (v) => (v == null || v === "") ? "-" : v;
+        const fmtFecha = (f) => { if (!f) return "-"; try { return new Date(f).toLocaleDateString('es-AR'); } catch { return String(f); } };
+        const fmtHora = (h) => { if (!h) return "-"; if (typeof h === 'string') return h.slice(0,5); try { return new Date(`1970-01-01T${h}`).toTimeString().slice(0,5); } catch { return String(h); } };
+
+        const rows = data.map(r => `
+          <tr>
+            <td>${fmtFecha(r.fecha)}</td>
+            <td>${fmt(r.trabajo)}</td>
+            <td>${fmtHora(r.hora_inicio)}</td>
+            <td>${fmtHora(r.hora_fin)}</td>
+            <td>${fmt(r.tecnico)}</td>
+            <td>${r.garantia === 'si' ? 'Si' : 'No'}</td>
+          </tr>
+        `).join("");
+        if (tbody) tbody.innerHTML = rows;
+      }
+
+      if (modal) modal.classList.add('mostrar');
+    } catch (err) {
+      console.error('Error historial:', err);
+      const tbody = document.getElementById('tbody-historial');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:red">Error al buscar historial.</td></tr>`;
+    }
+  };
+
+  newBtn.onclick = buscar;
+  newInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      buscar();
+    }
+  });
+}
+
+// Asegurar inicializacion aunque existan otros bindings
+if (document.readyState !== 'loading') {
+  bindHistorialSearch();
+} else {
+  document.addEventListener('DOMContentLoaded', bindHistorialSearch);
+}
+
+// ============================
+// Handlers globales de modales (click fuera/Escape)
+// ============================
+function smoothCloseModal(modal) {
+  try {
+    modal.classList.remove('mostrar');
+  } catch {}
+}
+
+function bindGlobalModalHandlers() {
+  const selector = '#modal-planilla,#modal-detalle,#modal-reparacion,#modal-historial,#modal-grupos,#modal-productos';
+  const modales = Array.from(document.querySelectorAll(selector));
+
+  // Cerrar al clickear fuera del contenido
+  modales.forEach(modal => {
+    modal.addEventListener('mousedown', (e) => {
+      if (e.target === modal) smoothCloseModal(modal);
+    });
+  });
+
+  // Cerrar con Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const abiertos = modales.filter(m => m.classList.contains('mostrar'));
+      abiertos.forEach(smoothCloseModal);
+    }
+  });
+}
+
+if (document.readyState !== 'loading') {
+  bindGlobalModalHandlers();
+} else {
+  document.addEventListener('DOMContentLoaded', bindGlobalModalHandlers);
 }

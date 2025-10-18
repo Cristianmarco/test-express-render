@@ -1,0 +1,64 @@
+.header {
+  background: #ffffff;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30px;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.left-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.logo-img {
+  height: 50px; /* antes 35px */
+  width: auto;
+  object-fit: contain;
+  transition: transform 0.2s ease-in-out;
+}
+.logo-img:hover {
+  transform: scale(1.05);
+}
+.right-section {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.user-info {
+  color: #111827;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logout-btn {
+  background: #3cfc82; /* Verde brillante */
+  border: none;
+  color: white;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s ease-in-out, transform 0.1s;
+}
+.logout-btn:hover {
+  background: #12b84f; /* tono un poco más oscuro */
+  transform: scale(1.05);
+}
+.logo-erp {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-weight: 300; /* letra fina */
+  font-size: 22px;
+  color: #9ca3af; /* gris claro */
+  margin-left: 8px;
+  letter-spacing: 1px;
+  user-select: none;
+}
+

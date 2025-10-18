@@ -17,12 +17,12 @@ router.get("/", async (req, res) => {
 // POST nuevo técnico
 router.post("/", async (req, res) => {
   try {
-    const { nombre, dni } = req.body;
+    const { nombre, dni, direccion, telefono, mail } = req.body;
 
     // Inserta técnico sin QR para obtener el ID
     const result = await pool.query(
-      "INSERT INTO tecnicos (nombre, dni) VALUES ($1, $2) RETURNING *",
-      [nombre, dni]
+      "INSERT INTO tecnicos (nombre, dni, direccion, telefono, mail) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [nombre, dni, direccion || null, telefono || null, mail || null]
     );
 
     const tecnico = result.rows[0];
@@ -49,7 +49,7 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre, dni } = req.body;
+    const { nombre, dni, direccion, telefono, mail } = req.body;
 
     // Traer el QR actual
     const qrActual = await pool.query("SELECT qr_code FROM tecnicos WHERE id = $1", [id]);
@@ -60,8 +60,8 @@ router.put("/:id", async (req, res) => {
 
     // Actualizar datos, sin eliminar el QR
     const result = await pool.query(
-      "UPDATE tecnicos SET nombre = $1, dni = $2, qr_code = $3 WHERE id = $4 RETURNING *",
-      [nombre, dni, qr_code, id]
+      "UPDATE tecnicos SET nombre = $1, dni = $2, direccion=$3, telefono=$4, mail=$5, qr_code = $6 WHERE id = $7 RETURNING *",
+      [nombre, dni, direccion || null, telefono || null, mail || null, qr_code, id]
     );
 
     res.json(result.rows[0]);

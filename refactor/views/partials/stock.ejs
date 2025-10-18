@@ -1,0 +1,39 @@
+<section class="stock-section">
+  <div class="erp-header-row">
+    <div class="titulo-dota">
+      <i class="fas fa-warehouse"></i> Stock
+    </div>
+  </div>
+
+  <div class="erp-main-card">
+    <div class="buscador-historial">
+      <input type="text" id="buscar-stock" class="input-buscar" placeholder="Buscar por código o descripción..." />
+      <button id="btn-buscar-stock" class="btn-primary">
+        <i class="fas fa-search"></i> Buscar
+      </button>
+    </div>
+
+    <div class="erp-table-card">
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Descripción</th>
+            <th>Stock</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-stock-list"></tbody>
+      </table>
+    </div>
+
+    <div class="erp-panel-flotante">
+      <button id="btn-ver-movimientos" class="icon-button-erp visualizar" title="Movimiento de stock">
+        <i class="fas fa-exchange-alt"></i> Movimiento de stock
+      </button>
+    </div>
+  </div>
+
+  <div class="stock-modales">
+    <%- include("../partials/modales/stock_modales.ejs") %>
+  </div>
+</section>

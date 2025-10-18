@@ -1,0 +1,184 @@
+/* ===== AmorimERP - Dashboard (Inicio) ===== */
+
+/* --- Logo centrado --- */
+.logo-centrado-principal {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  margin-top: 30px;
+  margin-bottom: 24px;
+  min-height: 100px;
+}
+
+.logo-centrado-principal img,
+.logo-centrado-principal object,
+.logo-centrado-principal svg {
+  max-width: 120px;
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+/* --- Contenedor principal de tarjetas --- */
+.dashboard-cards-principal {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+/* --- Filas de tarjetas --- */
+.dashboard-row {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  gap: 32px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.dashboard-row-center {
+  justify-content: center;
+  margin-top: 8px;
+}
+
+/* --- Tarjetas individuales --- */
+.dashboard-card {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 6px 24px rgba(35,55,90,0.09);
+  padding: 38px 38px 26px;
+  min-width: 230px;
+  min-height: 135px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: box-shadow 0.2s, transform 0.2s;
+  position: relative;
+  animation: dashFadeUp 0.7s cubic-bezier(.29,.72,.4,1) 0.16s forwards;
+  opacity: 0;
+  transform: translateY(36px) scale(0.98);
+}
+
+.dashboard-card:hover {
+  box-shadow: 0 8px 32px rgba(20,80,200,0.18);
+  transform: translateY(-5px) scale(1.025);
+}
+
+.dashboard-card h3 {
+  margin: 0 0 12px;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #154872;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* --- Tarjetas grandes --- */
+.dashboard-card-large {
+  min-width: 380px;
+  min-height: 150px;
+  font-size: 1.2rem;
+  padding: 42px 54px;
+}
+
+/* --- Sección de estadísticas --- */
+.stats {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: row;
+  gap: 28px;
+  justify-content: center;
+  width: 100%;
+}
+
+.stats.stats-large {
+  gap: 38px;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+/* --- Detalle de cada número --- */
+.stats div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.stats-label {
+  font-size: 13px;
+  color: #6d7b93;
+  font-weight: 400;
+  margin-top: 4px;
+}
+
+/* --- Badge (etiqueta de total) --- */
+.badge {
+  background: linear-gradient(135deg, #5c7cff, #1ad1a5);
+  color: #fff;
+  font-size: 1.1em;
+  font-weight: bold;
+  border-radius: 14px;
+  padding: 2px 11px;
+  margin-left: 8px;
+  box-shadow: 0 2px 8px rgba(30, 85, 200, 0.10);
+  vertical-align: middle;
+}
+
+/* --- Números principales --- */
+.counter {
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: #0072ff;
+  min-width: 32px;
+  display: inline-block;
+  text-shadow: 0 1px 2px #e1eaff90;
+  vertical-align: middle;
+}
+
+/* --- Animación de entrada --- */
+@keyframes dashFadeUp {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- Responsivo --- */
+@media (max-width: 900px) {
+  .dashboard-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+  .dashboard-card {
+    width: 90%;
+    min-width: 180px;
+  }
+  .dashboard-card-large {
+    width: 90%;
+    min-width: 200px;
+  }
+}
+
+/* --- Scrollbar suave (opcional) --- */
+.dashboard-cards-principal::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-cards-principal::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.dashboard-cards-principal::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}

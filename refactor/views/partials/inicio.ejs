@@ -1,0 +1,54 @@
+<section class="dashboard-inicio">
+
+    <div class="dashboard-cards-principal">
+        <!-- Fila 1 -->
+        <div class="dashboard-row">
+            <div class="dashboard-card" id="card-externos">
+                <h3>
+                    Externos
+                    <span class="badge" id="badge-externos">-</span>
+                </h3>
+                <div class="stats">
+                    <div><span id="vigentes-externos">-</span> <span class="stats-label">Vigentes</span></div>
+                    <div><span id="garantias-externos">-</span> <span class="stats-label">Garantía</span></div>
+                    <div><span id="vencidos-externos">-</span> <span class="stats-label">Atrasados</span></div>
+                </div>
+            </div>
+
+            <div class="dashboard-card" id="card-dota">
+                <h3>
+                    Dota
+                    <span class="badge" id="badge-dota">-</span>
+                </h3>
+                <div class="stats">
+                    <div><span id="vigentes-dota">-</span> <span class="stats-label">Vigentes</span></div>
+                    <div><span id="garantias-dota">-</span> <span class="stats-label">Garantía</span></div>
+                    <div><span id="vencidos-dota">-</span> <span class="stats-label">Atrasados</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fila 2 -->
+        <div class="dashboard-row dashboard-row-center">
+            <div class="dashboard-card dashboard-card-large" id="card-totales">
+                <h3>Totales</h3>
+                <div class="stats stats-large">
+                    <div>
+                        <span class="counter" id="total-vigentes">0</span>
+                        <span class="stats-label">Vigentes</span>
+                    </div>
+                    <div>
+                        <span class="counter" id="total-garantias">0</span>
+                        <span class="stats-label">Garantía</span>
+                    </div>
+                    <div>
+                        <span class="counter" id="total-vencidos">0</span>
+                        <span class="stats-label">Atrasados</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script src="/static/scripts/inicio.js"></script>

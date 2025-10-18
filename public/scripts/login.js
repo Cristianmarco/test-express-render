@@ -33,8 +33,8 @@ async function loginUser(event) {
       localStorage.removeItem('cliente');
     }
 
-    // Redirigir al main
-    window.location.href = '/main';
+    // Redirigir al entorno refactor (carga "inicio" automáticamente)
+    window.location.href = '/refactor';
 
   } catch (error) {
     console.error("Error en login:", error);
