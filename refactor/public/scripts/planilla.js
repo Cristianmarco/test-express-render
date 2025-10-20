@@ -82,7 +82,7 @@ async function abrirModalPlanilla(fechaTxt) {
   if (!fechaISO) return;
 
   try {
-    const res = await fetch(`/api/reparaciones_planilla?fecha=${fechaISO}`, { credentials:'include' });
+    const res = await fetch(`/api/reparaciones_planilla?fecha=${fechaISO}&_=${Date.now()}` , { credentials:'include', cache: 'no-store' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error');
     if (!Array.isArray(data) || data.length === 0) {
@@ -362,6 +362,59 @@ function bindPlanillaActions() {
       }
     } catch { alert('Error al eliminar.'); }
   };
+
+  // Bind submit on create/edit form to avoid full-page POST
+  const form = document.getElementById('form-reparacion');
+  if (form && !form._submitBound) {
+    form._submitBound = true;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const datos = Object.fromEntries(new FormData(form).entries());
+      // Fecha viene mostrada en el span de planilla (dd/mm/yyyy) -> enviar ISO (yyyy-mm-dd)
+      const fechaTxt = (document.getElementById('fecha-planilla')?.textContent || '').trim();
+      if (fechaTxt) {
+        try {
+          const [d,m,y] = fechaTxt.split('/');
+          datos.fecha = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        } catch(_) {
+          datos.fecha = fechaTxt; // fallback
+        }
+      }
+      if ((datos.cliente_tipo||'').toLowerCase() === 'externo') {
+        datos.cliente_id = document.getElementById('cliente_id')?.value || '';
+      } else {
+        datos.cliente_id = '';
+      }
+
+      let url = '/api/reparaciones_planilla';
+      let method = 'POST';
+      const editingId = form.dataset.id;
+      if (editingId) { url = `/api/reparaciones_planilla/${encodeURIComponent(editingId)}`; method = 'PUT'; }
+
+      try {
+        console.log('Guardando reparacion:', { method, url, datos });
+        const res = await fetch(url, {
+          method,
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(datos),
+        });
+        if (!res.ok) {
+          const t = await res.text().catch(()=> '');
+          throw new Error(`Error al guardar reparacion (${res.status}) ${t}`);
+        }
+        // Cerrar modal y recargar lista del dia
+        cerrarModalReparacion();
+        // limpiar modo edicion
+        delete form.dataset.id;
+        const fechaSpan = document.getElementById('fecha-planilla');
+        if (fechaSpan && fechaSpan.textContent) abrirModalPlanilla(fechaSpan.textContent);
+      } catch (err) {
+        console.error('Error guardando reparacion (refactor):', err);
+        alert('No se pudo guardar la reparacion.');
+      }
+    });
+  }
 }
 
 // ---------- Select helpers ----------
