@@ -110,7 +110,7 @@ router.get("/", async (req, res) => {
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE r.fecha = $1::date
-      ORDER BY r.hora_inicio ASC
+      ORDER BY r.id ASC
     `;
     const result = await pool.query(query, [fecha]);
     res.json(result.rows);
