@@ -212,7 +212,12 @@ function addItemRowFromData(it){
     <td><input class="input-codigo" placeholder="Codigo" value="${it.codigo||''}" list="lic-familias-dl"></td>
     <td><input class="input-desc" placeholder="Descripcion" value="${(it.descripcion||'').replace(/\"/g,'&quot;')}"></td>
     <td><input class="input-cant" type="number" min="0" step="1" value="${it.cantidad||''}"></td>
-    <td><input class="input-estado" placeholder="Estado" value="${it.estado||''}"></td>
+    <td>
+      <select class="input-estado">
+        <option value="cotizado" ${String(it.estado||'').toLowerCase()==='cotizado'?'selected':''}>Cotizado</option>
+        <option value="no cotizado" ${String(it.estado||'').toLowerCase()==='no cotizado'?'selected':''}>No cotizado</option>
+      </select>
+    </td>
     <td><button type="button" class="btn-secundario btn-eliminar-item"><i class="fas fa-times"></i></button></td>
   `;
   titems.appendChild(tr); tr.querySelector('.btn-eliminar-item').addEventListener('click', ()=> tr.remove());
