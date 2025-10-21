@@ -140,7 +140,7 @@ function bindLicitacionesPanel() {
   }); }
 }
 
-function abrirModalABMLicitacion(data, originalNro){
+async function abrirModalABMLicitacion(data, originalNro){
   const modal = document.getElementById('modal-licitacion-abm');
   const form = document.getElementById('form-licitacion');
   const titems = document.getElementById('tbody-lic-items');
@@ -239,6 +239,7 @@ function collectItems(){
   });
   return items;
 }
+
 
 
 
