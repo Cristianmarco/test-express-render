@@ -101,9 +101,9 @@ if (document.querySelector('[data-view="licitaciones"]')) {
 }
 
 // ---------- Panel y ABM ----------
-let _lic_abm_bound = false;
+
 function bindLicitacionesPanel() {
-  if (_lic_abm_bound) return; _lic_abm_bound = true;
+  
   const tbody = document.getElementById('tbody-licitaciones');
   if (tbody && !tbody._selBound) {
     tbody._selBound = true;
@@ -205,3 +205,5 @@ function collectItems(){
   });
   return items;
 }
+
+
