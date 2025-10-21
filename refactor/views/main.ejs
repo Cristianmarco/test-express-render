@@ -37,7 +37,14 @@
             <ul class="menu">
                 <li class="menu-section">General</li>
                 <li><a href="#" class="menu-link" data-view="inicio"><i class="fa fa-home"></i> Inicio</a></li>
-                <li><a href="#" class="menu-link" data-view="ventas"><i class="fa fa-dollar-sign"></i> Ventas</a></li>
+                <li>
+                    <button class="menu-item" data-toggle="ventas">
+                        <i class="fa fa-dollar-sign"></i> Ventas <i class="fa fa-chevron-down" style="margin-left:auto;"></i>
+                    </button>
+                    <ul class="submenu" data-parent="ventas" style="display:none;">
+                        <li><a href="#" class="menu-link" data-view="licitaciones"><i class="fa fa-file-signature"></i> Licitaciones</a></li>
+                    </ul>
+                </li>
                 <li><a href="#" class="menu-link" data-view="clientes"><i class="fa fa-users"></i> Clientes</a></li>
                 <li><a href="#" class="menu-link" data-view="productos"><i class="fa fa-box"></i> Productos</a></li>
                 <li><a href="#" class="menu-link" data-view="compras"><i class="fa fa-cart-shopping"></i> Compras</a>
@@ -71,3 +78,4 @@
 </body>
 
 </html>
+

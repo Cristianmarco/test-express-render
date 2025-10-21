@@ -67,3 +67,7 @@
   width: 18px;
   text-align: center;
 }
+
+/* Submenu under parent sections */
+.submenu { list-style: none; margin: 0; padding: 0 0 8px 16px; }
+.submenu .menu-link { padding-left: 36px; font-size: 0.95rem; }

@@ -85,6 +85,10 @@ async function loadView(view) {
         cargarScript("/static/scripts/planilla.js");
         break;
 
+      case "licitaciones":
+        cargarScript("/static/scripts/licitaciones.js");
+        break;
+
       case "inicio":
         cargarScript("/static/scripts/inicio.js");
         break;
@@ -131,4 +135,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
+
+
+// Submenús: toggle desplegable (Ventas, etc.)
+document.querySelectorAll('.menu-item[data-toggle]').forEach(btn => {
+  if (btn._bound) return; btn._bound = true;
+  btn.addEventListener('click', () => {
+    const key = btn.getAttribute('data-toggle');
+    const submenu = document.querySelector(`.submenu[data-parent="${key}"]`);
+    if (!submenu) return;
+    const show = submenu.style.display !== 'block';
+    submenu.style.display = show ? 'block' : 'none';
+  });
+});
 

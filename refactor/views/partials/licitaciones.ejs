@@ -1,0 +1,53 @@
+<section class="planilla-section">
+  <div class="erp-main-card">
+    <div class="erp-header-row">
+      <div class="titulo-dota">
+        <i class="fas fa-file-signature"></i> Licitaciones
+      </div>
+    </div>
+
+    <div class="erp-table-card">
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th>Nº Licitación</th>
+            <th>Fecha</th>
+            <th>Fecha de Cierre</th>
+            <th>Observación</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-licitaciones"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal Detalle Licitación -->
+  <div id="modal-licitacion-detalle" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:900px;">
+      <span class="cerrar" onclick="(function(){const m=document.getElementById('modal-licitacion-detalle'); if(m) m.style.display='none';})()">&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-folder-open"></i> Detalle Licitación <span id="lic-det-nro"></span></h2>
+
+      <div class="detalle-grid" style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom:10px;">
+        <p><b>Fecha:</b> <span id="lic-det-fecha">-</span></p>
+        <p><b>Cierre:</b> <span id="lic-det-cierre">-</span></p>
+        <p style="grid-column:1 / span 2"><b>Observación:</b> <span id="lic-det-observacion">-</span></p>
+      </div>
+
+      <div class="erp-table-card">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Cantidad</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-licitacion-items"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
