@@ -747,7 +747,8 @@ form#form-reparacion .btn-guardar {
 
 /* Inputs inside ERP tables */
 .tabla-erp-inputs td { text-align: left; }
-.tabla-erp-inputs input {
+.tabla-erp-inputs input,
+.tabla-erp-inputs select {
   width: 100%;
   box-sizing: border-box;
   padding: 8px 10px;

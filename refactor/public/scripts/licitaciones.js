@@ -214,8 +214,8 @@ function addItemRowFromData(it){
     <td><input class="input-cant" type="number" min="0" step="1" value="${it.cantidad||''}"></td>
     <td>
       <select class="input-estado">
+        <option value="no cotizado" ${(!it.estado || String(it.estado||'').toLowerCase()==='no cotizado')?'selected':''}>No cotizado</option>
         <option value="cotizado" ${String(it.estado||'').toLowerCase()==='cotizado'?'selected':''}>Cotizado</option>
-        <option value="no cotizado" ${String(it.estado||'').toLowerCase()==='no cotizado'?'selected':''}>No cotizado</option>
       </select>
     </td>
     <td><button type="button" class="btn-secundario btn-eliminar-item"><i class="fas fa-times"></i></button></td>
