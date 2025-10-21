@@ -744,3 +744,15 @@ form#form-reparacion .btn-guardar {
 
 /* Ocultar boton de escanear producto en planilla */
 #btn-scan-repuesto { display: none !important; }
+
+/* Inputs inside ERP tables */
+.tabla-erp-inputs td { text-align: left; }
+.tabla-erp-inputs input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+.input-with-btn { display:flex; align-items:center; gap:8px; }
+.input-with-btn .btn-secundario { white-space: nowrap; }

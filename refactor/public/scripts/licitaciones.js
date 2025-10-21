@@ -1,6 +1,7 @@
 // Licitaciones (refactor) - ASCII only to avoid encoding issues
 
 let licSeleccionada = null; // selected licitacion number
+let licFamilias = []; // cache familias for datalist
 
 async function cargarLicitaciones() {
   const tbody = document.getElementById('tbody-licitaciones');
@@ -147,6 +148,19 @@ function abrirModalABMLicitacion(data, originalNro){
   if(!modal || !form || !titems) return;
   form.reset(); titems.innerHTML=''; form.dataset.originalNro = originalNro||'';
   if (title) title.innerHTML = `<i class="fas fa-file-signature"></i> ${originalNro? 'Modificar' : 'Nueva'} Licitacion`;
+  // prepare familias datalist (one-time fetch)
+  try{
+    const dlId = 'lic-familias-dl';
+    let dl = modal.querySelector(`#${dlId}`);
+    if(!dl){ dl = document.createElement('datalist'); dl.id = dlId; form.prepend(dl); }
+    if(licFamilias.length===0){
+      const r = await fetch('/api/familias', { credentials:'include' });
+      const arr = await r.json();
+      licFamilias = Array.isArray(arr)? arr : [];
+    }
+    const opts = licFamilias.map(f=> `<option value="${(f.codigo||'').replace(/\"/g,'&quot;')}">${(f.descripcion||'').replace(/\"/g,'&quot;')}</option>`).join('');
+    dl.innerHTML = opts;
+  }catch{}
   if (data) {
     document.getElementById('lic-nro').value = data.nro_licitacion || originalNro || '';
     document.getElementById('lic-fecha').value = data.fecha ? String(data.fecha).slice(0,10) : '';
@@ -156,7 +170,17 @@ function abrirModalABMLicitacion(data, originalNro){
     if (items.length) items.forEach(addItemRowFromData); else addEmptyItemRow();
   } else { addEmptyItemRow(); }
   const btnAddItem = document.getElementById('btn-lic-add-item');
-  if (btnAddItem && !btnAddItem._bound) { btnAddItem._bound = true; btnAddItem.addEventListener('click', addEmptyItemRow); }
+  if (btnAddItem && !btnAddItem._bound) { btnAddItem._bound = true; btnAddItem.addEventListener('click', addEmptyItemRow); }  // Delegate pick-familia in items table
+  if (!titems._familiaBound) {
+    titems._familiaBound = true;
+    titems.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.btn-pick-familia');
+      if (!btn) return;
+      const row = e.target.closest('tr');
+      if (!row) return;
+      abrirModalLicFamilias(row);
+    });
+  }
   if (!form._bound) {
     form._bound = true;
     form.addEventListener('submit', async (e)=>{
@@ -185,13 +209,23 @@ function addItemRowFromData(it){
   const titems = document.getElementById('tbody-lic-items'); if(!titems) return;
   const tr = document.createElement('tr');
   tr.innerHTML = `
-    <td><input class="input-codigo" placeholder="Codigo" value="${it.codigo||''}"></td>
+    <td><input class="input-codigo" placeholder="Codigo" value="${it.codigo||''}" list="lic-familias-dl"></td>
     <td><input class="input-desc" placeholder="Descripcion" value="${(it.descripcion||'').replace(/\"/g,'&quot;')}"></td>
     <td><input class="input-cant" type="number" min="0" step="1" value="${it.cantidad||''}"></td>
     <td><input class="input-estado" placeholder="Estado" value="${it.estado||''}"></td>
     <td><button type="button" class="btn-secundario btn-eliminar-item"><i class="fas fa-times"></i></button></td>
   `;
   titems.appendChild(tr); tr.querySelector('.btn-eliminar-item').addEventListener('click', ()=> tr.remove());
+  const codeInput = tr.querySelector('.input-codigo');
+  const descInput = tr.querySelector('.input-desc');
+  if(codeInput && descInput && !codeInput._bound){
+    codeInput._bound = true;
+    codeInput.addEventListener('change', ()=>{
+      const v = (codeInput.value||'').toLowerCase().trim();
+      const f = licFamilias.find(x=> (x.codigo||'').toLowerCase()===v);
+      if(f){ descInput.value = f.descripcion||''; }
+    });
+  }
 }
 
 function collectItems(){
@@ -205,5 +239,9 @@ function collectItems(){
   });
   return items;
 }
+
+
+
+
 
 
