@@ -757,3 +757,27 @@ form#form-reparacion .btn-guardar {
 }
 .input-with-btn { display:flex; align-items:center; gap:8px; }
 .input-with-btn .btn-secundario { white-space: nowrap; }
+
+/* Generic secondary button (outside tables) */
+.btn-secundario {
+  appearance: none;
+  background: #f3f4f6;
+  color: #111827;
+  border: 1px solid #d1d5db;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background .15s ease, box-shadow .15s ease, transform .05s ease;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+}
+.btn-secundario:hover { background: #e5e7eb; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+.btn-secundario:active { transform: translateY(0.5px) scale(0.98); }
+.btn-secundario i { color: #2563eb; }
+
+/* Actions row: add on left, save on right */
+.lic-actions-row { display:flex; justify-content: space-between; align-items:center; gap:12px; margin-top:8px; }
