@@ -7,7 +7,7 @@
     </div>
 
   <div class="erp-table-card">
-    <table class="tabla-erp">
+    <table class="tabla-erp tabla-erp-inputs">
       <thead>
         <tr>
           <th>NÂº LicitaciÃ³n</th>
@@ -41,7 +41,7 @@
       </div>
 
       <div class="erp-table-card">
-        <table class="tabla-erp">
+        <table class="tabla-erp tabla-erp-inputs">
           <thead>
             <tr>
               <th>CÃ³digo</th>
@@ -84,7 +84,7 @@
         </div>
 
         <div class="erp-table-card" style="margin-top:8px;">
-          <table class="tabla-erp">
+          <table class="tabla-erp tabla-erp-inputs">
             <thead>
               <tr>
                 <th>CÃ³digo</th>
@@ -102,6 +102,34 @@
           <button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar</button>
         </div>
       </form>
+    </div>
+  </div>
+</section>
+
+
+
+    <!-- Modal Selección de Familia (Equipo) -->
+  <div id="modal-lic-familias" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:720px;">
+      <span class="cerrar" onclick="(function(){const m=document.getElementById('modal-lic-familias'); if(m) m.style.display='none';})()">&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-layer-group"></i> Seleccionar Equipo/Familia</h2>
+      <div class="buscador-historial" style="margin-top:0;">
+        <input type="text" id="lic-buscar-familia" class="input-buscar" placeholder="Buscar por código o descripción..." />
+        <button id="btn-lic-buscar-familia" class="btn-primary"><i class="fas fa-search"></i> Buscar</button>
+      </div>
+      <div class="erp-table-card" style="margin-top:6px;">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Elegir</th>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Categoría</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-lic-familias"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </section>
