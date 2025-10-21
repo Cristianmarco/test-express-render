@@ -6,21 +6,27 @@
       </div>
     </div>
 
-    <div class="erp-table-card">
-      <table class="tabla-erp">
-        <thead>
-          <tr>
-            <th>Nº Licitación</th>
-            <th>Fecha</th>
-            <th>Fecha de Cierre</th>
-            <th>Observación</th>
-            <th>Acción</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-licitaciones"></tbody>
-      </table>
-    </div>
+  <div class="erp-table-card">
+    <table class="tabla-erp">
+      <thead>
+        <tr>
+          <th>Nº Licitación</th>
+          <th>Fecha</th>
+          <th>Fecha de Cierre</th>
+          <th>Observación</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-licitaciones"></tbody>
+    </table>
   </div>
+
+  <div class="erp-panel-flotante">
+    <button id="btn-lic-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
+    <button id="btn-lic-modificar" class="icon-button-erp modificar" title="Modificar"><i class="fas fa-edit"></i></button>
+    <button id="btn-lic-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+  </div>
+</div>
 
   <!-- Modal Detalle Licitación -->
   <div id="modal-licitacion-detalle" class="modal-refactor" style="display:none;">
@@ -49,5 +55,53 @@
       </div>
     </div>
   </div>
-</section>
 
+  <!-- Modal ABM Licitación -->
+  <div id="modal-licitacion-abm" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:960px;">
+      <span class="cerrar" onclick="(function(){const m=document.getElementById('modal-licitacion-abm'); if(m) m.style.display='none';})()">&times;</span>
+      <h2 class="modal-titulo-principal" id="lic-abm-title"><i class="fas fa-file-signature"></i> Licitación</h2>
+      <form id="form-licitacion" autocomplete="off">
+        <div class="form-grid doble">
+          <div>
+            <label>Nº Licitación *</label>
+            <input type="text" name="nro_licitacion" id="lic-nro" required />
+          </div>
+          <div>
+            <label>Fecha *</label>
+            <input type="date" name="fecha" id="lic-fecha" required />
+          </div>
+        </div>
+        <div class="form-grid doble">
+          <div>
+            <label>Fecha de Cierre *</label>
+            <input type="date" name="fecha_cierre" id="lic-cierre" required />
+          </div>
+          <div>
+            <label>Observación</label>
+            <input type="text" name="observacion" id="lic-obs" />
+          </div>
+        </div>
+
+        <div class="erp-table-card" style="margin-top:8px;">
+          <table class="tabla-erp">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th>Cantidad</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-lic-items"></tbody>
+          </table>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:8px;">
+          <button id="btn-lic-add-item" type="button" class="btn-secundario"><i class="fas fa-plus"></i> Agregar ítem</button>
+          <button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>

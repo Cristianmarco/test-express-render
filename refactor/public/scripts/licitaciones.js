@@ -14,7 +14,7 @@ async function cargarLicitaciones() {
     }
     const fmt = (d)=>{ if(!d) return '-'; try { return new Date(d).toLocaleDateString('es-AR'); } catch { return String(d); } };
     tbody.innerHTML = lista.map(l => `
-      <tr>
+      <tr data-nro="${l.nro_licitacion}">
         <td>${l.nro_licitacion}</td>
         <td>${fmt(l.fecha)}</td>
         <td>${fmt(l.fecha_cierre)}</td>
@@ -92,3 +92,103 @@ if (document.querySelector('[data-view="licitaciones"]')) {
   bindLicitacionesView();
 }
 
+
+
+// ---------- Panel y ABM ----------
+let _lic_abm_bound = false;
+function bindLicitacionesPanel() {
+  if (_lic_abm_bound) return; _lic_abm_bound = true;
+  const tbody = document.getElementById('tbody-licitaciones');
+  if (tbody && !tbody._selBound) {
+    tbody._selBound = true;
+    tbody.addEventListener('click', (e)=>{
+      const tr = e.target.closest('tr');
+      if (tr && tr.dataset.nro) {
+        licSeleccionada = tr.dataset.nro;
+        tbody.querySelectorAll('tr').forEach(r=> r.classList.remove('selected'));
+        tr.classList.add('selected');
+      }
+    });
+  }
+  const btnAdd = document.getElementById('btn-lic-agregar');
+  const btnEdit = document.getElementById('btn-lic-modificar');
+  const btnDel = document.getElementById('btn-lic-eliminar');
+  if (btnAdd && !btnAdd._bound){ btnAdd._bound = true; btnAdd.addEventListener('click', ()=> abrirModalABMLicitacion()); }
+  if (btnEdit && !btnEdit._bound){ btnEdit._bound = true; btnEdit.addEventListener('click', async ()=>{
+    if (!licSeleccionada) { alert('Seleccione una licitación.'); return; }
+    try{
+      const res = await fetch(/api/licitaciones/, { credentials:'include' });
+      const data = await res.json(); if(!res.ok) throw new Error(data.error||'Error');
+      abrirModalABMLicitacion(data, licSeleccionada);
+    }catch{ alert('No se pudo cargar la licitación.'); }
+  }); }
+  if (btnDel && !btnDel._bound){ btnDel._bound = true; btnDel.addEventListener('click', async ()=>{
+    if (!licSeleccionada) { alert('Seleccione una licitación.'); return; }
+    if (!confirm(Eliminar licitación ?)) return;
+    try{ const res = await fetch(/api/licitaciones/, { method:'DELETE', credentials:'include' }); const payload = await res.json(); if(!res.ok) throw new Error(payload.error||'Error'); licSeleccionada=null; cargarLicitaciones(); }catch{ alert('No se pudo eliminar.'); }
+  }); }
+}
+
+document.addEventListener('view:changed', (e)=>{ if(e.detail==='licitaciones') setTimeout(bindLicitacionesPanel, 50); });
+setTimeout(bindLicitacionesPanel, 100);
+
+function abrirModalABMLicitacion(data, originalNro){
+  const modal = document.getElementById('modal-licitacion-abm');
+  const form = document.getElementById('form-licitacion');
+  const titems = document.getElementById('tbody-lic-items');
+  const title = document.getElementById('lic-abm-title');
+  if(!modal || !form || !titems) return;
+  form.reset(); titems.innerHTML=''; form.dataset.originalNro = originalNro||'';
+  if (title) title.innerHTML = <i class=\"fas fa-file-signature\"></i>  Licitación;
+  if (data) {
+    document.getElementById('lic-nro').value = data.nro_licitacion || originalNro || '';
+    document.getElementById('lic-fecha').value = data.fecha ? String(data.fecha).slice(0,10) : '';
+    document.getElementById('lic-cierre').value = data.fecha_cierre ? String(data.fecha_cierre).slice(0,10) : '';
+    document.getElementById('lic-obs').value = data.observacion || '';
+    const items = Array.isArray(data.items)? data.items : [];
+    if (items.length) items.forEach(addItemRowFromData); else addEmptyItemRow();
+  } else { addEmptyItemRow(); }
+  const btnAddItem = document.getElementById('btn-lic-add-item');
+  if (btnAddItem && !btnAddItem._bound) { btnAddItem._bound = true; btnAddItem.addEventListener('click', addEmptyItemRow); }
+  if (!form._bound) {
+    form._bound = true;
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const nro = document.getElementById('lic-nro').value.trim();
+      const fecha = document.getElementById('lic-fecha').value;
+      const fecha_cierre = document.getElementById('lic-cierre').value;
+      const observacion = document.getElementById('lic-obs').value.trim();
+      const items = collectItems();
+      if (!nro || !fecha || !fecha_cierre || items.length===0) { alert('Complete datos e ingrese al menos un ítem.'); return; }
+      const editing = !!form.dataset.originalNro; const url = editing ? /api/licitaciones/ : '/api/licitaciones'; const method = editing ? 'PUT' : 'POST';
+      try { const res = await fetch(url, { method, credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ nro_licitacion: nro, fecha, fecha_cierre, observacion, items }) }); const payload = await res.json(); if(!res.ok) throw new Error(payload.error||'Error'); modal.style.display='none'; licSeleccionada=nro; cargarLicitaciones(); } catch { alert('No se pudo guardar.'); }
+    });
+  }
+  modal.style.display='flex'; setTimeout(()=>{ try{ modal.querySelector('.modal-contenido-refactor')?.scrollTo(0,0);}catch{} },0);
+}
+
+function addEmptyItemRow(){ addItemRowFromData({}); }
+function addItemRowFromData(it){
+  const titems = document.getElementById('tbody-lic-items'); if(!titems) return;
+  const tr = document.createElement('tr');
+  tr.innerHTML = 
+    <td><input class=\"input-codigo\" placeholder=\"Código\" value=\"\"></td>
+    <td><input class=\"input-desc\" placeholder=\"Descripción\" value=\"\"></td>
+    <td><input class=\"input-cant\" type=\"number\" min=\"0\" step=\"1\" value=\"\"></td>
+    <td><input class=\"input-estado\" placeholder=\"Estado\" value=\"\"></td>
+    <td><button type=\"button\" class=\"btn-secundario btn-eliminar-item\"><i class=\"fas fa-times\"></i></button></td>
+  ;
+  titems.appendChild(tr); tr.querySelector('.btn-eliminar-item').addEventListener('click', ()=> tr.remove());
+}
+
+function collectItems(){
+  const titems = document.getElementById('tbody-lic-items'); if(!titems) return [];
+  const items = []; titems.querySelectorAll('tr').forEach(tr=>{
+    const codigo = tr.querySelector('.input-codigo')?.value.trim();
+    const descripcion = tr.querySelector('.input-desc')?.value.trim();
+    const cantidadStr = tr.querySelector('.input-cant')?.value; const estado = tr.querySelector('.input-estado')?.value.trim();
+    const cantidad = cantidadStr ? Number(cantidadStr) : null;
+    if (codigo && descripcion && (cantidad!=null)) items.push({ codigo, descripcion, cantidad, estado });
+  });
+  return items;
+}
