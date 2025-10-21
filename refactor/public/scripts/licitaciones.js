@@ -1,4 +1,6 @@
-// Licitaciones (refactor)
+// Licitaciones (refactor) - ASCII only to avoid encoding issues
+
+let licSeleccionada = null; // selected licitacion number
 
 async function cargarLicitaciones() {
   const tbody = document.getElementById('tbody-licitaciones');
@@ -28,10 +30,17 @@ async function cargarLicitaciones() {
     `).join('');
 
     tbody.onclick = (e) => {
+      const tr = e.target.closest('tr');
+      if (tr && tr.dataset.nro) {
+        licSeleccionada = tr.dataset.nro;
+        tbody.querySelectorAll('tr').forEach(r=> r.classList.remove('selected'));
+        tr.classList.add('selected');
+      }
       const btn = e.target.closest('.btn-ver-licitacion');
-      if (!btn) return;
-      const nro = btn.getAttribute('data-nro');
-      if (nro) verDetalleLicitacion(nro);
+      if (btn) {
+        const nro = btn.getAttribute('data-nro');
+        if (nro) verDetalleLicitacion(nro);
+      }
     };
   } catch (err) {
     console.error('Error cargando licitaciones:', err);
@@ -48,7 +57,7 @@ async function verDetalleLicitacion(nro) {
   const oEl = document.getElementById('lic-det-observacion');
   if (!modal || !tBody) return;
   modal.style.display = 'flex';
-  if (tBody) tBody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  tBody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
   try {
     const res = await fetch(`/api/licitaciones/${encodeURIComponent(nro)}`, { credentials: 'include' });
     const data = await res.json();
@@ -84,15 +93,12 @@ function bindLicitacionesView() {
 }
 
 if (document.querySelector('[data-view="licitaciones"]')) {
-  // Carga cuando se abra la vista dinÃ¡micamente
   document.addEventListener('view:changed', (e)=>{
-    if (e.detail === 'licitaciones') setTimeout(bindLicitacionesView, 50);
+    if (e.detail === 'licitaciones') setTimeout(()=>{ bindLicitacionesView(); bindLicitacionesPanel(); }, 50);
   });
-  // y por si se cargÃ³ directamente
   bindLicitacionesView();
+  bindLicitacionesPanel();
 }
-
-
 
 // ---------- Panel y ABM ----------
 let _lic_abm_bound = false;
@@ -115,22 +121,23 @@ function bindLicitacionesPanel() {
   const btnDel = document.getElementById('btn-lic-eliminar');
   if (btnAdd && !btnAdd._bound){ btnAdd._bound = true; btnAdd.addEventListener('click', ()=> abrirModalABMLicitacion()); }
   if (btnEdit && !btnEdit._bound){ btnEdit._bound = true; btnEdit.addEventListener('click', async ()=>{
-    if (!licSeleccionada) { alert('Seleccione una licitación.'); return; }
+    if (!licSeleccionada) { alert('Seleccione una licitacion.'); return; }
     try{
-      const res = await fetch(/api/licitaciones/, { credentials:'include' });
+      const res = await fetch(`/api/licitaciones/${encodeURIComponent(licSeleccionada)}`, { credentials:'include' });
       const data = await res.json(); if(!res.ok) throw new Error(data.error||'Error');
       abrirModalABMLicitacion(data, licSeleccionada);
-    }catch{ alert('No se pudo cargar la licitación.'); }
+    }catch{ alert('No se pudo cargar la licitacion.'); }
   }); }
   if (btnDel && !btnDel._bound){ btnDel._bound = true; btnDel.addEventListener('click', async ()=>{
-    if (!licSeleccionada) { alert('Seleccione una licitación.'); return; }
-    if (!confirm(Eliminar licitación ?)) return;
-    try{ const res = await fetch(/api/licitaciones/, { method:'DELETE', credentials:'include' }); const payload = await res.json(); if(!res.ok) throw new Error(payload.error||'Error'); licSeleccionada=null; cargarLicitaciones(); }catch{ alert('No se pudo eliminar.'); }
+    if (!licSeleccionada) { alert('Seleccione una licitacion.'); return; }
+    if (!confirm(`Eliminar licitacion ${licSeleccionada}?`)) return;
+    try{
+      const res = await fetch(`/api/licitaciones/${encodeURIComponent(licSeleccionada)}`, { method:'DELETE', credentials:'include' });
+      const payload = await res.json(); if(!res.ok) throw new Error(payload.error||'Error');
+      licSeleccionada=null; cargarLicitaciones();
+    }catch{ alert('No se pudo eliminar.'); }
   }); }
 }
-
-document.addEventListener('view:changed', (e)=>{ if(e.detail==='licitaciones') setTimeout(bindLicitacionesPanel, 50); });
-setTimeout(bindLicitacionesPanel, 100);
 
 function abrirModalABMLicitacion(data, originalNro){
   const modal = document.getElementById('modal-licitacion-abm');
@@ -139,7 +146,7 @@ function abrirModalABMLicitacion(data, originalNro){
   const title = document.getElementById('lic-abm-title');
   if(!modal || !form || !titems) return;
   form.reset(); titems.innerHTML=''; form.dataset.originalNro = originalNro||'';
-  if (title) title.innerHTML = <i class=\"fas fa-file-signature\"></i>  Licitación;
+  if (title) title.innerHTML = `<i class="fas fa-file-signature"></i> ${originalNro? 'Modificar' : 'Nueva'} Licitacion`;
   if (data) {
     document.getElementById('lic-nro').value = data.nro_licitacion || originalNro || '';
     document.getElementById('lic-fecha').value = data.fecha ? String(data.fecha).slice(0,10) : '';
@@ -159,9 +166,15 @@ function abrirModalABMLicitacion(data, originalNro){
       const fecha_cierre = document.getElementById('lic-cierre').value;
       const observacion = document.getElementById('lic-obs').value.trim();
       const items = collectItems();
-      if (!nro || !fecha || !fecha_cierre || items.length===0) { alert('Complete datos e ingrese al menos un ítem.'); return; }
-      const editing = !!form.dataset.originalNro; const url = editing ? /api/licitaciones/ : '/api/licitaciones'; const method = editing ? 'PUT' : 'POST';
-      try { const res = await fetch(url, { method, credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ nro_licitacion: nro, fecha, fecha_cierre, observacion, items }) }); const payload = await res.json(); if(!res.ok) throw new Error(payload.error||'Error'); modal.style.display='none'; licSeleccionada=nro; cargarLicitaciones(); } catch { alert('No se pudo guardar.'); }
+      if (!nro || !fecha || !fecha_cierre || items.length===0) { alert('Complete datos e ingrese al menos un item.'); return; }
+      const editing = !!form.dataset.originalNro;
+      const url = editing ? `/api/licitaciones/${encodeURIComponent(form.dataset.originalNro)}` : '/api/licitaciones';
+      const method = editing ? 'PUT' : 'POST';
+      try {
+        const res = await fetch(url, { method, credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ nro_licitacion: nro, fecha, fecha_cierre, observacion, items }) });
+        const payload = await res.json(); if(!res.ok) throw new Error(payload.error||'Error');
+        modal.style.display='none'; licSeleccionada=nro; cargarLicitaciones();
+      } catch { alert('No se pudo guardar.'); }
     });
   }
   modal.style.display='flex'; setTimeout(()=>{ try{ modal.querySelector('.modal-contenido-refactor')?.scrollTo(0,0);}catch{} },0);
@@ -171,13 +184,13 @@ function addEmptyItemRow(){ addItemRowFromData({}); }
 function addItemRowFromData(it){
   const titems = document.getElementById('tbody-lic-items'); if(!titems) return;
   const tr = document.createElement('tr');
-  tr.innerHTML = 
-    <td><input class=\"input-codigo\" placeholder=\"Código\" value=\"\"></td>
-    <td><input class=\"input-desc\" placeholder=\"Descripción\" value=\"\"></td>
-    <td><input class=\"input-cant\" type=\"number\" min=\"0\" step=\"1\" value=\"\"></td>
-    <td><input class=\"input-estado\" placeholder=\"Estado\" value=\"\"></td>
-    <td><button type=\"button\" class=\"btn-secundario btn-eliminar-item\"><i class=\"fas fa-times\"></i></button></td>
-  ;
+  tr.innerHTML = `
+    <td><input class="input-codigo" placeholder="Codigo" value="${it.codigo||''}"></td>
+    <td><input class="input-desc" placeholder="Descripcion" value="${(it.descripcion||'').replace(/\"/g,'&quot;')}"></td>
+    <td><input class="input-cant" type="number" min="0" step="1" value="${it.cantidad||''}"></td>
+    <td><input class="input-estado" placeholder="Estado" value="${it.estado||''}"></td>
+    <td><button type="button" class="btn-secundario btn-eliminar-item"><i class="fas fa-times"></i></button></td>
+  `;
   titems.appendChild(tr); tr.querySelector('.btn-eliminar-item').addEventListener('click', ()=> tr.remove());
 }
 
