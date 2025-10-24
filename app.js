@@ -177,8 +177,17 @@ const refactorRouter = require("./refactor/routes/refactor.js");
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "refactor/views"));
 
-// Archivos estáticos del refactor (CSS, JS, etc.)
-app.use("/static", express.static(path.join(__dirname, "refactor/public")));
+// Archivos estáticos del refactor (CSS, JS, etc.) con no-cache para evitar servir versiones viejas desde CDN
+app.use(
+  "/static",
+  (req, res, next) => {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+    next();
+  },
+  express.static(path.join(__dirname, "refactor/public"))
+);
 
 // ✅ Primero protegemos todo el entorno refactor con login
 app.use("/refactor", requireLogin, refactorRouter);
