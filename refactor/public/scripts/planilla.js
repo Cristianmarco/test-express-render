@@ -87,8 +87,10 @@ async function abrirModalPlanilla(fechaTxt) {
     if (!res.ok) throw new Error(data.error || 'Error');
     if (!Array.isArray(data) || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#666">Sin reparaciones para esta fecha.</td></tr>';
+      const cEl = document.getElementById('planilla-count'); if (cEl) cEl.textContent = '0';
       return;
     }
+    const cEl = document.getElementById('planilla-count'); if (cEl) cEl.textContent = String(data.length);
     tbody.innerHTML = data.map(rep => `
       <tr data-id="${rep.id||''}"
           data-familia-id="${rep.familia_id||''}"
@@ -300,9 +302,29 @@ function bindPlanillaActions() {
 
   if (btnAgregar) btnAgregar.onclick = () => {
     const modal = document.getElementById('modal-reparacion'); const form=document.getElementById('form-reparacion');
-    if (modal) modal.style.display='flex';
+    if (modal) {
+      modal.style.display='flex';
+      // Asegurar que el modal arranque scrolleado arriba siempre
+      setTimeout(()=>{
+        try { const content = modal.querySelector('.modal-contenido-refactor'); if (content) content.scrollTop = 0; if (form) form.scrollTop = 0; const first = (form||modal).querySelector('input, select, textarea'); if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
+        } catch(_) {}
+      }, 0);
+    }
     if (form) {
       form.reset();
+      try {
+        if (!document.getElementById('nro_pedido_ref')) {
+          const wrap = document.createElement('div');
+          wrap.className = 'form-grid';
+          wrap.innerHTML = '<div><label>N° Pedido (R.Vigente)</label><input type="text" name="nro_pedido_ref" id="nro_pedido_ref" placeholder="Nro de pedido de licitaciones" /></div>';
+          const marker = form.querySelector("input[name='coche_numero']");
+          if (marker && marker.closest('.form-grid.doble')) {
+            marker.closest('.form-grid.doble').insertAdjacentElement('afterend', wrap);
+          } else {
+            form.insertBefore(wrap, form.firstChild);
+          }
+        }
+      } catch {}
       try{ _repuestosTrack.clear(); }catch(_){ }
       const selGar = document.getElementById('garantia'); if (selGar) selGar.value = 'no';
       const extra = document.getElementById('garantia-extra-fields'); if (extra) extra.style.display = 'none';
@@ -315,7 +337,7 @@ function bindPlanillaActions() {
   if (btnEditar) btnEditar.onclick = async () => {
     if (!seleccion) { alert('Selecciona una reparacion para modificar.'); return; }
     const modal = document.getElementById('modal-reparacion'); const form=document.getElementById('form-reparacion');
-    if (modal) modal.style.display='flex'; if (form) form.dataset.id = seleccion.id||'';
+    if (modal) { modal.style.display='flex'; setTimeout(()=>{ try { if (form) form.scrollTop = 0; } catch(_){} }, 0); } if (form) form.dataset.id = seleccion.id||'';
     const setVal = (sel,val)=>{ const el=document.querySelector(sel); if(el) el.value=val||''; };
     setVal("input[name='id_reparacion']", seleccion.id_reparacion);
     setVal("input[name='coche_numero']", seleccion.coche);
@@ -351,7 +373,9 @@ function bindPlanillaActions() {
     if (!seleccion) { alert('Selecciona una reparacion para eliminar.'); return; }
     if (!confirm(`Eliminar la reparacion ${seleccion.id_reparacion}?`)) return;
     try {
-      const res = await fetch(`/api/reparaciones_planilla/${encodeURIComponent(seleccion.id)}`, { method:'DELETE', credentials:'include' });
+      const nroRef = prompt('Nro pedido a devolver pendientes (opcional):','');
+      const qs = nroRef ? ('?nro_pedido_ref='+ encodeURIComponent(nroRef)) : '';
+      const res = await fetch(`/api/reparaciones_planilla/${encodeURIComponent(seleccion.id)}${qs}`, { method:'DELETE', credentials:'include' });
       const data = await res.json();
       if (res.ok) {
         alert('Reparacion eliminada.');
@@ -408,6 +432,7 @@ function bindPlanillaActions() {
         // limpiar modo edicion
         delete form.dataset.id;
         const fechaSpan = document.getElementById('fecha-planilla');
+        try{ learnTrabajoTermsFrom(datos.trabajo); }catch{}
         if (fechaSpan && fechaSpan.textContent) abrirModalPlanilla(fechaSpan.textContent);
       } catch (err) {
         console.error('Error guardando reparacion (refactor):', err);
@@ -571,6 +596,88 @@ function bindTrabajoWatcher(){
       }
     }catch(err){ console.warn('Watcher trabajo error:', err); }
   });
+}
+
+// --- Texto predictivo para textarea 'trabajo' ---
+const DEFAULT_TRABAJO_TERMS = [
+  'impulsor','rulemanes','correa','bomba','limpieza','ajuste','cambio','cableado','conector',
+  'placa','sensor','motor','filtro','fusible','soldadura','revision','diagnostico','calibracion',
+  'prueba','firmware','lubricacion','tornillos','enchufe','borne','terminal'
+];
+
+function loadTrabajoTerms(){
+  try{
+    const raw = localStorage.getItem('erp_trabajo_terms');
+    const arr = raw ? JSON.parse(raw) : [];
+    const base = Array.isArray(arr) ? arr : [];
+    return Array.from(new Set([...DEFAULT_TRABAJO_TERMS, ...base]));
+  }catch{ return DEFAULT_TRABAJO_TERMS.slice(); }
+}
+
+function saveTrabajoTerms(list){
+  try{ localStorage.setItem('erp_trabajo_terms', JSON.stringify(Array.from(new Set(list)).slice(0,200))); }catch{}
+}
+
+function learnTrabajoTermsFrom(text){
+  if(!text) return;
+  try{
+    const words = String(text).toLowerCase().match(/[a-záéíóúñ0-9]{3,}/gi) || [];
+    const curr = loadTrabajoTerms();
+    const merged = Array.from(new Set([...curr, ...words]));
+    saveTrabajoTerms(merged);
+  }catch{}
+}
+
+function bindTrabajoAutocomplete(){
+  const area = document.getElementById('trabajo');
+  const box  = document.getElementById('trabajo-suggest');
+  if(!area || !box || area._autoBound) return; area._autoBound = true;
+
+  let selIndex = -1;
+
+  const render = (prefix)=>{
+    const p = (prefix||'').toLowerCase();
+    const items = loadTrabajoTerms().filter(t=>t.toLowerCase().startsWith(p)).slice(0,8);
+    if(!p || items.length===0){ box.style.display='none'; box.innerHTML=''; selIndex=-1; return; }
+    box.innerHTML = items.map((t,i)=>`<div class="suggest-item${i===0?' active':''}" data-value="${t.replace(/\"/g,'&quot;')}">${t}</div>`).join('');
+    selIndex = 0; box.style.display='block';
+  };
+
+  const currentPrefix = ()=>{
+    const pos = area.selectionStart||0;
+    const left = area.value.slice(0,pos);
+    const m = left.match(/([\p{L}áéíóúñ\d]+)$/iu);
+    return m ? m[1] : '';
+  };
+
+  const apply = (val)=>{
+    const pos = area.selectionStart||0;
+    const left = area.value.slice(0,pos);
+    const right = area.value.slice(pos);
+    const m = left.match(/([\p{L}áéíóúñ\d]+)$/iu);
+    const newLeft = m ? (left.slice(0, left.length - m[1].length) + val + ' ') : (left + val + ' ');
+    area.value = newLeft + right;
+    const newPos = newLeft.length; area.setSelectionRange(newPos, newPos);
+    box.style.display='none';
+  };
+
+  area.addEventListener('input', ()=>{
+    const p = currentPrefix();
+    if(p.length>=2) render(p); else { box.style.display='none'; }
+  });
+  area.addEventListener('keydown', (e)=>{
+    if(box.style.display!=='block') return;
+    const items = Array.from(box.querySelectorAll('.suggest-item'));
+    if(!items.length) return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); selIndex=(selIndex+1)%items.length; items.forEach((el,i)=>el.classList.toggle('active', i===selIndex)); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); selIndex=(selIndex-1+items.length)%items.length; items.forEach((el,i)=>el.classList.toggle('active', i===selIndex)); }
+    else if(e.key==='Enter' || e.key==='Tab'){ e.preventDefault(); apply(items[selIndex].getAttribute('data-value')); }
+    else if(e.key==='Escape'){ box.style.display='none'; }
+  });
+  box.addEventListener('mousedown', (ev)=>{
+    const it = ev.target.closest('.suggest-item'); if(!it) return; ev.preventDefault(); apply(it.getAttribute('data-value'));
+  });
+  area.addEventListener('blur', ()=>{ setTimeout(()=>{ box.style.display='none'; }, 150); });
 }
 
 // Interceptar Enter en el input de código y evitar submit del form
@@ -933,6 +1040,7 @@ function initPlanilla(){
   prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
   bindCodigoRepuestoEnter();
   bindTrabajoWatcher();
+  bindTrabajoAutocomplete();
 }
 
 if (document.getElementById('calendarGrid')) {
@@ -940,7 +1048,7 @@ if (document.getElementById('calendarGrid')) {
   bindGarantiaToggle(true);
 } else {
   document.addEventListener('view:changed', (e)=>{
-    if(e.detail==='planilla') setTimeout(()=>{ initPlanilla(); bindGarantiaToggle(true); bindCodigoRepuestoEnter(); bindTrabajoWatcher(); },100);
+    if(e.detail==='planilla') setTimeout(()=>{ initPlanilla(); bindGarantiaToggle(true); bindCodigoRepuestoEnter(); bindTrabajoWatcher(); bindTrabajoAutocomplete(); },100);
   });
 
   // Capturar Enter en el input para evitar submit + validación del formulario
@@ -1150,3 +1258,7 @@ document.addEventListener('view:changed', (e)=>{
     if(inp) inp.setAttribute('placeholder', 'Escribir codigo de producto y Enter');
   }
 });
+
+
+
+

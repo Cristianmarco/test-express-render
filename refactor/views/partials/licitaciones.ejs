@@ -6,33 +6,66 @@
       </div>
     </div>
 
-  <div class="erp-table-card">
-    <table class="tabla-erp tabla-erp-inputs">
-      <thead>
-        <tr>
-          <th>N潞 Licitaci贸n</th>
-          <th>Fecha</th>
-          <th>Fecha de Cierre</th>
-          <th>Observaci贸n</th>
-          <th>Acci贸n</th>
-        </tr>
-      </thead>
-      <tbody id="tbody-licitaciones"></tbody>
-    </table>
-  </div>
+    <!-- Tabs: Licitaciones / R.Vigentes -->
+    <div id="lic-tabs" class="tabs-simple" style="display:flex; gap:8px; margin:6px 0 12px; align-items:center"><button class="btn-secundario" data-tab="lic">Licitaciones</button><button class="btn-secundario" data-tab="vig">R.Vigentes</button><button id="btn-vig-clear" class="btn-secundario" style="margin-left:auto; display:none;">Limpiar selecci髇</button></div>
 
-  <div class="erp-panel-flotante">
-    <button id="btn-lic-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
-    <button id="btn-lic-modificar" class="icon-button-erp modificar" title="Modificar"><i class="fas fa-edit"></i></button>
-    <button id="btn-lic-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+    <div id="lic-tab" class="lic-tab-pane" style="display:block;">
+    <div class="erp-table-card">
+      <table class="tabla-erp tabla-erp-inputs">
+        <thead>
+          <tr>
+            <th>N潞 Licitaci贸n</th>
+            <th>Fecha</th>
+            <th>Fecha de Cierre</th>
+            <th>Observaci贸n</th>
+            <th>Acci贸n</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-licitaciones"></tbody>
+      </table>
+    </div>
+
+    </div> <!-- /lic-tab -->
+
+    <div id="vig-tab" class="lic-tab-pane" style="display:none;">
+      <div class="erp-table-card">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Nro Pedido</th>
+              <th>C贸digo</th>
+              <th>Descripci贸n</th>
+              <th>Cantidad</th>
+              <th>Destino</th>
+              <th>Raz贸n Social</th>
+              <th>Pendientes</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-vigentes"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="erp-panel-flotante">
+      <button id="btn-lic-agregar" class="icon-button-erp agregar" title="Agregar">
+        <i class="fas fa-plus"></i>
+      </button>
+      <button id="btn-lic-modificar" class="icon-button-erp modificar" title="Modificar">
+        <i class="fas fa-edit"></i>
+      </button>
+      <button id="btn-lic-eliminar" class="icon-button-erp eliminar" title="Eliminar">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>
   </div>
-</div>
 
   <!-- Modal Detalle Licitaci贸n -->
   <div id="modal-licitacion-detalle" class="modal-refactor" style="display:none;">
     <div class="modal-contenido-refactor modal-erp-producto" style="max-width:900px;">
       <span class="cerrar" onclick="(function(){const m=document.getElementById('modal-licitacion-detalle'); if(m) m.style.display='none';})()">&times;</span>
-      <h2 class="modal-titulo-principal"><i class="fas fa-folder-open"></i> Detalle Licitaci贸n <span id="lic-det-nro"></span></h2>
+      <h2 class="modal-titulo-principal">
+        <i class="fas fa-folder-open"></i> Detalle Licitaci贸n <span id="lic-det-nro"></span>
+      </h2>
 
       <div class="detalle-grid" style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom:10px;">
         <p><b>Fecha:</b> <span id="lic-det-fecha">-</span></p>
@@ -60,25 +93,29 @@
   <div id="modal-licitacion-abm" class="modal-refactor" style="display:none;">
     <div class="modal-contenido-refactor modal-erp-producto" style="max-width:960px;">
       <span class="cerrar" onclick="(function(){const m=document.getElementById('modal-licitacion-abm'); if(m) m.style.display='none';})()">&times;</span>
-      <h2 class="modal-titulo-principal" id="lic-abm-title"><i class="fas fa-file-signature"></i> Licitaci贸n</h2>
+      <h2 class="modal-titulo-principal" id="lic-abm-title">
+        <i class="fas fa-file-signature"></i> Licitaci贸n
+      </h2>
+
       <form id="form-licitacion" autocomplete="off">
         <div class="form-grid doble">
           <div>
-            <label>N潞 Licitaci贸n *</label>
+            <label for="lic-nro">N潞 Licitaci贸n *</label>
             <input type="text" name="nro_licitacion" id="lic-nro" required />
           </div>
           <div>
-            <label>Fecha *</label>
+            <label for="lic-fecha">Fecha *</label>
             <input type="date" name="fecha" id="lic-fecha" required />
           </div>
         </div>
+
         <div class="form-grid doble">
           <div>
-            <label>Fecha de Cierre *</label>
+            <label for="lic-cierre">Fecha de Cierre *</label>
             <input type="date" name="fecha_cierre" id="lic-cierre" required />
           </div>
           <div>
-            <label>Observaci贸n</label>
+            <label for="lic-obs">Observaci贸n</label>
             <input type="text" name="observacion" id="lic-obs" />
           </div>
         </div>
@@ -97,38 +134,104 @@
             <tbody id="tbody-lic-items"></tbody>
           </table>
         </div>
-        <div class="lic-actions-row"><div class="left"><button id="btn-lic-add-item" type="button" class="btn-secundario"><i class="fas fa-plus"></i> Agregar Item</button></div><div class="right"><button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar</button></div></div>
+
+        <div class="lic-actions-row">
+          <div class="left">
+            <button id="btn-lic-add-item" type="button" class="btn-secundario">
+              <i class="fas fa-plus"></i> Agregar Item
+            </button>
+          </div>
+          <div class="right">
+            <button type="submit" class="btn-guardar">
+              <i class="fas fa-save"></i> Guardar
+            </button>
+          </div>
+        </div>
       </form>
     </div>
   </div>
 </section>
 
+<!-- Modal Selecci贸n de Familia (Equipo) -->
+<div id="modal-lic-familias" class="modal-refactor" style="display:none;">
+  <div class="modal-contenido-refactor modal-erp-producto" style="max-width:720px;">
+    <span class="cerrar" onclick="(function(){const m=document.getElementById('modal-lic-familias'); if(m) m.style.display='none';})()">&times;</span>
+    <h2 class="modal-titulo-principal"><i class="fas fa-layer-group"></i> Seleccionar Equipo/Familia</h2>
 
+    <div class="buscador-historial" style="margin-top:0;">
+      <input type="text" id="lic-buscar-familia" class="input-buscar" placeholder="Buscar por c贸digo o descripci贸n..." />
+      <button id="btn-lic-buscar-familia" class="btn-primary"><i class="fas fa-search"></i> Buscar</button>
+    </div>
 
-    <!-- Modal Selecci髇 de Familia (Equipo) -->
-  <div id="modal-lic-familias" class="modal-refactor" style="display:none;">
-    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:720px;">
-      <span class="cerrar" onclick="(function(){const m=document.getElementById('modal-lic-familias'); if(m) m.style.display='none';})()">&times;</span>
-      <h2 class="modal-titulo-principal"><i class="fas fa-layer-group"></i> Seleccionar Equipo/Familia</h2>
-      <div class="buscador-historial" style="margin-top:0;">
-        <input type="text" id="lic-buscar-familia" class="input-buscar" placeholder="Buscar por c骴igo o descripci髇..." />
-        <button id="btn-lic-buscar-familia" class="btn-primary"><i class="fas fa-search"></i> Buscar</button>
-      </div>
-      <div class="erp-table-card" style="margin-top:6px;">
-        <table class="tabla-erp">
-          <thead>
-            <tr>
-              <th>Elegir</th>
-              <th>C骴igo</th>
-              <th>Descripci髇</th>
-              <th>Categor韆</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-lic-familias"></tbody>
-        </table>
-      </div>
+    <div class="erp-table-card" style="margin-top:6px;">
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th>Elegir</th>
+            <th>C贸digo</th>
+            <th>Descripci贸n</th>
+            <th>Categor铆a</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-lic-familias"></tbody>
+      </table>
     </div>
   </div>
-</section>
+</div>
+<script>
+(function(){
+  function bindTabs(){
+    var bar = document.getElementById('lic-tabs');
+    var tabLic = document.getElementById('lic-tab');
+    var tabVig = document.getElementById('vig-tab');
+    if(!bar || bar._bound) return; bar._bound = true;
+    if(!tabLic || !tabVig) return;
+    bar.addEventListener('click', function(e){
+      var btn = e.target.closest('button[data-tab]'); if(!btn) return;
+      var which = btn.getAttribute('data-tab');
+      tabLic.style.display = which==='lic' ? 'block' : 'none';
+      tabVig.style.display = which==='vig' ? 'block' : 'none';
+      if(which==='vig'){
+        var tb = document.getElementById('tbody-vigentes');
+        if(tb && !tb._loaded){
+          tb._loaded = true; tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+          fetch('/api/reparaciones_dota', { credentials:'include' })
+            .then(function(r){ return r.json(); })
+            .then(function(arr){
+              var lista = Array.isArray(arr) ? arr : [];
+              if(lista.length===0){ tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
+              tb.innerHTML = lista.map(function(r){ return (
+                "<tr>"+
+                "<td>"+(r.nro_pedido||'-')+"</td>"+
+                "<td>"+(r.codigo||'-')+"</td>"+
+                "<td>"+(r.descripcion||'-')+"</td>"+
+                "<td>"+(r.cantidad||'-')+"</td>"+
+                "<td>"+(r.destino||'-')+"</td>"+
+                "<td>"+(r.razon_social||'-')+"</td>"+
+                "<td>"+((r.pendientes!=null)?r.pendientes:'-')+"</td>"+
+                "</tr>"); }).join('');
+            })
+            .catch(function(){ tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>"; });
+        }
+      }
+    });
+  }
+  if(document.readyState !== 'loading'){ bindTabs(); }
+  else { document.addEventListener('DOMContentLoaded', bindTabs); }
+  document.addEventListener('view:changed', function(e){ if(e.detail==='licitaciones'){ setTimeout(bindTabs, 30); } });
+})();
+</script>
 
-
+<script>
+(function(){
+  var bar = document.getElementById('lic-tabs');
+  var btnClear = document.getElementById('btn-vig-clear');
+  function toggleClear(show){ if(btnClear) btnClear.style.display = show? 'inline-flex':'none'; }
+  function clearVig(){ try{ var tb=document.getElementById('tbody-vigentes'); if(tb){ tb.querySelectorAll('tr.selected').forEach(function(r){ r.classList.remove('selected'); }); } if(window) window.vigSeleccionada=null; }catch(_){} }
+  if(bar && !bar._clearBound){
+    bar._clearBound = true;
+    bar.addEventListener('click', function(e){ var b=e.target.closest('button[data-tab]'); if(!b) return; var which=b.getAttribute('data-tab'); toggleClear(which==='vig'); });
+    if(btnClear){ btnClear.addEventListener('click', function(){ clearVig(); }); }
+  }
+})();
+</script>

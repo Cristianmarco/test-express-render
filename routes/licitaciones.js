@@ -5,7 +5,7 @@ const db = require('../db'); // <-- tu pool de postgres
 
 // POST: Guardar una licitación con ítems
 router.post('/', async (req, res, next) => {
-  const { nro_licitacion, fecha, fecha_cierre, observacion, items } = req.body;
+  const { nro_licitacion, fecha, fecha_cierre, observacion, cliente_codigo, items } = req.body;
 
   if (!nro_licitacion || !fecha || !fecha_cierre || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Faltan datos obligatorios.' });
@@ -24,8 +24,8 @@ router.post('/', async (req, res, next) => {
     if (check.rows.length) {
       // Ya existe: actualizo cabecera y borro ítems viejos
       await client.query(
-        `UPDATE licitaciones SET fecha = $2, fecha_cierre = $3, observacion = $4 WHERE nro_licitacion = $1`,
-        [nro_licitacion, fecha, fecha_cierre, observacion]
+        `UPDATE licitaciones SET fecha = $2, fecha_cierre = $3, observacion = $4, cliente_codigo = $5 WHERE nro_licitacion = $1`,
+        [nro_licitacion, fecha, fecha_cierre, observacion, cliente_codigo || null]
       );
       await client.query(
         `DELETE FROM licitacion_items WHERE nro_licitacion = $1`,
@@ -34,9 +34,9 @@ router.post('/', async (req, res, next) => {
     } else {
       // Nuevo
       await client.query(
-        `INSERT INTO licitaciones (nro_licitacion, fecha, fecha_cierre, observacion)
-         VALUES ($1, $2, $3, $4)`,
-        [nro_licitacion, fecha, fecha_cierre, observacion]
+        `INSERT INTO licitaciones (nro_licitacion, fecha, fecha_cierre, observacion, cliente_codigo)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [nro_licitacion, fecha, fecha_cierre, observacion, cliente_codigo || null]
       );
     }
 
@@ -63,7 +63,12 @@ router.post('/', async (req, res, next) => {
 // routes/licitaciones.js
 router.get('/', async (req, res, next) => {
   try {
-    const result = await db.query('SELECT nro_licitacion, fecha, fecha_cierre, observacion FROM licitaciones ORDER BY fecha DESC');
+    const result = await db.query(`
+      SELECT l.nro_licitacion, l.fecha, l.fecha_cierre, l.observacion,
+             l.cliente_codigo, c.razon_social AS cliente_razon
+      FROM licitaciones l
+      LEFT JOIN clientes c ON c.codigo = l.cliente_codigo
+      ORDER BY l.fecha DESC`);
     res.json(result.rows);  // <-- esto DEBE ser un array
   } catch (err) {
     next(err);
@@ -76,7 +81,10 @@ router.get('/:nro_licitacion', async (req, res, next) => {
   const nro = req.params.nro_licitacion;
   try {
     const cab = await db.query(
-      'SELECT * FROM licitaciones WHERE nro_licitacion = $1', [nro]
+      `SELECT l.*, c.razon_social AS cliente_razon
+       FROM licitaciones l
+       LEFT JOIN clientes c ON c.codigo = l.cliente_codigo
+       WHERE l.nro_licitacion = $1`, [nro]
     );
     const items = await db.query(
       'SELECT * FROM licitacion_items WHERE nro_licitacion = $1', [nro]
@@ -86,6 +94,20 @@ router.get('/:nro_licitacion', async (req, res, next) => {
       ...cab.rows[0],
       items: items.rows
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// GET: Solo ítems de una licitación (fallback/uso directo)
+router.get('/:nro_licitacion/items', async (req, res, next) => {
+  const nro = req.params.nro_licitacion;
+  try {
+    const items = await db.query(
+      'SELECT * FROM licitacion_items WHERE nro_licitacion = $1 ORDER BY codigo',
+      [nro]
+    );
+    res.json(items.rows);
   } catch (e) {
     next(e);
   }
@@ -123,7 +145,7 @@ router.delete('/:nro_licitacion', async (req, res, next) => {
 // PUT: Modificar licitación (cabecera + ítems)
 router.put('/:nro_licitacion', async (req, res, next) => {
   const nro = req.params.nro_licitacion;
-  const { fecha, fecha_cierre, observacion, items } = req.body;
+  const { fecha, fecha_cierre, observacion, cliente_codigo, items } = req.body;
 
   if (!fecha || !fecha_cierre || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Faltan datos obligatorios.' });
@@ -135,9 +157,9 @@ router.put('/:nro_licitacion', async (req, res, next) => {
     // Modificar cabecera
     await client.query(
       `UPDATE licitaciones
-       SET fecha = $1, fecha_cierre = $2, observacion = $3
-       WHERE nro_licitacion = $4`,
-      [fecha, fecha_cierre, observacion, nro]
+       SET fecha = $1, fecha_cierre = $2, observacion = $3, cliente_codigo = $4
+       WHERE nro_licitacion = $5`,
+      [fecha, fecha_cierre, observacion, cliente_codigo || null, nro]
     );
     // Eliminar ítems existentes
     await client.query(

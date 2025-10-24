@@ -1,6 +1,10 @@
-const express = require("express");
+const express = require('express');
+
 const router = express.Router();
-const pool = require("../db");
+
+
+const pool = require('../db');
+
 
 // ============================
 // GET historial por ID de reparación
@@ -109,7 +113,7 @@ router.get("/", async (req, res) => {
       LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
-      WHERE r.fecha = $1::date
+      WHERE DATE(r.fecha) = $1::date
       ORDER BY r.id ASC
     `;
     const result = await pool.query(query, [fecha]);
@@ -220,6 +224,26 @@ router.post("/", async (req, res) => {
       );
     }
 
+    // Descontar pendientes de R.Vigentes si se indicó un nro de pedido de licitaciones
+    try {
+      const nroRef = (req.body && (req.body.nro_pedido_ref || req.body.nro_pedido)) || null;
+      if (nroRef) {
+        await client.query(`
+          WITH t AS (
+            SELECT id, GREATEST(pendientes - 1, 0) AS newp
+            FROM reparaciones_dota
+            WHERE nro_pedido = $1 AND pendientes > 0
+            ORDER BY id ASC
+            LIMIT 1
+          )
+          UPDATE reparaciones_dota r
+          SET pendientes = t.newp
+          FROM t
+          WHERE r.id = t.id
+        `, [nroRef]);
+      }
+    } catch (_) {}
+
     await client.query("COMMIT");
     res.json({ ok: true, id: reparacionId });
   } catch (err) {
@@ -307,6 +331,25 @@ router.delete("/:id", async (req, res) => {
       return res.status(404).json({ error: "Reparación no encontrada" });
     }
 
+    try {
+      const nroRef = (req.query && (req.query.nro_pedido_ref || req.query.nro_pedido)) || null;
+      if (nroRef) {
+        await pool.query(`
+          WITH t AS (
+            SELECT id, pendientes + 1 AS newp
+            FROM reparaciones_dota
+            WHERE nro_pedido = $1
+            ORDER BY id ASC
+            LIMIT 1
+          )
+          UPDATE reparaciones_dota r
+          SET pendientes = t.newp
+          FROM t
+          WHERE r.id = t.id
+        `, [nroRef]);
+      }
+    } catch (_) {}
+
     res.json({ success: true });
   } catch (err) {
     console.error("❌ Error DELETE /reparaciones_planilla:", err);
@@ -315,3 +358,4 @@ router.delete("/:id", async (req, res) => {
 });
 
 module.exports = router;
+
