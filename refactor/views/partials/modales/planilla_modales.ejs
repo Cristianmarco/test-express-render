@@ -26,6 +26,12 @@
       <button id="btn-agregar-rep" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
       <button id="btn-modificar-rep" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
       <button id="btn-eliminar-rep" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+      <div class="panel-spacer"></div>
+      <div class="panel-counter" title="Cantidad de equipos del día">
+        <i class="fas fa-list-check"></i>
+        <span style="opacity:.8">Equipos:</span>
+        <span id="planilla-count">0</span>
+      </div>
     </div>
   </div>
 </div>
@@ -67,6 +73,12 @@
           <input type="text" name="coche_numero" maxlength="20" />
         </div>
       </div>
+      <div class="form-grid">
+        <div>
+          <label>Nro Pedido (R.Vigente)</label>
+          <input type="text" name="nro_pedido_ref" id="nro_pedido_ref" placeholder="Nro de pedido de licitaciones" />
+        </div>
+      </div>
 
       <div class="form-grid">
         <div>
@@ -101,6 +113,8 @@
         <div>
           <label>Trabajo realizado / Repuestos *</label>
           <textarea name="trabajo" id="trabajo" rows="3" required></textarea>
+          <!-- Sugerencias para texto predictivo del campo trabajo -->
+          <div id="trabajo-suggest" class="suggest-box" style="display:none;"></div>
           <div class="repuestos-actions">
             <input type="text" id="scan-codigo-repuesto" placeholder="Escanear o escribir código de producto y Enter" />
             <div class="repuestos-buttons">
@@ -277,3 +291,4 @@
     </div>
   </div>
 </div>
+

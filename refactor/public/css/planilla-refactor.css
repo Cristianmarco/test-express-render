@@ -265,12 +265,52 @@
   flex-direction: column;
   max-height: 90vh;
   overflow-y: hidden; /* evita doble scroll y permite sticky del panel */
+  min-height: 0; /* permitir que hijos flex hagan scroll */
+}
+
+.modal-contenido-refactor.modal-erp-producto form {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  min-height: 0; /* necesario para que el contenedor de tabla scrollee */
+  padding-bottom: 72px; /* deja espacio para la barra de acciones sticky */
 }
 
 .modal-contenido-refactor.modal-erp-producto .erp-table-card {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   overflow-y: auto; /* la tabla scrollea dentro del modal */
   max-height: none; /* gestionado por el contenedor flex */
+  min-height: 0; /* habilitar scroll en flex child */
+}
+
+/* Detalle de licitación: asegurar que la grilla de ítems se vea y tenga scroll
+   incluso cuando el espacio restante sea pequeño. */
+#modal-licitacion-detalle .modal-contenido-refactor.modal-erp-producto .erp-table-card {
+  flex: 0 1 auto;       /* no colapsar a 0 */
+  max-height: 60vh;     /* altura razonable dentro del modal */
+  min-height: 140px;    /* siempre visible */
+  overflow-y: auto;     /* scroll interno */
+  margin-top: 6px;
+}
+
+/* Planilla diaria: asegurar área visible y con scroll para la tabla */
+#modal-planilla .modal-contenido-refactor.modal-erp-producto {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  min-height: 400px; /* evitar colapso cuando aún no hay filas */
+}
+
+#modal-planilla .modal-contenido-refactor.modal-erp-producto .erp-table-card {
+  flex: 1 1 auto;
+  min-height: 220px;  /* siempre se vea el header/placeholder */
+  max-height: none;
+  overflow-y: auto;
+}
+
+.modal-contenido-refactor.modal-erp-producto form .erp-table-card {
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 
 .modal-contenido-refactor.modal-erp-producto .erp-panel-flotante {
@@ -279,6 +319,33 @@
   background: #fff;
   padding: 10px 12px;
   border-top: 1px solid #e5e7eb;
+}
+
+/* Espaciador para empujar el contador a la derecha */
+.panel-spacer { flex: 1 1 auto; }
+
+/* Contador de equipos del día en la barra de acciones */
+.panel-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  font-weight: 600;
+  color: #065f46;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+
+/* Mantener visibles las acciones del ABM de licitaciones */
+.modal-contenido-refactor.modal-erp-producto .lic-actions-row {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding: 10px 0 6px;
+  border-top: 1px solid #e5e7eb;
+  z-index: 2;
 }
 
 /* Base */
@@ -327,6 +394,43 @@
 }
 .icon-button-erp.eliminar:hover {
   background: #dc2626;
+}
+
+/* Botón verde de aceptación (coincide con el acento verde del título) */
+.btn-aceptar {
+  appearance: none;
+  background: #16a34a; /* verde acento */
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background .15s ease, transform .05s ease;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+}
+.btn-aceptar:hover { background:#15803d; }
+.btn-aceptar:active { transform: translateY(0.5px) scale(0.98); }
+
+/* Estado aceptado (gris) */
+.btn-aceptar.btn-accepted,
+.btn-aceptar.btn-accepted:hover,
+.btn-aceptar.btn-accepted:active {
+  background: #9ca3af; /* gray-400 */
+  color: #fff;
+  cursor: default;
+  transform: none;
+}
+
+/* Tabs (Licitaciones / R.Vigentes) estado activo */
+.tabs-simple .btn-secundario.tab-active {
+  background: #ede9fe; /* lila muy suave */
+  border-color: #ddd6fe; /* borde lila claro */
+  color: #4b5563; /* texto gris oscuro */
 }
 
 /* === SCROLL INTERNO EN LA TABLA === */
@@ -744,3 +848,63 @@ form#form-reparacion .btn-guardar {
 
 /* Ocultar boton de escanear producto en planilla */
 #btn-scan-repuesto { display: none !important; }
+
+/* Inputs inside ERP tables */
+.tabla-erp-inputs td { text-align: left; }
+.tabla-erp-inputs input,
+.tabla-erp-inputs select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+.input-with-btn { display:flex; align-items:center; gap:8px; }
+.input-with-btn .btn-secundario { white-space: nowrap; }
+
+/* Generic secondary button (outside tables) */
+.btn-secundario {
+  appearance: none;
+  background: #f3f4f6;
+  color: #111827;
+  border: 1px solid #d1d5db;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background .15s ease, box-shadow .15s ease, transform .05s ease;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+}
+.btn-secundario:hover { background: #e5e7eb; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+.btn-secundario:active { transform: translateY(0.5px) scale(0.98); }
+.btn-secundario i { color: #2563eb; }
+
+/* Actions row: add on left, save on right */
+.lic-actions-row { display:flex; justify-content: space-between; align-items:center; gap:12px; margin-top:8px; }
+
+/* === Sugerencias de texto para textarea de trabajo === */
+.suggest-box {
+  display: none;
+  margin-top: 6px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.suggest-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #1f2937;
+}
+.suggest-item:hover,
+.suggest-item.active {
+  background: #eef2ff;
+}
