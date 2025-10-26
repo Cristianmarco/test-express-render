@@ -124,3 +124,86 @@
     </form>
   </div>
 </div>
+
+<!-- Modal: Ficha de Producto (Detalle / Stock / Precios) -->
+<div id="modal-producto" class="modal-refactor" style="display:none;">
+  <div class="modal-contenido-refactor modal-erp-producto modal-agregar-producto-grande" style="max-width:980px;">
+    <span class="cerrar" onclick="document.getElementById('modal-producto').style.display='none'">&times;</span>
+    <h2 class="modal-titulo-principal" style="margin-bottom:12px;"><i class="fas fa-box"></i> Producto</h2>
+
+    <div class="erp-tabs" style="margin-bottom:10px;">
+      <button class="erp-tab-btn active" data-tab="md-tab-detalle">Detalle</button>
+      <button class="erp-tab-btn" data-tab="md-tab-stock">Stock</button>
+      <button class="erp-tab-btn" data-tab="md-tab-precios">Listas de precios</button>
+    </div>
+
+    <!-- Tab: Detalle -->
+    <div id="md-tab-detalle" class="tab-erp" style="">
+      <div class="detalle-grid">
+        <p><b>Código:</b> <span id="md-codigo">-</span></p>
+        <p><b>Descripción:</b> <span id="md-descripcion">-</span></p>
+        <p><b>Familia:</b> <span id="md-familia">-</span></p>
+        <p><b>Grupo:</b> <span id="md-grupo">-</span></p>
+        <p><b>Marca:</b> <span id="md-marca">-</span></p>
+        <p><b>Categoría:</b> <span id="md-categoria">-</span></p>
+        <p><b>Proveedor:</b> <span id="md-proveedor">-</span></p>
+        <p><b>Origen:</b> <span id="md-origen">-</span></p>
+        <p><b>IVA:</b> <span id="md-iva">-</span></p>
+        <p><b>Código barras:</b> <span id="md-codbarra">-</span></p>
+      </div>
+    </div>
+
+    <!-- Tab: Stock -->
+    <div id="md-tab-stock" class="tab-erp" style="display:none;">
+      <div class="erp-table-card" style="margin-bottom:12px;">
+        <table class="tabla-erp">
+          <thead><tr><th>Depósito</th><th>Cantidad</th></tr></thead>
+          <tbody id="md-tbody-stock"></tbody>
+        </table>
+      </div>
+      <div class="erp-table-card">
+        <table class="tabla-erp">
+          <thead><tr><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Cantidad</th><th>Depósito</th><th>Obs.</th></tr></thead>
+          <tbody id="md-tbody-movimientos"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: Precios -->
+    <div id="md-tab-precios" class="tab-erp" style="display:none;">
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+        <div style="display:flex; flex-direction:column; min-width:160px; flex:1 1 160px;">
+          <label>Precio de lista</label>
+          <input type="number" step="0.01" id="md-precio-lista" placeholder="0.00" />
+        </div>
+        <div style="display:flex; flex-direction:column; min-width:120px;">
+          <label>Desc. suma %</label>
+          <input type="number" step="0.01" id="md-desc-suma" placeholder="0" />
+        </div>
+        <div style="display:flex; flex-direction:column; min-width:120px;">
+          <label>Desc. pago %</label>
+          <input type="number" step="0.01" id="md-desc-pago" placeholder="0" />
+        </div>
+        <div style="display:flex; flex-direction:column; min-width:160px; flex:1 1 160px;">
+          <label>Costo</label>
+          <input type="number" step="0.01" id="md-costo" placeholder="0.00" readonly />
+        </div>
+      </div>
+      <table class="tabla-erp" style="margin-bottom:10px;">
+        <thead><tr><th>Lista</th><th>Rentabilidad %</th><th>Precio</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><input type="number" id="md-margen1" step="0.01" style="width:110px"></td><td><input type="number" id="md-precio1" step="0.01" readonly style="width:120px"></td></tr>
+          <tr><td>2</td><td><input type="number" id="md-margen2" step="0.01" style="width:110px"></td><td><input type="number" id="md-precio2" step="0.01" readonly style="width:120px"></td></tr>
+          <tr><td>3</td><td><input type="number" id="md-margen3" step="0.01" style="width:110px"></td><td><input type="number" id="md-precio3" step="0.01" readonly style="width:120px"></td></tr>
+          <tr><td>4</td><td><input type="number" id="md-margen4" step="0.01" style="width:110px"></td><td><input type="number" id="md-precio4" step="0.01" readonly style="width:120px"></td></tr>
+          <tr><td>5</td><td><input type="number" id="md-margen5" step="0.01" style="width:110px"></td><td><input type="number" id="md-precio5" step="0.01" readonly style="width:120px"></td></tr>
+          <tr><td>6</td><td><input type="number" id="md-margen6" step="0.01" style="width:110px"></td><td><input type="number" id="md-precio6" step="0.01" readonly style="width:120px"></td></tr>
+        </tbody>
+      </table>
+      <button id="md-btn-guardar-precios" class="btn-guardar" style="max-width:240px;">
+        <i class="fas fa-save"></i> Guardar precios
+      </button>
+    </div>
+
+  </div>
+</div>

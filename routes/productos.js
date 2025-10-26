@@ -16,6 +16,29 @@ async function tableExists(name) {
   }
 }
 
+// Asegura la tabla de precios por producto si no existe
+async function ensureProductoPreciosTable() {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS producto_precios (
+        producto_id INTEGER PRIMARY KEY REFERENCES productos(id) ON DELETE CASCADE,
+        precio_lista NUMERIC(12,2) NOT NULL DEFAULT 0,
+        desc_suma NUMERIC(5,2) NOT NULL DEFAULT 0,
+        desc_pago NUMERIC(5,2) NOT NULL DEFAULT 0,
+        margen1 NUMERIC(6,3) NOT NULL DEFAULT 0,
+        margen2 NUMERIC(6,3) NOT NULL DEFAULT 0,
+        margen3 NUMERIC(6,3) NOT NULL DEFAULT 0,
+        margen4 NUMERIC(6,3) NOT NULL DEFAULT 0,
+        margen5 NUMERIC(6,3) NOT NULL DEFAULT 0,
+        margen6 NUMERIC(6,3) NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+  } catch (e) {
+    console.warn('Aviso: no se pudo asegurar tabla producto_precios:', e && e.message ? e.message : e);
+  }
+}
+
 // ============================
 // GET: Listar productos (con filtros opcionales por grupo/familia/categoria)
 // Devuelve stock total y arrays M2M de familias y categorias
@@ -187,6 +210,106 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// ============================
+// GET: Precios de un producto
+// ============================
+router.get('/:id/precios', async (req, res) => {
+  try {
+    await ensureProductoPreciosTable();
+    const { rows } = await db.query(
+      `SELECT precio_lista, desc_suma, desc_pago,
+              margen1, margen2, margen3, margen4, margen5, margen6
+         FROM producto_precios WHERE producto_id = $1`,
+      [req.params.id]
+    );
+    const base = rows[0] || {
+      precio_lista: 0,
+      desc_suma: 0,
+      desc_pago: 0,
+      margen1: 0, margen2: 0, margen3: 0, margen4: 0, margen5: 0, margen6: 0,
+    };
+
+    const precioLista = Number(base.precio_lista) || 0;
+    const dSuma = Number(base.desc_suma) || 0;
+    const dPago = Number(base.desc_pago) || 0;
+    // Costo por descuentos sumados (ajustable si deseas secuencial)
+    const costo = Math.max(0, precioLista * (1 - (dSuma + dPago) / 100));
+    const m = [base.margen1, base.margen2, base.margen3, base.margen4, base.margen5, base.margen6].map(v => Number(v) || 0);
+    const precios = m.map(p => Math.round((costo * (1 + p / 100)) * 100) / 100);
+
+    res.json({
+      ...base,
+      costo: Math.round(costo * 100) / 100,
+      precio1: precios[0],
+      precio2: precios[1],
+      precio3: precios[2],
+      precio4: precios[3],
+      precio5: precios[4],
+      precio6: precios[5],
+    });
+  } catch (e) {
+    console.error('Error GET /api/productos/:id/precios', e);
+    res.status(500).json({ error: 'Error al obtener precios del producto' });
+  }
+});
+
+// ============================
+// PUT: Upsert precios de un producto
+// ============================
+router.put('/:id/precios', async (req, res) => {
+  try {
+    await ensureProductoPreciosTable();
+    const pid = Number(req.params.id);
+    if (!pid) return res.status(400).json({ error: 'Producto inválido' });
+
+    const toNum = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const payload = {
+      precio_lista: toNum(req.body && req.body.precio_lista),
+      desc_suma: toNum(req.body && req.body.desc_suma),
+      desc_pago: toNum(req.body && req.body.desc_pago),
+      margen1: toNum(req.body && req.body.margen1),
+      margen2: toNum(req.body && req.body.margen2),
+      margen3: toNum(req.body && req.body.margen3),
+      margen4: toNum(req.body && req.body.margen4),
+      margen5: toNum(req.body && req.body.margen5),
+      margen6: toNum(req.body && req.body.margen6),
+    };
+
+    await db.query(
+      `INSERT INTO producto_precios (
+          producto_id, precio_lista, desc_suma, desc_pago,
+          margen1, margen2, margen3, margen4, margen5, margen6, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+       ON CONFLICT (producto_id)
+       DO UPDATE SET
+          precio_lista = EXCLUDED.precio_lista,
+          desc_suma = EXCLUDED.desc_suma,
+          desc_pago = EXCLUDED.desc_pago,
+          margen1 = EXCLUDED.margen1,
+          margen2 = EXCLUDED.margen2,
+          margen3 = EXCLUDED.margen3,
+          margen4 = EXCLUDED.margen4,
+          margen5 = EXCLUDED.margen5,
+          margen6 = EXCLUDED.margen6,
+          updated_at = NOW()`,
+      [
+        pid,
+        payload.precio_lista, payload.desc_suma, payload.desc_pago,
+        payload.margen1, payload.margen2, payload.margen3,
+        payload.margen4, payload.margen5, payload.margen6,
+      ]
+    );
+
+    res.json({ mensaje: 'Precios actualizados' });
+  } catch (e) {
+    console.error('Error PUT /api/productos/:id/precios', e);
+    res.status(500).json({ error: 'Error al actualizar precios del producto' });
+  }
+});
 // ============================
 // PUT: Actualizar producto (acepta arrays: familias[], categorias[])
 // ============================
