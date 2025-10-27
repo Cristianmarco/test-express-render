@@ -69,6 +69,88 @@ document.addEventListener("DOMContentLoaded", () => {
   renderCalendar(currentDate);
 });
 
+// ============================
+// Calendario V2 con marcas seguras por fecha (sin TZ)
+// ============================
+document.addEventListener("DOMContentLoaded", () => {
+  const title = document.getElementById("calendarTitle");
+  const grid = document.getElementById("calendarGrid");
+  if (!title || !grid) return;
+
+  const monthNames = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+
+  function parseDaySafe(iso) {
+    if (!iso) return null;
+    const d = String(iso).split("T")[0].split("-")[2];
+    return d ? parseInt(d, 10) : null;
+  }
+
+  async function fetchDiasConDatos(y, m0) {
+    const yStr = String(y);
+    const mStr = String(m0 + 1).padStart(2, "0");
+    const last = new Date(y, m0 + 1, 0).getDate();
+    const inicio = `${yStr}-${mStr}-01`;
+    const fin = `${yStr}-${mStr}-${String(last).padStart(2, "0")}`;
+    try {
+      const res = await fetch(`/api/reparaciones_planilla/rango?inicio=${inicio}&fin=${fin}`, { credentials: 'include' });
+      if (!res.ok) return new Set();
+      const data = await res.json();
+      const set = new Set();
+      for (const r of Array.isArray(data) ? data : []) {
+        const dnum = parseDaySafe(r.fecha);
+        if (dnum) set.add(dnum);
+      }
+      return set;
+    } catch {
+      return new Set();
+    }
+  }
+
+  async function renderCalendarV2(dateObj) {
+    grid.innerHTML = "";
+    const y = dateObj.getFullYear();
+    const m0 = dateObj.getMonth();
+    title.textContent = `${monthNames[m0]} de ${y}`;
+
+    const weekdays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+    for (const w of weekdays) {
+      const d = document.createElement("div");
+      d.className = "calendar-weekday";
+      d.textContent = w;
+      grid.appendChild(d);
+    }
+
+    const first = new Date(y, m0, 1);
+    const start = (first.getDay() + 6) % 7; // lunes=0
+    for (let i = 0; i < start; i++) {
+      const e = document.createElement("div");
+      e.className = "calendar-day empty";
+      grid.appendChild(e);
+    }
+
+    const marked = await fetchDiasConDatos(y, m0);
+    const lastDay = new Date(y, m0 + 1, 0).getDate();
+    for (let d = 1; d <= lastDay; d++) {
+      const cell = document.createElement("div");
+      cell.className = "calendar-day" + (marked.has(d) ? " has-data" : "");
+      cell.textContent = d;
+      const iso = `${y}-${String(m0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      cell.onclick = () => abrirModalPlanilla(iso);
+      grid.appendChild(cell);
+    }
+  }
+
+  const prev = document.getElementById("prevMonth");
+  const next = document.getElementById("nextMonth");
+  if (prev) prev.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendarV2(currentDate); };
+  if (next) next.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendarV2(currentDate); };
+
+  renderCalendarV2(currentDate);
+});
+
 
 // ============================
 // Planilla Diaria

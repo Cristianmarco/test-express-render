@@ -53,6 +53,19 @@
       align-items: flex-start;
       justify-content: flex-start;
       font-size: 0.9rem;
+      position: relative;
+    }
+
+    /* Línea verde indicadora de que hay datos ese día */
+    .calendar-day.has-data::after {
+      content: "";
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 6px;
+      height: 3px;
+      background: #2ecc71;
+      border-radius: 2px;
     }
 
     .calendar-day:hover {
@@ -509,7 +522,7 @@
     </div>
   </div>
 
-  <script src="/scripts/planilla.js"></script>
+  <script src="/scripts/planilla.js?v=20251027"></script>
   <script src="/scripts/logout.js"></script>
   <script>
     // 🔄 Si el usuario vuelve desde caché del navegador, forzar recarga real
