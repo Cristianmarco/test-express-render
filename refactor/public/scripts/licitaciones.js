@@ -112,7 +112,6 @@ async function verDetalleLicitacion(nro) {
             codigo: btn.getAttribute('data-codigo'),
             descripcion: btn.getAttribute('data-desc'),
             cantidad: Number(btn.getAttribute('data-cant')||'0')||1,
-            nro_pedido: nro, // asociar aceptación a esta licitación
             originBtn: btn,
           }));
         }
@@ -194,7 +193,7 @@ function ensureAceptarModal(){
       codigo: ds.codigo,
       descripcion: ds.descripcion,
       cantidad: Number(ds.cantidad||'1')||1,
-      nro_pedido: (ds.nro_pedido && ds.nro_pedido !== 'undefined') ? ds.nro_pedido : (document.getElementById('acept-nro').value||'').trim(),
+      nro_pedido: (document.getElementById('acept-nro').value||'').trim(),
       destino: document.getElementById('acept-destino').value.trim(),
       razon_social: (document.getElementById('acept-razon').value || '').trim()
     };
@@ -210,7 +209,7 @@ function ensureAceptarModal(){
 }
 
 let _aceptarOriginBtn = null;
-function abrirModalAceptarItem({ codigo, descripcion, cantidad, nro_pedido, originBtn }){
+function abrirModalAceptarItem({ codigo, descripcion, cantidad, originBtn }){
   ensureAceptarModal();
   const m = document.getElementById('modal-aceptar-licit-item');
   const f = document.getElementById('form-aceptar-licit-item');
@@ -221,8 +220,7 @@ function abrirModalAceptarItem({ codigo, descripcion, cantidad, nro_pedido, orig
     f.dataset.descripcion = descripcion || '';
     f.dataset.cantidad = String(cantidad || 1);
     const nroInput = document.getElementById('acept-nro');
-    if (nro_pedido) { f.dataset.nro_pedido = String(nro_pedido); if (nroInput) nroInput.value = String(nro_pedido); }
-    else { if (nroInput) nroInput.value=''; }
+    if (nroInput) nroInput.value='';
     document.getElementById('acept-destino').value='';
     const sel = document.getElementById('acept-razon');
     // cargar clientes si aún no cargó
