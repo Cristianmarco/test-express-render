@@ -19,6 +19,7 @@ const estadisticasRouter = require('./routes/estadisticas');
 const licitacionesRouter = require('./routes/licitaciones');
 const garantiasDotaRouter = require('./routes/garantias_dota');
 const productosRouter = require('./routes/productos');
+const dashboardRouter = require('./routes/dashboard');
 const proveedoresRouter = require("./routes/proveedores");
 const depositosRouter = require("./routes/depositos");
 const equiposRoutes = require("./routes/equipos");
@@ -104,6 +105,7 @@ app.use('/api/estadisticas', requireLogin, estadisticasRouter);
 app.use('/api/licitaciones', requireLogin, licitacionesRouter);
 app.use('/api/reparaciones_dota', requireLogin, require('./routes/reparaciones_dota'));
 app.use('/api/garantias_dota', requireLogin, garantiasDotaRouter);
+app.use('/api/dashboard', requireLogin, dashboardRouter);
 //app.use('/api/productos', requireLogin, productosRouter);//
 app.use('/api/productos', productosRouter);
 //app.use("/api/familias", requireLogin, require("./routes/familia"));//
