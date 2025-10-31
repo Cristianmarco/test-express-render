@@ -124,6 +124,73 @@ router.get("/", async (req, res) => {
   }
 });
 
+// ============================
+// GET exportar planilla diaria a CSV (Excel-compatible)
+// ============================
+router.get("/export", async (req, res) => {
+  const { fecha } = req.query;
+  if (!fecha) return res.status(400).json({ error: "Falta fecha" });
+
+  try {
+    const query = `
+      SELECT 
+        r.fecha::date AS fecha,
+        COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
+        r.id_reparacion,
+        r.coche_numero,
+        f.descripcion AS equipo,
+        t.nombre AS tecnico,
+        r.hora_inicio,
+        r.hora_fin,
+        r.garantia,
+        r.trabajo,
+        r.observaciones
+      FROM equipos_reparaciones r
+      LEFT JOIN tecnicos t ON r.tecnico_id = t.id
+      LEFT JOIN familia f ON r.familia_id = f.id
+      LEFT JOIN clientes c ON r.cliente_id = c.id
+      WHERE r.fecha = $1::date
+      ORDER BY r.hora_inicio ASC`;
+
+    const result = await pool.query(query, [fecha]);
+
+    const sep = ";"; // Excel ES utiliza ; por configuración regional
+    const header = ["Fecha","Cliente","ID Reparación","N° Coche","Equipo","Técnico","Hora inicio","Hora fin","Garantía","Trabajo","Observaciones"];
+
+    function esc(v){
+      if (v === null || v === undefined) return "";
+      const s = String(v).replace(/"/g, '""');
+      return '"' + s + '"';
+    }
+
+    const lines = [header.map(esc).join(sep)];
+    for (const r of result.rows) {
+      lines.push([
+        esc(String(r.fecha).slice(0, 10)),
+        esc(r.cliente || ""),
+        esc(r.id_reparacion || ""),
+        esc(r.coche_numero || ""),
+        esc(r.equipo || ""),
+        esc(r.tecnico || ""),
+        esc(r.hora_inicio || ""),
+        esc(r.hora_fin || ""),
+        esc((r.garantia === true || r.garantia === 'si') ? 'SI' : 'NO'),
+        esc(r.trabajo || ""),
+        esc(r.observaciones || ""),
+      ].join(sep));
+    }
+
+    const csv = "\uFEFF" + lines.join("\r\n"); // BOM para Excel + CRLF
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", "attachment; filename=planilla-" + fecha + ".csv");
+    res.send(csv);
+  } catch (err) {
+    console.error("Error export CSV /reparaciones_planilla/export:", err);
+    res.status(500).json({ error: "Error al exportar planilla" });
+  }
+});
+
 
 // ===============================================
 // POST - Crear reparación y descontar stock usado

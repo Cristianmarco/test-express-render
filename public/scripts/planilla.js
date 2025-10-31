@@ -158,6 +158,20 @@ document.addEventListener("DOMContentLoaded", () => {
 function abrirModalPlanilla(fecha) {
   document.getElementById("fecha-planilla").textContent = fecha;
   document.getElementById("modal-planilla").classList.add("mostrar");
+  try {
+    const modal = document.getElementById('modal-planilla');
+    let btn = document.getElementById('btn-exportar-planilla');
+    if (!btn) {
+      const header = modal.querySelector('.modal-titulo-principal') || modal.querySelector('h2');
+      btn = document.createElement('button');
+      btn.id = 'btn-exportar-planilla';
+      btn.className = 'btn-primario';
+      btn.style.marginLeft = '8px';
+      btn.textContent = 'Exportar';
+      if (header && header.parentElement) header.parentElement.appendChild(btn);
+    }
+    btn.onclick = () => window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(fecha)}`, '_blank');
+  } catch {}
   cargarReparaciones(fecha);
 }
 function cerrarModalPlanilla() {
