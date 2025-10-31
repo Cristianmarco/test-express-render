@@ -71,6 +71,27 @@ async function abrirModalPlanilla(fechaTxt) {
   if (!modal || !spanFecha || !tbody) return;
   modal.style.display = 'flex';
   spanFecha.textContent = fechaTxt;
+  // Crear/actualizar botón Exportar
+  try {
+    let btn = document.getElementById('btn-exportar-planilla');
+    if (!btn) {
+      const header = modal.querySelector('.modal-titulo-principal') || modal.querySelector('h2');
+      btn = document.createElement('button');
+      btn.id = 'btn-exportar-planilla';
+      btn.className = 'btn-aceptar';
+      btn.style.marginLeft = '8px';
+      btn.innerHTML = '<i class="fas fa-file-export"></i> Exportar';
+      if (header && header.parentElement) header.parentElement.appendChild(btn);
+    }
+    btn.onclick = () => {
+      const parts = (fechaTxt || '').split('/');
+      let iso = fechaTxt;
+      if (parts.length === 3 && fechaTxt.includes('/')) {
+        iso = `${parts[2]}-${String(parts[1]).padStart(2,'0')}-${String(parts[0]).padStart(2,'0')}`;
+      }
+      window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(iso)}`, '_blank');
+    };
+  } catch {}
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
 
   // dd/mm/yyyy -> yyyy-mm-dd
