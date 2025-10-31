@@ -35,3 +35,13 @@ function actualizarTotales(valores) {
   document.getElementById("total-garantias").textContent = valores.garantias;
   document.getElementById("total-vencidos").textContent = valores.vencidos;
 }
+
+// Asegurar inicialización cuando la vista se carga dinámicamente
+(function(){
+  if (window.__inicioBoot) return; window.__inicioBoot = true;
+  async function run(){
+    try { await cargarEstadisticas(); } catch(e){ console.warn('Inicio: no se pudo actualizar', e); }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+  document.addEventListener('view:changed', (e)=>{ if (e && e.detail === 'inicio') run(); });
+})();
