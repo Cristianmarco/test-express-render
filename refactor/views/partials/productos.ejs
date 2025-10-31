@@ -53,7 +53,7 @@
         <p><b>Código de barras:</b> <span id="detalle-codbarra-ref">-</span></p>
       </div>
 
-      <div class="erp-table-card" style="margin-top:10px;">
+      <div class="erp-table-card" style="margin-top:10px; display:none;">
         <table class="tabla-erp">
           <thead>
             <tr>
@@ -63,6 +63,51 @@
           </thead>
           <tbody id="tbody-stock-refactor"></tbody>
         </table>
+      </div>
+
+      <div class="erp-table-card" style="margin-top:14px; padding:12px 14px; display:none;">
+        <h4 style="margin:4px 0 10px 0; color:#2072c9;"><i class="fas fa-tags"></i> Listas de precios</h4>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; flex-direction:column; min-width:160px; flex:1 1 160px;">
+            <label>Precio de lista</label>
+            <input type="number" step="0.01" id="ref-precio-lista" placeholder="0.00" />
+          </div>
+          <div style="display:flex; flex-direction:column; min-width:120px;">
+            <label>Desc. suma %</label>
+            <input type="number" step="0.01" id="ref-desc-suma" placeholder="0" />
+          </div>
+          <div style="display:flex; flex-direction:column; min-width:120px;">
+            <label>Desc. pago %</label>
+            <input type="number" step="0.01" id="ref-desc-pago" placeholder="0" />
+          </div>
+          <div style="display:flex; flex-direction:column; min-width:160px; flex:1 1 160px;">
+            <label>Costo</label>
+            <input type="number" step="0.01" id="ref-costo" placeholder="0.00" readonly />
+          </div>
+        </div>
+
+        <table class="tabla-erp" style="margin-top:10px;">
+          <thead>
+            <tr>
+              <th>Lista</th>
+              <th>Rentabilidad %</th>
+              <th>Precio</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td><input type="number" id="ref-margen1" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio1" step="0.01" readonly style="width:120px"></td></tr>
+            <tr><td>2</td><td><input type="number" id="ref-margen2" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio2" step="0.01" readonly style="width:120px"></td></tr>
+            <tr><td>3</td><td><input type="number" id="ref-margen3" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio3" step="0.01" readonly style="width:120px"></td></tr>
+            <tr><td>4</td><td><input type="number" id="ref-margen4" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio4" step="0.01" readonly style="width:120px"></td></tr>
+            <tr><td>5</td><td><input type="number" id="ref-margen5" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio5" step="0.01" readonly style="width:120px"></td></tr>
+            <tr><td>6</td><td><input type="number" id="ref-margen6" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio6" step="0.01" readonly style="width:120px"></td></tr>
+          </tbody>
+        </table>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button id="ref-btn-guardar-precios" class="btn-guardar" style="max-width:240px;">
+            <i class="fas fa-save"></i> Guardar precios
+          </button>
+        </div>
       </div>
     </aside>
   </div>

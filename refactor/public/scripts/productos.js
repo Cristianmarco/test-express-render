@@ -36,6 +36,7 @@
           <td>${p.equivalencia || "-"}</td>
         `;
         tr.addEventListener("click", () => seleccionarProducto(p, tr));
+        tr.addEventListener("dblclick", () => abrirModalProducto(p));
         tbody.appendChild(tr);
       });
     } catch (e) {
@@ -68,6 +69,7 @@
     qs("detalle-iva-ref").textContent = prod.iva_tipo || "-";
     qs("detalle-codbarra-ref").textContent = prod.codigo_barra || "-";
     cargarStockProducto(prod.id);
+    cargarPreciosProducto(prod.id);
   }
 
   async function cargarStockProducto(productoId) {
@@ -336,6 +338,238 @@
     bindAcciones();
     bindFormularios();
     cargarProductos();
+    bindModalProducto();
+  }
+
+  // ======= Precios (refactor) =======
+  const precioListaEl = document.getElementById('ref-precio-lista');
+  const descSumaEl = document.getElementById('ref-desc-suma');
+  const descPagoEl = document.getElementById('ref-desc-pago');
+  const costoEl = document.getElementById('ref-costo');
+  const margenEls = [1,2,3,4,5,6].map(i=>document.getElementById('ref-margen'+i));
+  const precioEls = [1,2,3,4,5,6].map(i=>document.getElementById('ref-precio'+i));
+  const btnGuardarPrecios = document.getElementById('ref-btn-guardar-precios');
+
+  function toNum(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
+
+  function recalcPrecios(){
+    if (!precioListaEl || !costoEl) return;
+    const lista = toNum(precioListaEl.value);
+    const ds = toNum(descSumaEl && descSumaEl.value);
+    const dp = toNum(descPagoEl && descPagoEl.value);
+    let costo = Math.max(0, lista * (1 - (ds + dp)/100));
+    costo = Math.round(costo * 100)/100;
+    costoEl.value = costo.toFixed(2);
+    margenEls.forEach((el, idx)=>{
+      const m = toNum(el && el.value);
+      const p = Math.round((costo * (1 + m/100)) * 100)/100;
+      if (precioEls[idx]) precioEls[idx].value = p.toFixed(2);
+    });
+  }
+
+  async function cargarPreciosProducto(productoId){
+    try{
+      if (!productoId || !precioListaEl) return;
+      const res = await fetch(`/api/productos/${encodeURIComponent(productoId)}/precios`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error precios');
+      precioListaEl.value = toNum(data.precio_lista);
+      if (descSumaEl) descSumaEl.value = toNum(data.desc_suma);
+      if (descPagoEl) descPagoEl.value = toNum(data.desc_pago);
+      margenEls.forEach((el,i)=>{ if (el) el.value = toNum(data['margen'+(i+1)]); });
+      recalcPrecios();
+    }catch(e){ console.error('Error cargarPreciosProducto:', e); }
+  }
+
+  if (precioListaEl){
+    [precioListaEl, descSumaEl, descPagoEl, ...margenEls].forEach(el=>{
+      if (!el) return; el.addEventListener('input', recalcPrecios); el.addEventListener('change', recalcPrecios);
+    });
+  }
+
+  if (btnGuardarPrecios){
+    btnGuardarPrecios.addEventListener('click', async ()=>{
+      try{
+        if (!productoSeleccionado) return alert('Selecciona un producto');
+        const payload = {
+          precio_lista: toNum(precioListaEl && precioListaEl.value),
+          desc_suma: toNum(descSumaEl && descSumaEl.value),
+          desc_pago: toNum(descPagoEl && descPagoEl.value),
+          margen1: toNum(margenEls[0] && margenEls[0].value),
+          margen2: toNum(margenEls[1] && margenEls[1].value),
+          margen3: toNum(margenEls[2] && margenEls[2].value),
+          margen4: toNum(margenEls[3] && margenEls[3].value),
+          margen5: toNum(margenEls[4] && margenEls[4].value),
+          margen6: toNum(margenEls[5] && margenEls[5].value),
+        };
+        const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/precios`, {
+          method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(()=>({}));
+        if (!res.ok) throw new Error(data.error || 'Error guardando');
+        alert('Precios actualizados');
+      }catch(e){ console.error(e); alert('No se pudieron guardar los precios'); }
+    });
+  }
+
+  // ======= Modal de producto (detalle/stock/precios) =======
+  function bindModalProducto(){
+    // Tabs dentro del modal
+    const modal = document.getElementById('modal-producto');
+    if (!modal || modal._boundTabs) return; modal._boundTabs = true;
+    const tabBtns = modal.querySelectorAll('.erp-tab-btn');
+    tabBtns.forEach(btn => btn.addEventListener('click', ()=>{
+      tabBtns.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const target = btn.getAttribute('data-tab');
+      ['md-tab-detalle','md-tab-stock','md-tab-precios'].forEach(id=>{
+        const el = document.getElementById(id); if (el) el.style.display = (id===target? '' : 'none');
+      });
+    }));
+
+    // Botón visualizar abre modal
+    const btnVer = document.getElementById('btn-prod-ver');
+    if (btnVer && !btnVer._bound){ btnVer._bound = true; btnVer.onclick = () => { if(!productoSeleccionado) return alert('Selecciona un producto'); abrirModalProducto(productoSeleccionado); }; }
+
+    // Precio: listeners se atan cuando el modal existe
+    ensureModalPriceBindings();
+  }
+
+  function setDetalleModal(prod){
+    const famTxt = Array.isArray(prod.familias) && prod.familias.length
+      ? prod.familias.map(f=>f.descripcion||f.nombre||f.id).join(', ')
+      : (prod.familia || "-");
+    const catTxt = Array.isArray(prod.categorias) && prod.categorias.length
+      ? prod.categorias.map(c=>c.descripcion||c.nombre||c.id).join(', ')
+      : (prod.categoria || "-");
+    const set = (id, val)=>{ const el=document.getElementById(id); if(el) el.textContent = val||'-'; };
+    set('md-codigo', prod.codigo);
+    set('md-descripcion', prod.descripcion);
+    set('md-familia', famTxt);
+    set('md-grupo', prod.grupo);
+    set('md-marca', prod.marca);
+    set('md-categoria', catTxt);
+    set('md-proveedor', prod.proveedor);
+    set('md-origen', prod.origen);
+    set('md-iva', prod.iva_tipo);
+    set('md-codbarra', prod.codigo_barra);
+  }
+
+  async function cargarStockModal(productoId){
+    const tbodyS = document.getElementById('md-tbody-stock');
+    const tbodyM = document.getElementById('md-tbody-movimientos');
+    if (tbodyS) tbodyS.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#888; padding:8px;"><i class='fas fa-spinner fa-spin'></i> Cargando stock...</td></tr>`;
+    if (tbodyM) tbodyM.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#888; padding:8px;"><i class='fas fa-spinner fa-spin'></i> Cargando movimientos...</td></tr>`;
+    try{
+      const [resS, resM] = await Promise.all([
+        fetch(`/api/stock/${encodeURIComponent(productoId)}`),
+        fetch(`/api/stock/movimientos/${encodeURIComponent(productoId)}`)
+      ]);
+      const [dataS, dataM] = await Promise.all([resS.json(), resM.json()]);
+      if (tbodyS){
+        tbodyS.innerHTML = '';
+        (Array.isArray(dataS)?dataS:[]).forEach(s=>{
+          const tr=document.createElement('tr'); tr.innerHTML = `<td>${s.deposito}</td><td>${s.cantidad}</td>`; tbodyS.appendChild(tr);
+        });
+        if (!tbodyS.children.length) tbodyS.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#666; padding:8px;">Sin stock</td></tr>`;
+      }
+      if (tbodyM){
+        tbodyM.innerHTML = '';
+        (Array.isArray(dataM)?dataM:[]).forEach(m=>{
+          const tr=document.createElement('tr'); tr.innerHTML = `<td>${m.fecha||''}</td><td>${m.hora||''}</td><td>${m.tipo||''}</td><td>${m.cantidad||0}</td><td>${m.deposito||''}</td><td>${m.observacion||''}</td>`; tbodyM.appendChild(tr);
+        });
+        if (!tbodyM.children.length) tbodyM.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:8px;">Sin movimientos</td></tr>`;
+      }
+    }catch(e){
+      console.error('Error stock/movimientos modal:', e);
+      if (tbodyS) tbodyS.innerHTML = `<tr><td colspan=\"2\" style=\"text-align:center; color:#c33; padding:8px;\">Error stock</td></tr>`;
+      if (tbodyM) tbodyM.innerHTML = `<tr><td colspan=\"6\" style=\"text-align:center; color:#c33; padding:8px;\">Error movimientos</td></tr>`;
+    }
+  }
+
+  // Precios en modal (binding seguro cuando DOM esté cargado)
+  function ensureModalPriceBindings(){
+    const modal = document.getElementById('modal-producto');
+    if (!modal || modal._pricesBound) return; modal._pricesBound = true;
+
+    const mdPrecioLista = modal.querySelector('#md-precio-lista');
+    const mdDescSuma = modal.querySelector('#md-desc-suma');
+    const mdDescPago = modal.querySelector('#md-desc-pago');
+    const mdCosto = modal.querySelector('#md-costo');
+    const mdMargenEls = [1,2,3,4,5,6].map(i=>modal.querySelector('#md-margen'+i));
+    const mdPrecioEls = [1,2,3,4,5,6].map(i=>modal.querySelector('#md-precio'+i));
+    const mdGuardar = modal.querySelector('#md-btn-guardar-precios');
+
+    function recalcPreciosMd(){
+      if (!mdPrecioLista || !mdCosto) return;
+      const lista = toNum(mdPrecioLista.value);
+      const ds = toNum(mdDescSuma && mdDescSuma.value);
+      const dp = toNum(mdDescPago && mdDescPago.value);
+      let costo = Math.max(0, lista * (1 - (ds + dp)/100));
+      costo = Math.round(costo * 100)/100; if (mdCosto) mdCosto.value = costo.toFixed(2);
+      mdMargenEls.forEach((el, idx)=>{ const m = toNum(el && el.value); const p = Math.round((costo*(1+m/100))*100)/100; if(mdPrecioEls[idx]) mdPrecioEls[idx].value = p.toFixed(2); });
+    }
+
+    async function cargarPreciosProductoMd(productoId){
+      try{
+        if (!productoId || !mdPrecioLista) return;
+        const res = await fetch(`/api/productos/${encodeURIComponent(productoId)}/precios`);
+        const data = await res.json(); if(!res.ok) throw new Error(data.error||'Error precios');
+        mdPrecioLista.value = toNum(data.precio_lista);
+        if (mdDescSuma) mdDescSuma.value = toNum(data.desc_suma);
+        if (mdDescPago) mdDescPago.value = toNum(data.desc_pago);
+        mdMargenEls.forEach((el,i)=>{ if(el) el.value = toNum(data['margen'+(i+1)]); });
+        recalcPreciosMd();
+      }catch(e){ console.error('Error cargarPreciosProductoMd:', e); }
+    }
+
+    // Exponer recalc y cargar para uso desde abrirModal
+    modal._recalcPreciosMd = recalcPreciosMd;
+    modal._cargarPreciosProductoMd = cargarPreciosProductoMd;
+
+    [mdPrecioLista, mdDescSuma, mdDescPago, ...mdMargenEls].forEach(el=>{ if(!el) return; el.addEventListener('input', recalcPreciosMd); el.addEventListener('change', recalcPreciosMd); });
+    if (mdGuardar){
+      mdGuardar.addEventListener('click', async ()=>{
+        try{
+          if (!productoSeleccionado) return alert('Selecciona un producto');
+          const payload = {
+            precio_lista: toNum(mdPrecioLista && mdPrecioLista.value),
+            desc_suma: toNum(mdDescSuma && mdDescSuma.value),
+            desc_pago: toNum(mdDescPago && mdDescPago.value),
+            margen1: toNum(mdMargenEls[0] && mdMargenEls[0].value),
+            margen2: toNum(mdMargenEls[1] && mdMargenEls[1].value),
+            margen3: toNum(mdMargenEls[2] && mdMargenEls[2].value),
+            margen4: toNum(mdMargenEls[3] && mdMargenEls[3].value),
+            margen5: toNum(mdMargenEls[4] && mdMargenEls[4].value),
+            margen6: toNum(mdMargenEls[5] && mdMargenEls[5].value),
+          };
+          const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/precios`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+          const data = await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.error||'Error guardando');
+          alert('Precios actualizados');
+        }catch(e){ console.error(e); alert('No se pudieron guardar los precios'); }
+      });
+    }
+  }
+
+  function abrirModalProducto(prod){
+    if (prod){
+      // Seleccionar y rellenar detalle
+      productoSeleccionado = prod;
+      setDetalleModal(prod);
+    } else if (productoSeleccionado){
+      setDetalleModal(productoSeleccionado);
+    } else {
+      return alert('Selecciona un producto');
+    }
+    cargarStockModal(productoSeleccionado.id);
+    const modal = document.getElementById('modal-producto');
+    if (modal && typeof modal._cargarPreciosProductoMd === 'function') {
+      modal._cargarPreciosProductoMd(productoSeleccionado.id);
+    }
+    if (modal) modal.style.display = 'flex';
+    // Volver a la primera pestaña por defecto
+    const modalTabs = modal.querySelectorAll('.erp-tab-btn'); modalTabs.forEach(b=>b.classList.remove('active')); if (modalTabs[0]) modalTabs[0].classList.add('active');
+    ['md-tab-detalle','md-tab-stock','md-tab-precios'].forEach((id,idx)=>{ const el=document.getElementById(id); if(el) el.style.display = idx===0?'' : 'none'; });
   }
 
   // Si ya está visible

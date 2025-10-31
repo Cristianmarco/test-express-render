@@ -53,6 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("detalle-codbarra").textContent = producto.codigo_barra || "-";
 
     await cargarStockProducto(producto.id);
+    await cargarPreciosProducto(producto.id);
   };
 
   // 👉 Cargar stock
@@ -139,6 +140,87 @@ document.addEventListener("DOMContentLoaded", () => {
         cerrarModalStock();
       } catch (err) {
         console.error("❌ Guardar movimiento stock:", err);
+      }
+    };
+  }
+
+  // ======== Precios / Listas ========
+  const precioListaEl = document.getElementById('precio-lista');
+  const descSumaEl = document.getElementById('desc-suma');
+  const descPagoEl = document.getElementById('desc-pago');
+  const costoEl = document.getElementById('costo-calculado');
+  const margenEls = [1,2,3,4,5,6].map(i => document.getElementById('margen'+i));
+  const precioEls = [1,2,3,4,5,6].map(i => document.getElementById('precio'+i));
+  const btnGuardarPrecios = document.getElementById('btn-guardar-precios');
+
+  function toNum(v){
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function recalcPrecios(){
+    if (!precioListaEl || !costoEl) return;
+    const lista = toNum(precioListaEl.value);
+    const ds = toNum(descSumaEl && descSumaEl.value);
+    const dp = toNum(descPagoEl && descPagoEl.value);
+    // Fórmula base: descuentos sumados sobre el precio de lista
+    let costo = Math.max(0, lista * (1 - (ds + dp) / 100));
+    costo = Math.round(costo * 100) / 100;
+    costoEl.value = costo.toFixed(2);
+    margenEls.forEach((el, idx) => {
+      const m = toNum(el && el.value);
+      const p = Math.round((costo * (1 + m/100)) * 100) / 100;
+      if (precioEls[idx]) precioEls[idx].value = p.toFixed(2);
+    });
+  }
+
+  async function cargarPreciosProducto(productoId){
+    try{
+      if (!productoId || !precioListaEl) return;
+      const res = await fetch(`/api/productos/${encodeURIComponent(productoId)}/precios`, { credentials:'include' });
+      if (!res.ok) throw new Error('No se pudieron obtener precios');
+      const data = await res.json();
+      precioListaEl.value = toNum(data.precio_lista).toString();
+      if (descSumaEl) descSumaEl.value = toNum(data.desc_suma).toString();
+      if (descPagoEl) descPagoEl.value = toNum(data.desc_pago).toString();
+      margenEls.forEach((el, i) => { if (el) el.value = toNum(data['margen'+(i+1)]).toString(); });
+      recalcPrecios();
+    }catch(e){
+      console.error('Error cargando precios producto:', e);
+    }
+  }
+
+  if (precioListaEl){
+    [precioListaEl, descSumaEl, descPagoEl, ...margenEls].forEach(el => {
+      if (!el) return;
+      el.addEventListener('input', recalcPrecios);
+      el.addEventListener('change', recalcPrecios);
+    });
+  }
+
+  if (btnGuardarPrecios){
+    btnGuardarPrecios.onclick = async () => {
+      try{
+        if (!productoSeleccionado) return alert('Selecciona un producto primero');
+        const payload = {
+          precio_lista: toNum(precioListaEl && precioListaEl.value),
+          desc_suma: toNum(descSumaEl && descSumaEl.value),
+          desc_pago: toNum(descPagoEl && descPagoEl.value),
+          margen1: toNum(margenEls[0] && margenEls[0].value),
+          margen2: toNum(margenEls[1] && margenEls[1].value),
+          margen3: toNum(margenEls[2] && margenEls[2].value),
+          margen4: toNum(margenEls[3] && margenEls[3].value),
+          margen5: toNum(margenEls[4] && margenEls[4].value),
+          margen6: toNum(margenEls[5] && margenEls[5].value),
+        };
+        const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/precios`, {
+          method:'PUT', headers:{ 'Content-Type':'application/json' }, credentials:'include', body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('No se pudieron guardar precios');
+        alert('Precios actualizados');
+      }catch(e){
+        console.error('Error guardando precios:', e);
+        alert('Error al guardar precios');
       }
     };
   }
