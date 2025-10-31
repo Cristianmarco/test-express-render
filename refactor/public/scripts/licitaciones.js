@@ -112,16 +112,26 @@ async function verDetalleLicitacion(nro) {
             codigo: btn.getAttribute('data-codigo'),
             descripcion: btn.getAttribute('data-desc'),
             cantidad: Number(btn.getAttribute('data-cant')||'0')||1,
+            nro_pedido: nro, // asociar aceptación a esta licitación
+            originBtn: btn,
           }));
         }
       });
-      // Post-procesar: marcar ya aceptados (R.Vigentes)
+      // Post-procesar: marcar ya aceptados (R.Vigentes) SOLO de esta licitación
       try {
         const rv = await fetch('/api/reparaciones_dota', { credentials: 'include' });
         const arr = await rv.json();
         if (Array.isArray(arr)) {
           const acc = new Set();
-          arr.forEach(r => { const c=(r.codigo||'').toString().trim().toLowerCase(); const d=(r.descripcion||'').toString().trim().toLowerCase(); acc.add(c); acc.add(c+'|'+d); });
+          const nroStr = String(nro||'').trim();
+          arr.forEach(r => {
+            // Solo considerar los vigentes que pertenecen a esta licitación (nro_pedido)
+            if (String(r.nro_pedido||'').trim() !== nroStr) return;
+            const c=(r.codigo||'').toString().trim().toLowerCase();
+            const d=(r.descripcion||'').toString().trim().toLowerCase();
+            acc.add(c);
+            acc.add(c+'|'+d);
+          });
           tBody.querySelectorAll('.btn-aceptar-item').forEach(b=>{
             const c=(b.getAttribute('data-codigo')||'').trim().toLowerCase();
             const d=(b.getAttribute('data-desc')||'').trim().toLowerCase();
@@ -184,7 +194,7 @@ function ensureAceptarModal(){
       codigo: ds.codigo,
       descripcion: ds.descripcion,
       cantidad: Number(ds.cantidad||'1')||1,
-      nro_pedido: document.getElementById('acept-nro').value.trim(),
+      nro_pedido: (ds.nro_pedido && ds.nro_pedido !== 'undefined') ? ds.nro_pedido : (document.getElementById('acept-nro').value||'').trim(),
       destino: document.getElementById('acept-destino').value.trim(),
       razon_social: (document.getElementById('acept-razon').value || '').trim()
     };
@@ -200,16 +210,19 @@ function ensureAceptarModal(){
 }
 
 let _aceptarOriginBtn = null;
-function abrirModalAceptarItem({ codigo, descripcion, cantidad, originBtn }){
+function abrirModalAceptarItem({ codigo, descripcion, cantidad, nro_pedido, originBtn }){
   ensureAceptarModal();
   const m = document.getElementById('modal-aceptar-licit-item');
   const f = document.getElementById('form-aceptar-licit-item');
   if (m && f) {
     _aceptarOriginBtn = originBtn || null;
+    try { window._aceptarOriginBtn = _aceptarOriginBtn; } catch {}
     f.dataset.codigo = codigo || '';
     f.dataset.descripcion = descripcion || '';
     f.dataset.cantidad = String(cantidad || 1);
-    document.getElementById('acept-nro').value='';
+    const nroInput = document.getElementById('acept-nro');
+    if (nro_pedido) { f.dataset.nro_pedido = String(nro_pedido); if (nroInput) nroInput.value = String(nro_pedido); }
+    else { if (nroInput) nroInput.value=''; }
     document.getElementById('acept-destino').value='';
     const sel = document.getElementById('acept-razon');
     // cargar clientes si aún no cargó
