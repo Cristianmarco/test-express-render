@@ -396,6 +396,17 @@
   background: #dc2626;
 }
 
+/* Botón exportar pequeño junto al contador */
+.icon-button-erp.exportar-min {
+  background: #0ea5e9; /* cyan-500 */
+  padding: 6px 10px;
+  font-size: 14px;
+  margin-right: 8px;
+}
+.icon-button-erp.exportar-min:hover {
+  background: #0284c7; /* cyan-600 */
+}
+
 /* Botón verde de aceptación (coincide con el acento verde del título) */
 .btn-aceptar {
   appearance: none;

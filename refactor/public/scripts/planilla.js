@@ -74,7 +74,7 @@ async function abrirModalPlanilla(fechaTxt) {
   // Crear/actualizar botón Exportar
   try {
     let btn = document.getElementById('btn-exportar-planilla');
-    if (!btn) {
+    if (!btn && false) {
       const header = modal.querySelector('.modal-titulo-principal') || modal.querySelector('h2');
       btn = document.createElement('button');
       btn.id = 'btn-exportar-planilla';
