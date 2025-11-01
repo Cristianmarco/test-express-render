@@ -128,7 +128,7 @@ router.get("/", async (req, res) => {
 // GET exportar planilla diaria a CSV (Excel-compatible)
 // ============================
 router.get("/export", async (req, res) => {
-  const { fecha } = req.query;
+  const { fecha, format } = req.query;
   if (!fecha) return res.status(400).json({ error: "Falta fecha" });
 
   try {
@@ -180,11 +180,41 @@ router.get("/export", async (req, res) => {
       ].join(sep));
     }
 
-    const csv = "\uFEFF" + lines.join("\r\n"); // BOM para Excel + CRLF
+    // Si piden formato xls, entregamos HTML-table con mime de Excel (abre directo en Excel)
+    if ((format || '').toLowerCase() === 'xls') {
+      const escHtml = (v) => String(v == null ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const headHtml = '<tr>' + header.map(h => `<th>${escHtml(h)}</th>`).join('') + '</tr>';
+      const bodyHtml = result.rows.map(r => (
+        '<tr>' + [
+          escHtml(String(r.fecha).slice(0,10)),
+          escHtml(r.cliente || ''),
+          escHtml(r.id_reparacion || ''),
+          escHtml(r.coche_numero || ''),
+          escHtml(r.equipo || ''),
+          escHtml(r.tecnico || ''),
+          escHtml(r.hora_inicio || ''),
+          escHtml(r.hora_fin || ''),
+          escHtml((r.garantia === true || r.garantia === 'si') ? 'SI' : 'NO'),
+          escHtml(r.trabajo || ''),
+          escHtml(r.observaciones || ''),
+        ].map(td => `<td>${td}</td>`).join('') + '</tr>'
+      )).join('');
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body>
+        <table border="1">${headHtml}${bodyHtml}</table>
+      </body></html>`;
+      res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename=planilla-${fecha}.xls`);
+      return res.send(html);
+    }
 
+    // CSV por defecto
+    const csv = "\uFEFF" + lines.join("\r\n"); // BOM para Excel + CRLF
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", "attachment; filename=planilla-" + fecha + ".csv");
-    res.send(csv);
+    return res.send(csv);
   } catch (err) {
     console.error("Error export CSV /reparaciones_planilla/export:", err);
     res.status(500).json({ error: "Error al exportar planilla" });
