@@ -128,7 +128,7 @@ router.get("/", async (req, res) => {
 // GET exportar planilla diaria a CSV (Excel-compatible)
 // ============================
 router.get("/export", async (req, res) => {
-  const { fecha } = req.query;
+  const { fecha, format } = req.query;
   if (!fecha) return res.status(400).json({ error: "Falta fecha" });
 
   try {
@@ -180,11 +180,95 @@ router.get("/export", async (req, res) => {
       ].join(sep));
     }
 
-    const csv = "\uFEFF" + lines.join("\r\n"); // BOM para Excel + CRLF
+    // Si piden formato xls, entregamos HTML-table con mime de Excel (abre directo en Excel)
+    if ((format || '').toLowerCase() === 'xls') {
+      const escHtml = (v) => String(v == null ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 
+      // Presentación: estilo amigable para Excel
+      const title = `Planilla diaria - ${fecha}`;
+      const sub = `Generado: ${new Date().toLocaleString('es-AR')} · Registros: ${result.rows.length}`;
+
+      const styles = `
+        <style>
+          table { border-collapse: collapse; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; }
+          col.w1 { width: 90pt; } /* Fecha */
+          col.w2 { width: 140pt; } /* Cliente */
+          col.w3 { width: 90pt; } /* ID */
+          col.w4 { width: 90pt; } /* Coche */
+          col.w5 { width: 130pt; } /* Equipo */
+          col.w6 { width: 120pt; } /* Tecnico */
+          col.w7 { width: 80pt; } /* Hora inicio */
+          col.w8 { width: 80pt; } /* Hora fin */
+          col.w9 { width: 70pt; text-align:center; } /* Garantia */
+          col.w10 { width: 280pt; } /* Trabajo */
+          col.w11 { width: 220pt; } /* Observaciones */
+          th, td { border: 1px solid #9dc1f0; padding: 6px 8px; }
+          th { background: #e8f1ff; color: #0f2e63; font-weight: 700; text-align: left; }
+          tr:nth-child(even) td { background: #f7fbff; }
+          .caption { font-size: 14pt; font-weight: 700; color: #0f2e63; padding: 6px 0 4px 0; }
+          .small { color: #556; font-size: 9pt; padding: 2px 0 8px 0; }
+          td.center { text-align: center; }
+          td.right { text-align: right; }
+          td.time { mso-number-format: "hh:mm"; }
+          td.date { mso-number-format: "dd/mm/yyyy"; }
+        </style>`;
+
+      const headRow = '<tr>' + header.map(h => `<th>${escHtml(h)}</th>`).join('') + '</tr>';
+
+      const bodyRows = result.rows.map(r => {
+        const df = String(r.fecha).slice(0,10).split('-');
+        const dateDisp = (df.length === 3) ? `${df[2]}/${df[1]}/${df[0]}` : escHtml(String(r.fecha).slice(0,10));
+        const garantiaTxt = (r.garantia === true || r.garantia === 'si') ? 'SI' : 'NO';
+        const tds = [
+          `<td class="date">${escHtml(dateDisp)}</td>`,
+          `<td>${escHtml(r.cliente || '')}</td>`,
+          `<td>${escHtml(r.id_reparacion || '')}</td>`,
+          `<td>${escHtml(r.coche_numero || '')}</td>`,
+          `<td>${escHtml(r.equipo || '')}</td>`,
+          `<td>${escHtml(r.tecnico || '')}</td>`,
+          `<td class="time">${escHtml(r.hora_inicio || '')}</td>`,
+          `<td class="time">${escHtml(r.hora_fin || '')}</td>`,
+          `<td class="center">${escHtml(garantiaTxt)}</td>`,
+          `<td>${escHtml(r.trabajo || '')}</td>`,
+          `<td>${escHtml(r.observaciones || '')}</td>`,
+        ];
+        return `<tr>${tds.join('')}</tr>`;
+      }).join('');
+
+      const html = `<!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          ${styles}
+        </head>
+        <body>
+          <div class="caption">${escHtml(title)}</div>
+          <div class="small">${escHtml(sub)}</div>
+          <table>
+            <colgroup>
+              <col class="w1"/><col class="w2"/><col class="w3"/>
+              <col class="w4"/><col class="w5"/><col class="w6"/>
+              <col class="w7"/><col class="w8"/><col class="w9"/>
+              <col class="w10"/><col class="w11"/>
+            </colgroup>
+            ${headRow}
+            ${bodyRows}
+          </table>
+        </body>
+        </html>`;
+      res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename=planilla-${fecha}.xls`);
+      return res.send(html);
+    }
+
+    // CSV por defecto
+    const csv = "\uFEFF" + lines.join("\r\n"); // BOM para Excel + CRLF
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", "attachment; filename=planilla-" + fecha + ".csv");
-    res.send(csv);
+    return res.send(csv);
   } catch (err) {
     console.error("Error export CSV /reparaciones_planilla/export:", err);
     res.status(500).json({ error: "Error al exportar planilla" });
