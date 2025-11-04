@@ -71,26 +71,35 @@ async function abrirModalPlanilla(fechaTxt) {
   if (!modal || !spanFecha || !tbody) return;
   modal.style.display = 'flex';
   spanFecha.textContent = fechaTxt;
-  // Crear/actualizar botón Exportar
+  // Crear/actualizar botones Exportar (Excel bonito y CSV)
   try {
-    let btn = document.getElementById('btn-exportar-planilla');
-    if (!btn && false) {
-      const header = modal.querySelector('.modal-titulo-principal') || modal.querySelector('h2');
-      btn = document.createElement('button');
-      btn.id = 'btn-exportar-planilla';
-      btn.className = 'btn-aceptar';
-      btn.style.marginLeft = '8px';
-      btn.innerHTML = '<i class="fas fa-file-export"></i> Exportar';
-      if (header && header.parentElement) header.parentElement.appendChild(btn);
+    const header = modal.querySelector('.modal-titulo-principal') || modal.querySelector('h2');
+    let btnXls = document.getElementById('btn-exportar-planilla-xls');
+    let btnCsv = document.getElementById('btn-exportar-planilla-csv');
+    if (!btnXls && header && header.parentElement) {
+      btnXls = document.createElement('button');
+      btnXls.id = 'btn-exportar-planilla-xls';
+      btnXls.className = 'btn-aceptar';
+      btnXls.style.marginLeft = '8px';
+      btnXls.innerHTML = '<i class="fas fa-file-excel"></i> Excel';
+      header.parentElement.appendChild(btnXls);
     }
-    btn.onclick = () => {
-      const parts = (fechaTxt || '').split('/');
-      let iso = fechaTxt;
-      if (parts.length === 3 && fechaTxt.includes('/')) {
-        iso = `${parts[2]}-${String(parts[1]).padStart(2,'0')}-${String(parts[0]).padStart(2,'0')}`;
-      }
-      window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(iso)}`, '_blank');
-    };
+    if (!btnCsv && header && header.parentElement) {
+      btnCsv = document.createElement('button');
+      btnCsv.id = 'btn-exportar-planilla-csv';
+      btnCsv.className = 'btn-secundario';
+      btnCsv.style.marginLeft = '6px';
+      btnCsv.textContent = 'CSV';
+      header.parentElement.appendChild(btnCsv);
+    }
+
+    const parts = (fechaTxt || '').split('/');
+    let iso = fechaTxt;
+    if (parts.length === 3 && fechaTxt.includes('/')) {
+      iso = `${parts[2]}-${String(parts[1]).padStart(2,'0')}-${String(parts[0]).padStart(2,'0')}`;
+    }
+    if (btnXls) btnXls.onclick = () => window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(iso)}&format=xls`, '_blank');
+    if (btnCsv) btnCsv.onclick = () => window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(iso)}`, '_blank');
   } catch {}
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
 

@@ -160,17 +160,27 @@ function abrirModalPlanilla(fecha) {
   document.getElementById("modal-planilla").classList.add("mostrar");
   try {
     const modal = document.getElementById('modal-planilla');
-    let btn = document.getElementById('btn-exportar-planilla');
-    if (!btn) {
-      const header = modal.querySelector('.modal-titulo-principal') || modal.querySelector('h2');
-      btn = document.createElement('button');
-      btn.id = 'btn-exportar-planilla';
-      btn.className = 'btn-primario';
-      btn.style.marginLeft = '8px';
-      btn.textContent = 'Exportar';
-      if (header && header.parentElement) header.parentElement.appendChild(btn);
+    const header = modal.querySelector('.modal-titulo-principal') || modal.querySelector('h2');
+    let btnXls = document.getElementById('btn-exportar-planilla-xls');
+    let btnCsv = document.getElementById('btn-exportar-planilla-csv');
+    if (!btnXls && header && header.parentElement) {
+      btnXls = document.createElement('button');
+      btnXls.id = 'btn-exportar-planilla-xls';
+      btnXls.className = 'btn-primario';
+      btnXls.style.marginLeft = '8px';
+      btnXls.textContent = 'Excel';
+      header.parentElement.appendChild(btnXls);
     }
-    btn.onclick = () => window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(fecha)}`, '_blank');
+    if (!btnCsv && header && header.parentElement) {
+      btnCsv = document.createElement('button');
+      btnCsv.id = 'btn-exportar-planilla-csv';
+      btnCsv.className = 'btn-secundario';
+      btnCsv.style.marginLeft = '6px';
+      btnCsv.textContent = 'CSV';
+      header.parentElement.appendChild(btnCsv);
+    }
+    if (btnXls) btnXls.onclick = () => window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(fecha)}&format=xls`, '_blank');
+    if (btnCsv) btnCsv.onclick = () => window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(fecha)}`, '_blank');
   } catch {}
   cargarReparaciones(fecha);
 }
