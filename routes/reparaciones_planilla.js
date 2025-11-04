@@ -208,12 +208,13 @@ router.get("/export", async (req, res) => {
       ].join(sep));
     }
 
+    // Normalizar formato solicitado
+    let fmt = (format || '').toLowerCase();
+
     // Si piden formato xlsx, generamos un archivo Excel real
-    if ((format || '').toLowerCase() === 'xlsx') {
+    if (fmt === 'xlsx') {
       try { if (!ExcelJS) ExcelJS = require('exceljs'); } catch (e) {}
-      if (!ExcelJS) {
-        return res.status(500).json({ error: 'ExcelJS no instalado en el entorno' });
-      }
+      if (!ExcelJS) { fmt = 'xls'; } else {
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('Planilla');
 
@@ -258,10 +259,11 @@ router.get("/export", async (req, res) => {
       res.setHeader('Content-Disposition', `attachment; filename=planilla-${fecha}.xlsx`);
       const buf = await wb.xlsx.writeBuffer();
       return res.send(Buffer.from(buf));
+      }
     }
 
     // Si piden formato xls, entregamos HTML-table con mime de Excel (abre directo en Excel)
-    if ((format || '').toLowerCase() === 'xls') {
+    if (fmt === 'xls') {
       const escHtml = (v) => String(v == null ? '' : v)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')

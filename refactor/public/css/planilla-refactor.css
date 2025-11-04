@@ -398,13 +398,13 @@
 
 /* Botón exportar pequeño junto al contador */
 .icon-button-erp.exportar-min {
-  background: #0ea5e9; /* cyan-500 */
+  background: #16a34a; /* verde Excel */
   padding: 6px 10px;
   font-size: 14px;
   margin-right: 8px;
 }
 .icon-button-erp.exportar-min:hover {
-  background: #0284c7; /* cyan-600 */
+  background: #15803d; /* verde más oscuro */
 }
 
 /* Botón verde de aceptación (coincide con el acento verde del título) */
