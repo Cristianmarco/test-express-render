@@ -31,12 +31,14 @@ router.get("/historial/:id_reparacion", async (req, res) => {
         f.descripcion AS equipo,
         t.nombre AS tecnico,
         ur.nombre AS ultimo_reparador_nombre,
+        ur.nombre AS ultimo_reparador_nombre,
         COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
       FROM equipos_reparaciones r
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
       LEFT JOIN clientes c ON r.cliente_id = c.id
+      LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
       LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
       WHERE r.id_reparacion = $1
       ORDER BY r.fecha DESC, r.hora_inicio ASC
@@ -231,7 +233,7 @@ router.get("/export", async (req, res) => {
           td.date { mso-number-format: "dd/mm/yyyy"; }
         </style>`;
 
-      const headRow = '<tr>' + header.map(h => `<th>${escHtml(h)}</th>`).join('') + '</tr>';
+      const headRow = '<tr>' + hdr.map(h => `<th>${escHtml(h)}</th>`).join('') + '</tr>';
 
       const bodyRows = result.rows.map(r => {
         const df = String(r.fecha).slice(0,10).split('-');
