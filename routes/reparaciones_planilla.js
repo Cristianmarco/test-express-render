@@ -163,10 +163,18 @@ router.get("/export", async (req, res) => {
       return '"' + s + '"';
     }
 
+    // Fecha corta en español (dd/mm/yyyy)
+    function fmtFechaES(val){
+      const s = String(val || '').slice(0,10);
+      const p = s.split('-');
+      if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
+      return s;
+    }
+
     const lines = [header.map(esc).join(sep)];
     for (const r of result.rows) {
       lines.push([
-        esc(String(r.fecha).slice(0, 10)),
+        esc(fmtFechaES(r.fecha)),
         esc(r.cliente || ""),
         esc(r.id_reparacion || ""),
         esc(r.coche_numero || ""),
