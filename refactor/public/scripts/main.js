@@ -1,4 +1,4 @@
-// === ERP Refactor - Control dinámico de vistas y tabs ===
+﻿// === ERP Refactor - Control dinÃ¡mico de vistas y tabs ===
 
 const mainContent = document.getElementById("main-content");
 const tabsContainer = document.getElementById("tabs");
@@ -9,13 +9,13 @@ async function loadView(view) {
   const existing = openTabs.find(t => t.view === view);
   if (existing) return activateTab(view);
 
-  // Crear pestaña
+  // Crear pestaÃ±a
   const tab = document.createElement("button");
   tab.className = "tab";
   tab.textContent = view.charAt(0).toUpperCase() + view.slice(1);
 
   const closeBtn = document.createElement("button");
-  closeBtn.textContent = "×";
+  closeBtn.textContent = "Ã—";
   closeBtn.className = "tab-close";
   closeBtn.addEventListener("click", e => {
     e.stopPropagation();
@@ -37,10 +37,10 @@ async function loadView(view) {
   section.innerHTML = html;
   mainContent.appendChild(section);
 
-  // Mostrar la pestaña
+  // Mostrar la pestaÃ±a
   activateTab(view);
 
-  // 🔔 Avisar a otros scripts que una nueva vista fue cargada
+  // ðŸ”” Avisar a otros scripts que una nueva vista fue cargada
   const event = new CustomEvent("view:changed", { detail: view });
   document.dispatchEvent(event);
 
@@ -48,7 +48,7 @@ async function loadView(view) {
   ejecutarScriptVista(view);
 } 
 
-  // === Activar pestaña
+  // === Activar pestaÃ±a
   function activateTab(view) {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
     document.querySelectorAll(".tab-content").forEach(c => (c.style.display = "none"));
@@ -60,7 +60,7 @@ async function loadView(view) {
     if (content) content.style.display = "block";
   }
 
-  // === Cerrar pestaña
+  // === Cerrar pestaÃ±a
   function closeTab(view) {
     const idx = openTabs.findIndex(t => t.view === view);
     if (idx === -1) return;
@@ -76,9 +76,9 @@ async function loadView(view) {
     else mainContent.innerHTML = "";
   }
 
-  // === Ejecutar JS específico según la vista cargada
+  // === Ejecutar JS especÃ­fico segÃºn la vista cargada
   function ejecutarScriptVista(view) {
-    console.log(`🚀 Ejecutando script para vista: ${view}`);
+    console.log(`ðŸš€ Ejecutando script para vista: ${view}`);
 
     switch (view) {
       case "planilla":
@@ -87,7 +87,7 @@ async function loadView(view) {
 
       case "licitaciones":
         cargarScript("/static/scripts/licitaciones.js");
-        break;
+        break;`r`n`r`n      case "reportes":`r`n        cargarScript("/static/scripts/reportes.js");`r`n        break;
 
       case "inicio":
         cargarScript("/static/scripts/inicio.js");
@@ -96,9 +96,9 @@ async function loadView(view) {
         cargarScript("/static/scripts/usuarios.js");
         break;
 
-      // ⚡ Podés agregar más casos a medida que agregues vistas
+      // âš¡ PodÃ©s agregar mÃ¡s casos a medida que agregues vistas
       default:
-        console.log(`ℹ️ No hay script específico para ${view}`);
+        console.log(`â„¹ï¸ No hay script especÃ­fico para ${view}`);
     }
   }
 
@@ -110,7 +110,7 @@ async function loadView(view) {
     document.body.appendChild(script);
   }
 
-  // === Eventos de menú
+  // === Eventos de menÃº
 document.querySelectorAll(".menu-link").forEach(btn => {
   btn.addEventListener("click", e => {
     e.preventDefault();
@@ -119,7 +119,7 @@ document.querySelectorAll(".menu-link").forEach(btn => {
   });
 });
 
-// === Cargar inicio automáticamente
+// === Cargar inicio automÃ¡ticamente
 document.addEventListener("DOMContentLoaded", () => loadView("inicio"));
 document.addEventListener("DOMContentLoaded", () => {
   // Cargar inicio por defecto
@@ -137,7 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-// Submen�s: toggle desplegable (Ventas, etc.)
+// Submenús: toggle desplegable (Ventas, etc.)
 document.querySelectorAll('.menu-item[data-toggle]').forEach(btn => {
   if (btn._bound) return; btn._bound = true;
   btn.addEventListener('click', () => {
@@ -148,4 +148,5 @@ document.querySelectorAll('.menu-item[data-toggle]').forEach(btn => {
     submenu.style.display = show ? 'block' : 'none';
   });
 });
+
 

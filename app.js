@@ -26,6 +26,7 @@ const equiposRoutes = require("./routes/equipos");
 const tecnicosRouter = require("./routes/tecnicos");
 const reparacionesPlanillaRouter = require("./routes/reparaciones_planilla");
 const stockRouter = require("./routes/stock");
+const reportesRouter = require('./routes/reportes');
 
 
 // ============================
@@ -124,6 +125,7 @@ app.use("/api/equipos", requireLogin, equiposRoutes);
 app.use("/api/tecnicos", requireLogin, tecnicosRouter);
 app.use("/api/reparaciones_planilla", requireLogin, reparacionesPlanillaRouter);
 app.use("/api/stock", stockRouter);
+app.use('/api/reportes', requireLogin, reportesRouter);
 
 
 // ============================
