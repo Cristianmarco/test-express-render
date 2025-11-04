@@ -144,6 +144,7 @@ router.get("/export", async (req, res) => {
         r.coche_numero,
         f.descripcion AS equipo,
         t.nombre AS tecnico,
+        COALESCE(ur.nombre, hist.ult_name) AS ultimo_reparador_nombre,
         r.hora_inicio,
         r.hora_fin,
         r.garantia,
@@ -153,6 +154,16 @@ router.get("/export", async (req, res) => {
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
+      LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
+      LEFT JOIN (
+        SELECT DISTINCT ON (id_reparacion)
+               id_reparacion,
+               ur2.nombre AS ult_name
+        FROM equipos_reparaciones x
+        LEFT JOIN tecnicos ur2 ON ur2.id = x.ultimo_reparador
+        WHERE x.ultimo_reparador IS NOT NULL
+        ORDER BY id_reparacion, x.fecha DESC, x.hora_inicio DESC, x.id DESC
+      ) AS hist ON hist.id_reparacion = r.id_reparacion
       WHERE r.fecha = $1::date
       ORDER BY r.hora_inicio ASC`;
 
