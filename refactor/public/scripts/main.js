@@ -15,7 +15,7 @@ async function loadView(view) {
   tab.textContent = view.charAt(0).toUpperCase() + view.slice(1);
 
   const closeBtn = document.createElement("button");
-  closeBtn.textContent = "Ã—";
+  closeBtn.textContent = "x";
   closeBtn.className = "tab-close";
   closeBtn.addEventListener("click", e => {
     e.stopPropagation();
@@ -144,6 +144,7 @@ document.querySelectorAll('.menu-item[data-toggle]').forEach(btn => {
     submenu.style.display = show ? 'block' : 'none';
   });
 });
+
 
 
 
