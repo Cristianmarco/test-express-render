@@ -4,6 +4,7 @@ const router = express.Router();
 
 
 const pool = require('../db');
+let ExcelJS; // lazy require to avoid local dev errors if not installed
 
 
 // ============================
@@ -205,6 +206,58 @@ router.get("/export", async (req, res) => {
         esc(r.trabajo || ""),
         esc(r.observaciones || ""),
       ].join(sep));
+    }
+
+    // Si piden formato xlsx, generamos un archivo Excel real
+    if ((format || '').toLowerCase() === 'xlsx') {
+      try { if (!ExcelJS) ExcelJS = require('exceljs'); } catch (e) {}
+      if (!ExcelJS) {
+        return res.status(500).json({ error: 'ExcelJS no instalado en el entorno' });
+      }
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Planilla');
+
+      ws.columns = [
+        { header: 'Fecha', width: 12 },
+        { header: 'Cliente', width: 18 },
+        { header: 'ID Reparacion', width: 14 },
+        { header: 'Nro Coche', width: 10 },
+        { header: 'Equipo', width: 30 },
+        { header: 'Tecnico', width: 16 },
+        { header: 'Hora inicio', width: 12 },
+        { header: 'Hora fin', width: 12 },
+        { header: 'Garantia', width: 10 },
+        { header: 'Ultimo Reparador', width: 20 },
+        { header: 'Trabajo', width: 45 },
+        { header: 'Observaciones', width: 45 }
+      ];
+      ws.getRow(1).font = { bold: true };
+      ws.getRow(1).alignment = { vertical: 'middle' };
+
+      const toDate = (val) => {
+        const s = String(val || '').slice(0,10); const p = s.split('-');
+        return (p.length === 3) ? new Date(Number(p[0]), Number(p[1])-1, Number(p[2])) : null;
+      };
+      const toTime = (val) => {
+        if (!val) return null; const [hh,mm] = String(val).split(':');
+        if (isNaN(hh) || isNaN(mm)) return null; return new Date(1970,0,1, Number(hh), Number(mm));
+      };
+
+      for (const r of result.rows) {
+        const esGarantia = (r.garantia === true || r.garantia === 'si');
+        const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : '';
+        const row = ws.addRow([
+          toDate(r.fecha), r.cliente || '', r.id_reparacion || '', r.coche_numero || '', r.equipo || '', r.tecnico || '',
+          toTime(r.hora_inicio) || '', toTime(r.hora_fin) || '', esGarantia ? 'SI' : 'NO', ultimo, r.trabajo || '', r.observaciones || ''
+        ]);
+        row.getCell(1).numFmt = 'dd/mm/yyyy';
+        row.getCell(7).numFmt = 'hh:mm';
+        row.getCell(8).numFmt = 'hh:mm';
+      }
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=planilla-${fecha}.xlsx`);
+      const buf = await wb.xlsx.writeBuffer();
+      return res.send(Buffer.from(buf));
     }
 
     // Si piden formato xls, entregamos HTML-table con mime de Excel (abre directo en Excel)

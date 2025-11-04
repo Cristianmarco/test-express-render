@@ -179,7 +179,7 @@ function abrirModalPlanilla(fecha) {
       btnCsv.textContent = 'CSV';
       header.parentElement.appendChild(btnCsv);
     }
-    if (btnXls) btnXls.onclick = () => window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(fecha)}&format=xls`, '_blank');
+    if (btnXls) btnXls.onclick = () => window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(fecha)}&format=xlsx`, '_blank');
     if (btnCsv) btnCsv.onclick = () => window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(fecha)}`, '_blank');
   } catch {}
   cargarReparaciones(fecha);
