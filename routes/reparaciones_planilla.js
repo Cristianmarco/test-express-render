@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 
 const router = express.Router();
 
@@ -7,7 +7,7 @@ const pool = require('../db');
 
 
 // ============================
-// GET historial por ID de reparación
+// GET historial por ID de reparaciÃ³n
 // ============================
 router.get("/historial/:id_reparacion", async (req, res) => {
   const { id_reparacion } = req.params;
@@ -30,12 +30,14 @@ router.get("/historial/:id_reparacion", async (req, res) => {
         r.resolucion,
         f.descripcion AS equipo,
         t.nombre AS tecnico,
+        ur.nombre AS ultimo_reparador_nombre,
         COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
       FROM equipos_reparaciones r
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
       LEFT JOIN clientes c ON r.cliente_id = c.id
+      LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
       WHERE r.id_reparacion = $1
       ORDER BY r.fecha DESC, r.hora_inicio ASC
     `;
@@ -46,21 +48,21 @@ router.get("/historial/:id_reparacion", async (req, res) => {
 
     res.json(result.rows);
   } catch (err) {
-    console.error("❌ Error GET /reparaciones_planilla/historial:", err);
+    console.error("âŒ Error GET /reparaciones_planilla/historial:", err);
     res.status(500).json({ error: "Error al obtener historial" });
   }
 });
 
 
 // ============================
-// ✅ NUEVA RUTA: Días con reparaciones en un rango
+// âœ… NUEVA RUTA: DÃ­as con reparaciones en un rango
 // ============================
 router.get("/rango", async (req, res) => {
   try {
     const { inicio, fin } = req.query;
 
     if (!inicio || !fin) {
-      return res.status(400).json({ error: "Faltan parámetros 'inicio' o 'fin'" });
+      return res.status(400).json({ error: "Faltan parÃ¡metros 'inicio' o 'fin'" });
     }
 
     const result = await pool.query(
@@ -73,7 +75,7 @@ router.get("/rango", async (req, res) => {
 
     res.json(result.rows);
   } catch (err) {
-    console.error("❌ Error al obtener días con reparaciones:", err);
+    console.error("âŒ Error al obtener dÃ­as con reparaciones:", err);
     res.status(500).json({ error: "Error en el servidor" });
   }
 });
@@ -119,7 +121,7 @@ router.get("/", async (req, res) => {
     const result = await pool.query(query, [fecha]);
     res.json(result.rows);
   } catch (err) {
-    console.error("❌ Error GET /reparaciones_planilla:", err);
+    console.error("âŒ Error GET /reparaciones_planilla:", err);
     res.status(500).json({ error: "Error al obtener reparaciones" });
   }
 });
@@ -154,8 +156,8 @@ router.get("/export", async (req, res) => {
 
     const result = await pool.query(query, [fecha]);
 
-    const sep = ";"; // Excel ES utiliza ; por configuración regional
-    const header = ["Fecha","Cliente","ID Reparación","N° Coche","Equipo","Técnico","Hora inicio","Hora fin","Garantía","Trabajo","Observaciones"];
+    const sep = ";"; // Excel ES utiliza ; por configuraciÃ³n regional
+    const header = ["Fecha","Cliente","ID ReparaciÃ³n","NÂ° Coche","Equipo","TÃ©cnico","Hora inicio","Hora fin","GarantÃ­a","Trabajo","Observaciones"];
 
     function esc(v){
       if (v === null || v === undefined) return "";
@@ -163,7 +165,7 @@ router.get("/export", async (req, res) => {
       return '"' + s + '"';
     }
 
-    // Fecha corta en español (dd/mm/yyyy)
+    // Fecha corta en espaÃ±ol (dd/mm/yyyy)
     function fmtFechaES(val){
       const s = String(val || '').slice(0,10);
       const p = s.split('-');
@@ -171,8 +173,11 @@ router.get("/export", async (req, res) => {
       return s;
     }
 
-    const lines = [header.map(esc).join(sep)];
+    const hdr = ["Fecha","Cliente","ID Reparacion","Nro Coche","Equipo","Tecnico","Hora inicio","Hora fin","Garantia","Ultimo Reparador","Trabajo","Observaciones"];
+    const lines = [hdr.map(esc).join(sep)];
     for (const r of result.rows) {
+      const esGarantia = (r.garantia === true || r.garantia === 'si');
+      const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : '';
       lines.push([
         esc(fmtFechaES(r.fecha)),
         esc(r.cliente || ""),
@@ -182,7 +187,8 @@ router.get("/export", async (req, res) => {
         esc(r.tecnico || ""),
         esc(r.hora_inicio || ""),
         esc(r.hora_fin || ""),
-        esc((r.garantia === true || r.garantia === 'si') ? 'SI' : 'NO'),
+        esc(esGarantia ? 'SI' : 'NO'),
+        esc(ultimo),
         esc(r.trabajo || ""),
         esc(r.observaciones || ""),
       ].join(sep));
@@ -195,9 +201,9 @@ router.get("/export", async (req, res) => {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-      // Presentación: estilo amigable para Excel
+      // PresentaciÃ³n: estilo amigable para Excel
       const title = `Planilla diaria - ${fecha}`;
-      const sub = `Generado: ${new Date().toLocaleString('es-AR')} · Registros: ${result.rows.length}`;
+      const sub = `Generado: ${new Date().toLocaleString('es-AR')} Â· Registros: ${result.rows.length}`;
 
       const styles = `
         <style>
@@ -211,8 +217,9 @@ router.get("/export", async (req, res) => {
           col.w7 { width: 80pt; } /* Hora inicio */
           col.w8 { width: 80pt; } /* Hora fin */
           col.w9 { width: 70pt; text-align:center; } /* Garantia */
-          col.w10 { width: 280pt; } /* Trabajo */
-          col.w11 { width: 220pt; } /* Observaciones */
+          col.w10 { width: 150pt; } /* Ultimo Reparador */
+          col.w11 { width: 280pt; } /* Trabajo */
+          col.w12 { width: 220pt; } /* Observaciones */
           th, td { border: 1px solid #9dc1f0; padding: 6px 8px; }
           th { background: #e8f1ff; color: #0f2e63; font-weight: 700; text-align: left; }
           tr:nth-child(even) td { background: #f7fbff; }
@@ -229,7 +236,9 @@ router.get("/export", async (req, res) => {
       const bodyRows = result.rows.map(r => {
         const df = String(r.fecha).slice(0,10).split('-');
         const dateDisp = (df.length === 3) ? `${df[2]}/${df[1]}/${df[0]}` : escHtml(String(r.fecha).slice(0,10));
-        const garantiaTxt = (r.garantia === true || r.garantia === 'si') ? 'SI' : 'NO';
+        const esGarantia = (r.garantia === true || r.garantia === 'si');
+        const garantiaTxt = esGarantia ? 'SI' : 'NO';
+        const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : '';
         const tds = [
           `<td class="date">${escHtml(dateDisp)}</td>`,
           `<td>${escHtml(r.cliente || '')}</td>`,
@@ -240,6 +249,7 @@ router.get("/export", async (req, res) => {
           `<td class="time">${escHtml(r.hora_inicio || '')}</td>`,
           `<td class="time">${escHtml(r.hora_fin || '')}</td>`,
           `<td class="center">${escHtml(garantiaTxt)}</td>`,
+          `<td>${escHtml(ultimo)}</td>`,
           `<td>${escHtml(r.trabajo || '')}</td>`,
           `<td>${escHtml(r.observaciones || '')}</td>`,
         ];
@@ -260,7 +270,7 @@ router.get("/export", async (req, res) => {
               <col class="w1"/><col class="w2"/><col class="w3"/>
               <col class="w4"/><col class="w5"/><col class="w6"/>
               <col class="w7"/><col class="w8"/><col class="w9"/>
-              <col class="w10"/><col class="w11"/>
+              <col class="w10"/><col class="w11"/><col class="w12"/>
             </colgroup>
             ${headRow}
             ${bodyRows}
@@ -285,7 +295,7 @@ router.get("/export", async (req, res) => {
 
 
 // ===============================================
-// POST - Crear reparación y descontar stock usado
+// POST - Crear reparaciÃ³n y descontar stock usado
 // ===============================================
 router.post("/", async (req, res) => {
   const client = await pool.connect();
@@ -344,7 +354,7 @@ router.post("/", async (req, res) => {
 
     const reparacionId = result.rows[0].id;
 
-    // 🔍 Detectar productos usados
+    // ðŸ” Detectar productos usados
     const productosUsados = [];
     if (trabajo) {
       const regex = /\((.*?)\)/g;
@@ -354,7 +364,7 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // 📦 Descontar stock y registrar movimiento
+    // ðŸ“¦ Descontar stock y registrar movimiento
     for (const codigoRaw of productosUsados) {
       const codigo = codigoRaw.trim().replace(/\s+/g, "");
       const prod = await client.query(
@@ -379,11 +389,11 @@ router.post("/", async (req, res) => {
       await client.query(
         `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, fecha, observacion)
          VALUES ($1, $2, 'SALIDA', 1, NOW(), $3)`,
-        [productoId, depositoId, `Usado en reparación ID ${reparacionId}`]
+        [productoId, depositoId, `Usado en reparaciÃ³n ID ${reparacionId}`]
       );
     }
 
-    // Descontar pendientes de R.Vigentes si se indicó un nro de pedido de licitaciones
+    // Descontar pendientes de R.Vigentes si se indicÃ³ un nro de pedido de licitaciones
     try {
       const nroRef = (req.body && (req.body.nro_pedido_ref || req.body.nro_pedido)) || null;
       if (nroRef) {
@@ -407,8 +417,8 @@ router.post("/", async (req, res) => {
     res.json({ ok: true, id: reparacionId });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("❌ Error al guardar reparación:", err);
-    res.status(500).json({ error: "Error al guardar reparación" });
+    console.error("âŒ Error al guardar reparaciÃ³n:", err);
+    res.status(500).json({ error: "Error al guardar reparaciÃ³n" });
   } finally {
     client.release();
   }
@@ -416,7 +426,7 @@ router.post("/", async (req, res) => {
 
 
 // ============================
-// PUT - Actualizar reparación existente
+// PUT - Actualizar reparaciÃ³n existente
 // ============================
 router.put("/:id", async (req, res) => {
   try {
@@ -464,18 +474,18 @@ router.put("/:id", async (req, res) => {
     );
 
     if (result.rows.length === 0)
-      return res.status(404).json({ error: "Reparación no encontrada" });
+      return res.status(404).json({ error: "ReparaciÃ³n no encontrada" });
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("❌ Error actualizando reparación:", err);
-    res.status(500).json({ error: "Error al actualizar reparación" });
+    console.error("âŒ Error actualizando reparaciÃ³n:", err);
+    res.status(500).json({ error: "Error al actualizar reparaciÃ³n" });
   }
 });
 
 
 // ============================
-// DELETE eliminar reparación
+// DELETE eliminar reparaciÃ³n
 // ============================
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
@@ -487,7 +497,7 @@ router.delete("/:id", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Reparación no encontrada" });
+      return res.status(404).json({ error: "ReparaciÃ³n no encontrada" });
     }
 
     try {
@@ -511,8 +521,8 @@ router.delete("/:id", async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error("❌ Error DELETE /reparaciones_planilla:", err);
-    res.status(500).json({ error: "Error al eliminar reparación" });
+    console.error("âŒ Error DELETE /reparaciones_planilla:", err);
+    res.status(500).json({ error: "Error al eliminar reparaciÃ³n" });
   }
 });
 
