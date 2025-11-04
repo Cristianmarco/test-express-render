@@ -87,7 +87,7 @@ async function loadView(view) {
 
       case "licitaciones":
         cargarScript("/static/scripts/licitaciones.js");
-        break;`r`n`r`n      case "reportes":`r`n        cargarScript("/static/scripts/reportes.js");`r`n        break;
+        break;\r\n\r\n      case "reportes":\r\n        cargarScript("/static/scripts/reportes.js");\r\n        break;
 
       case "inicio":
         cargarScript("/static/scripts/inicio.js");
@@ -148,5 +148,6 @@ document.querySelectorAll('.menu-item[data-toggle]').forEach(btn => {
     submenu.style.display = show ? 'block' : 'none';
   });
 });
+
 
 
