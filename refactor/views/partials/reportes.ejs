@@ -1,2 +1,63 @@
-<h2>Reportes</h2>
-<p>Página de prueba para el módulo de reportes.</p>
+<section class="dashboard-inicio" data-view="reportes">
+  <div class="erp-table-card" style="padding:12px; margin-bottom:12px; display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+    <div>
+      <label>Desde</label>
+      <input type="date" id="rep-desde" />
+    </div>
+    <div>
+      <label>Hasta</label>
+      <input type="date" id="rep-hasta" />
+    </div>
+    <div>
+      <button id="rep-actualizar" class="icon-button-erp visualizar"><i class="fa fa-rotate"></i> Actualizar</button>
+    </div>
+  </div>
+
+  <div class="dashboard-cards-principal">
+    <div class="dashboard-row dashboard-row-center">
+      <div class="dashboard-card dashboard-card-large" id="rep-totales">
+        <h3>Resumen Planilla</h3>
+        <div class="stats stats-large">
+          <div>
+            <span class="counter" id="rep-total">0</span>
+            <span class="stats-label">Reparaciones</span>
+          </div>
+          <div>
+            <span class="counter" id="rep-garantias">0</span>
+            <span class="stats-label">Garantías</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-row">
+      <div class="dashboard-card" style="min-width:380px;">
+        <h3>Top Técnicos</h3>
+        <table class="tabla-erp">
+          <thead><tr><th>Técnico</th><th>Cantidad</th></tr></thead>
+          <tbody id="rep-top-tecnicos"></tbody>
+        </table>
+      </div>
+      <div class="dashboard-card" style="min-width:380px;">
+        <h3>Top Equipos</h3>
+        <table class="tabla-erp">
+          <thead><tr><th>Equipo</th><th>Cantidad</th></tr></thead>
+          <tbody id="rep-top-equipos"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="dashboard-row dashboard-row-center">
+      <div class="dashboard-card dashboard-card-large">
+        <h3>Por Día</h3>
+        <table class="tabla-erp">
+          <thead><tr><th>Fecha</th><th>Reparaciones</th><th>Garantías</th></tr></thead>
+          <tbody id="rep-por-dia"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="/static/scripts/reportes.js"></script>
+
