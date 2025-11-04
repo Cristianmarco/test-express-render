@@ -78,31 +78,27 @@ async function loadView(view) {
 
   // === Ejecutar JS especÃ­fico segÃºn la vista cargada
   function ejecutarScriptVista(view) {
-    console.log(`ðŸš€ Ejecutando script para vista: ${view}`);
-
-    switch (view) {
-      case "planilla":
-        cargarScript("/static/scripts/planilla.js");
-        break;
-
-      case "licitaciones":
-        cargarScript("/static/scripts/licitaciones.js");
-        break;\r\n\r\n      case "reportes":\r\n        cargarScript("/static/scripts/reportes.js");\r\n        break;
-
-      case "inicio":
-        cargarScript("/static/scripts/inicio.js");
-        break;
-      case "usuarios":
-        cargarScript("/static/scripts/usuarios.js");
-        break;
-
-      // âš¡ PodÃ©s agregar mÃ¡s casos a medida que agregues vistas
-      default:
-        console.log(`â„¹ï¸ No hay script especÃ­fico para ${view}`);
-    }
+  try { console.log(`Ejecutando script para vista: ${view}`); } catch {}
+  switch (view) {
+    case "planilla":
+      cargarScript("/static/scripts/planilla.js");
+      break;
+    case "licitaciones":
+      cargarScript("/static/scripts/licitaciones.js");
+      break;
+    case "reportes":
+      cargarScript("/static/scripts/reportes.js");
+      break;
+    case "inicio":
+      cargarScript("/static/scripts/inicio.js");
+      break;
+    case "usuarios":
+      cargarScript("/static/scripts/usuarios.js");
+      break;
+    default:
+      try { console.log(`No hay script especifico para ${view}`); } catch {}
   }
-
-  // === Cargar y ejecutar script externo
+}// === Cargar y ejecutar script externo
   function cargarScript(src) {
     const script = document.createElement("script");
     script.src = src;
@@ -148,6 +144,9 @@ document.querySelectorAll('.menu-item[data-toggle]').forEach(btn => {
     submenu.style.display = show ? 'block' : 'none';
   });
 });
+
+
+
 
 
 
