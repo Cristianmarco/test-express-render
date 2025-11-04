@@ -89,7 +89,7 @@ async function abrirModalPlanilla(fechaTxt) {
       if (parts.length === 3 && fechaTxt.includes('/')) {
         iso = `${parts[2]}-${String(parts[1]).padStart(2,'0')}-${String(parts[0]).padStart(2,'0')}`;
       }
-      window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(iso)}&format=xls`, '_blank');
+      window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(iso)}`, '_blank');
     };
   } catch {}
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
