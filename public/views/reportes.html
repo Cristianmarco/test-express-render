@@ -2,11 +2,48 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Reportes - Proyecto Visión</title>
-  <link rel="stylesheet" href="/css/main.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reportes</title>
+  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="/css/reportes.css" />
 </head>
 <body>
-  <h1>Sección de Reportes</h1>
-  <p>Aquí se mostrarán los reportes del sistema en el futuro.</p>
+  <div class="content">
+    <div class="reportes-card">
+      <div class="reportes-topbar">
+        <div class="date-range" role="group" aria-label="Filtrar por fecha">
+          <label class="date-field">
+            <span>Desde</span>
+            <input type="date" id="fecha-desde" />
+          </label>
+          <span class="date-sep">—</span>
+          <label class="date-field">
+            <span>Hasta</span>
+            <input type="date" id="fecha-hasta" />
+          </label>
+          <button id="aplicar-fechas" class="btn-aplicar" type="button">Aplicar</button>
+        </div>
+
+        <div class="reportes-menu-wrap">
+          <button id="btn-menu-reportes" class="hamburger" aria-label="Abrir menú de reportes" aria-expanded="false" aria-controls="lista-reportes" type="button">
+            <span></span><span></span><span></span>
+          </button>
+          <ul id="lista-reportes" class="reportes-menu" aria-hidden="true">
+            <li data-report="ventas">Ventas</li>
+            <li data-report="compras">Compras</li>
+            <li data-report="stock">Stock</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="reportes-content">
+        <h2 id="titulo-reporte" class="titulo-reporte">Selecciona un reporte</h2>
+        <p class="ayuda">Usa la barra de fechas para acotar el período y el menú de la derecha para elegir el tipo de reporte.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/scripts/reportes.js"></script>
 </body>
 </html>
+
