@@ -39,8 +39,29 @@
     if (btn && !btn._bound){ btn._bound = true; btn.addEventListener('click', cargar); }
 
     // Menú hamburguesa
-    const btnMenu = document.getElementById('rep-menu-btn');
-    const menu = document.getElementById('rep-menu');
+    let btnMenu = document.getElementById('rep-menu-btn');
+    let menu = document.getElementById('rep-menu');
+    // Fallback: si la vista vieja no trae el botón/menú, lo inyecto
+    if (!btnMenu || !menu){
+      const topbar = document.querySelector('.rep-topbar');
+      if (topbar){
+        const wrap = document.createElement('div');
+        wrap.className = 'rep-menu-wrap';
+        wrap.innerHTML = `
+          <button id="rep-menu-btn" class="rep-hamburger" aria-label="Abrir menú de reportes" aria-expanded="false" aria-controls="rep-menu" type="button">
+            <span></span><span></span><span></span>
+          </button>
+          <ul id="rep-menu" class="rep-menu" aria-hidden="true">
+            <li class="${tipo==='planilla-resumen' ? 'activo' : ''}" data-report="planilla-resumen">Resumen planilla</li>
+            <li data-report="garantias-por-resolucion-reparador">Garantías por resolución / último reparador</li>
+            <li data-report="equipos-por-tecnico-promedio-diario">Promedio diario de equipos por técnico</li>
+            <li data-report="tiempo-reparacion-promedio-por-equipo">Promedio de tiempo de reparación por equipo</li>
+          </ul>`;
+        topbar.appendChild(wrap);
+        btnMenu = document.getElementById('rep-menu-btn');
+        menu = document.getElementById('rep-menu');
+      }
+    }
     const titulo = document.getElementById('rep-titulo');
     btnMenu && btnMenu.addEventListener('click', (e)=>{
       e.stopPropagation();
