@@ -31,16 +31,12 @@ router.get("/historial/:id_reparacion", async (req, res) => {
         r.resolucion,
         f.descripcion AS equipo,
         t.nombre AS tecnico,
-        ur.nombre AS ultimo_reparador_nombre,
-        ur.nombre AS ultimo_reparador_nombre,
         COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
       FROM equipos_reparaciones r
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
       LEFT JOIN clientes c ON r.cliente_id = c.id
-      LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
-      LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
       WHERE r.id_reparacion = $1
       ORDER BY r.fecha DESC, r.hora_inicio ASC
     `;

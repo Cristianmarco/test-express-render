@@ -1,22 +1,39 @@
 <section class="dashboard-inicio" data-view="reportes">
-  <div class="erp-table-card" style="padding:12px; margin-bottom:12px; display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-    <div>
-      <label>Desde</label>
-      <input type="date" id="rep-desde" />
+  <div class="rep-topbar">
+    <div class="rep-range" role="group" aria-label="Filtrar por fecha">
+      <label class="rep-field">
+        <span>Desde</span>
+        <input type="date" id="rep-desde" />
+      </label>
+      <span class="rep-sep">—</span>
+      <label class="rep-field">
+        <span>Hasta</span>
+        <input type="date" id="rep-hasta" />
+      </label>
+      <button id="rep-actualizar" class="rep-apply" type="button"><i class="fa fa-rotate"></i> Actualizar</button>
     </div>
-    <div>
-      <label>Hasta</label>
-      <input type="date" id="rep-hasta" />
-    </div>
-    <div>
-      <button id="rep-actualizar" class="icon-button-erp visualizar"><i class="fa fa-rotate"></i> Actualizar</button>
+
+    <div class="rep-menu-wrap">
+      <button id="rep-menu-btn" class="rep-hamburger" aria-label="Abrir menú de reportes" aria-expanded="false" aria-controls="rep-menu" type="button">
+        <span></span><span></span><span></span>
+      </button>
+      <ul id="rep-menu" class="rep-menu" aria-hidden="true">
+        <li class="activo" data-report="planilla-resumen">Resumen planilla</li>
+        <li data-report="garantias-por-resolucion-reparador">Garantías por resolución / último reparador</li>
+        <li data-report="equipos-por-tecnico-promedio-diario">Promedio diario de equipos por técnico</li>
+        <li data-report="tiempo-reparacion-promedio-por-equipo">Promedio de tiempo de reparación por equipo</li>
+      </ul>
     </div>
   </div>
 
-  <div class="dashboard-cards-principal">
+  <div id="rep-dynamic" class="dashboard-card" style="display:none; padding: 16px;">
+    <div id="rep-dynamic-content">Seleccione un reporte del menú.</div>
+  </div>
+
+  <div id="rep-planilla-resumen" class="dashboard-cards-principal">
     <div class="dashboard-row dashboard-row-center">
       <div class="dashboard-card dashboard-card-large" id="rep-totales">
-        <h3>Resumen Planilla</h3>
+        <h3 id="rep-titulo">Resumen Planilla</h3>
         <div class="stats stats-large">
           <div>
             <span class="counter" id="rep-total">0</span>
