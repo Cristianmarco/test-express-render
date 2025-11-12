@@ -1267,6 +1267,50 @@ if (document.getElementById('calendarGrid')) {
   });
 })();
 
+// Helper global para cargar historial por ID (usado por el buscador parcial)
+async function cargarHistorial(id){
+  const modal = document.getElementById('modal-historial');
+  const tbody = document.getElementById('tbody-historial');
+  try{
+    const res = await fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(id)}`, { credentials:'include' });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data && data.error || 'Error');
+
+    const first = Array.isArray(data) && data.length>0 ? data[0] : null;
+    document.getElementById('historial-id')?.replaceChildren(document.createTextNode(id));
+    document.getElementById('historial-cliente')?.replaceChildren(document.createTextNode(first?.cliente || '-'));
+    document.getElementById('historial-equipo')?.replaceChildren(document.createTextNode(first?.equipo || '-'));
+    document.getElementById('historial-coche')?.replaceChildren(document.createTextNode(first?.coche_numero || '-'));
+
+    const extra = document.getElementById('historial-garantia-extra');
+    if (extra) {
+      const showExtra = !!(first && (first.id_dota || first.ultimo_reparador_nombre || first.resolucion || first.garantia === 'si'));
+      extra.style.display = showExtra ? 'flex' : 'none';
+      document.getElementById('historial-id-dota')?.replaceChildren(document.createTextNode(first?.id_dota ?? '-'));
+      document.getElementById('historial-ultimo-reparador')?.replaceChildren(document.createTextNode(first?.ultimo_reparador_nombre || '-'));
+      document.getElementById('historial-resolucion')?.replaceChildren(document.createTextNode(first?.resolucion || '-'));
+    }
+
+    const fmt = (v) => (v == null || v === '') ? '-' : v;
+    const fmtFecha = (f) => { try { return new Date(f).toLocaleDateString('es-AR'); } catch { return String(f||'-'); } };
+    const fmtHora = (h) => { if(!h) return '-'; if (typeof h === 'string') return h.slice(0,5); try { return new Date(`1970-01-01T${h}`).toTimeString().slice(0,5);} catch { return String(h);} };
+    const rows = (Array.isArray(data)?data:[]).map(r => {
+      const fecha = fmtFecha(r.fecha);
+      const trabajo = fmt(r.trabajo);
+      const hi = fmtHora(r.hora_inicio);
+      const hf = fmtHora(r.hora_fin);
+      const tec = fmt(r.tecnico);
+      const gar = r.garantia === 'si' ? 'Si' : 'No';
+      return `<tr><td>${fecha}</td><td>${trabajo}</td><td>${hi}</td><td>${hf}</td><td>${tec}</td><td>${gar}</td></tr>`;
+    }).join('');
+    if (tbody) tbody.innerHTML = rows || "<tr><td colspan='6' style='text-align:center; padding:10px; color:#666'>Sin historial disponible.</td></tr>";
+    if (modal) modal.style.display='flex';
+  } catch(err){
+    console.error('Error historial:', err);
+    if (tbody) tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:10px; color:red'>Error al buscar historial.</td></tr>";
+  }
+}
+
 // Garantia: bind robusto para vista cargada dinámicamente
 function bindGarantiaToggle(forceApply){
   const g = document.getElementById('garantia');

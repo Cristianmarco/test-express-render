@@ -77,12 +77,12 @@ router.get("/buscar", async (req, res) => {
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE 
-        CAST(r.id_reparacion AS TEXT) ILIKE '%' || $1 || '%' OR 
-        COALESCE(r.id_dota,'') ILIKE '%' || $1 || '%' OR
-        CAST(COALESCE(r.coche_numero,'') AS TEXT) ILIKE '%' || $1 || '%' OR
-        COALESCE(f.descripcion,'') ILIKE '%' || $1 || '%' OR
-        COALESCE(t.nombre,'') ILIKE '%' || $1 || '%' OR
-        COALESCE(c.fantasia, c.razon_social,'') ILIKE '%' || $1 || '%'
+        CAST(r.id_reparacion AS TEXT) ILIKE '%' || $1::text || '%' OR 
+        COALESCE(r.id_dota,'') ILIKE '%' || $1::text || '%' OR
+        CAST(COALESCE(r.coche_numero,'') AS TEXT) ILIKE '%' || $1::text || '%' OR
+        COALESCE(f.descripcion,'') ILIKE '%' || $1::text || '%' OR
+        COALESCE(t.nombre,'') ILIKE '%' || $1::text || '%' OR
+        COALESCE(c.fantasia, c.razon_social,'') ILIKE '%' || $1::text || '%'
       ORDER BY r.id_reparacion, r.fecha DESC, r.hora_inicio DESC, r.id DESC
       LIMIT 50`;
 
