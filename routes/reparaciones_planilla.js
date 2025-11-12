@@ -52,6 +52,48 @@ router.get("/historial/:id_reparacion", async (req, res) => {
   }
 });
 
+// ============================
+// Búsqueda flexible por texto (parcial)
+// - q: texto a buscar en id_reparacion, id_dota, equipo, cliente, técnico o coche
+// Devuelve un resumen por id_reparacion (último registro)
+// ============================
+router.get("/buscar", async (req, res) => {
+  const q = (req.query.q || "").trim();
+  if (!q) return res.json([]);
+
+  try {
+    const sql = `
+      SELECT DISTINCT ON (r.id_reparacion)
+        r.id_reparacion,
+        r.id_dota,
+        r.coche_numero,
+        f.descripcion AS equipo,
+        t.nombre AS tecnico,
+        COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
+        r.fecha,
+        r.hora_inicio
+      FROM equipos_reparaciones r
+      LEFT JOIN familia f ON r.familia_id = f.id
+      LEFT JOIN tecnicos t ON r.tecnico_id = t.id
+      LEFT JOIN clientes c ON r.cliente_id = c.id
+      WHERE 
+        CAST(r.id_reparacion AS TEXT) ILIKE '%' || $1 || '%' OR 
+        COALESCE(r.id_dota,'') ILIKE '%' || $1 || '%' OR
+        CAST(COALESCE(r.coche_numero,'') AS TEXT) ILIKE '%' || $1 || '%' OR
+        COALESCE(f.descripcion,'') ILIKE '%' || $1 || '%' OR
+        COALESCE(t.nombre,'') ILIKE '%' || $1 || '%' OR
+        COALESCE(c.fantasia, c.razon_social,'') ILIKE '%' || $1 || '%'
+      ORDER BY r.id_reparacion, r.fecha DESC, r.hora_inicio DESC, r.id DESC
+      LIMIT 50`;
+
+    const { rows } = await pool.query(sql, [q]);
+    return res.json(rows);
+  } catch (err) {
+    console.error("Error GET /reparaciones_planilla/buscar:", err);
+    return res.status(500).json({ error: "Error al buscar" });
+  }
+});
+
 
 // ============================
 // ✅ NUEVA RUTA: Días con reparaciones en un rango

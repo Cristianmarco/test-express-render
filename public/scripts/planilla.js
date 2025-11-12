@@ -887,19 +887,57 @@ function bindHistorialSearch() {
   input.parentNode.replaceChild(newInput, input);
 
   const buscar = async () => {
-    const id = (newInput.value || "").trim();
-    if (!id) {
-      mostrarToast("Ingrese ID de reparacion");
-      return;
-    }
-    try {
-      const modal = document.getElementById("modal-historial");
-      const tbody = document.getElementById("tbody-historial");
-      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:#666"><i class='fas fa-spinner fa-spin'></i> Buscando...</td></tr>`;
+    const q = (newInput.value || "").trim();
+    if (!q) { mostrarToast("Ingrese texto a buscar"); return; }
 
+    const modal = document.getElementById("modal-historial");
+    const tbody = document.getElementById("tbody-historial");
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:#666"><i class='fas fa-spinner fa-spin'></i> Buscando...</td></tr>`;
+
+    try {
+      // 1) Buscar coincidencias parciales primero
+      const rBusqueda = await fetch(`/api/reparaciones_planilla/buscar?q=${encodeURIComponent(q)}`, { credentials: 'include' });
+      const coincidencias = rBusqueda.ok ? await rBusqueda.json() : [];
+
+      // Si hay 1 sola coincidencia, cargar su historial directamente
+      if (Array.isArray(coincidencias) && coincidencias.length === 1) {
+        return cargarHistorialPara(coincidencias[0].id_reparacion);
+      }
+
+      // Si hay varias, mostrar lista para elegir
+      if (Array.isArray(coincidencias) && coincidencias.length > 1) {
+        const filas = coincidencias.map(r => `
+          <tr class="resultado-clickable" data-id="${r.id_reparacion}">
+            <td colspan="2"><b>${r.id_reparacion}</b>${r.id_dota ? ` · DOTA ${r.id_dota}` : ''}</td>
+            <td>${r.cliente || '-'}</td>
+            <td>${r.equipo || '-'}</td>
+            <td>${r.coche_numero || '-'}</td>
+            <td>Ver</td>
+          </tr>`).join('');
+        if (tbody) tbody.innerHTML = filas;
+        tbody.querySelectorAll('tr.resultado-clickable').forEach(tr => {
+          tr.addEventListener('click', () => cargarHistorialPara(tr.dataset.id));
+        });
+        if (modal) modal.classList.add('mostrar');
+        return;
+      }
+
+      // 2) Sin coincidencias parciales: intentar exacto por compatibilidad
+      return cargarHistorialPara(q);
+
+    } catch (err) {
+      console.error('Error en búsqueda:', err);
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:red">Error en la búsqueda.</td></tr>`;
+    }
+  };
+
+  async function cargarHistorialPara(id) {
+    const modal = document.getElementById("modal-historial");
+    const tbody = document.getElementById("tbody-historial");
+    try {
       const res = await fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(id)}`, { credentials: 'include' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al buscar historial");
+      if (!res.ok) throw new Error(data.error || 'Error al buscar historial');
 
       const first = Array.isArray(data) && data.length > 0 ? data[0] : null;
       const safeText = (v) => (v == null || v === "") ? '-' : String(v);
@@ -917,33 +955,28 @@ function bindHistorialSearch() {
         document.getElementById("historial-resolucion")?.replaceChildren(document.createTextNode(safeText(first?.resolucion)));
       }
 
-      if (!Array.isArray(data) || data.length === 0) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:#666">Sin historial disponible.</td></tr>`;
-      } else {
-        const fmt = (v) => (v == null || v === "") ? "-" : v;
-        const fmtFecha = (f) => { if (!f) return "-"; try { return new Date(f).toLocaleDateString('es-AR'); } catch { return String(f); } };
-        const fmtHora = (h) => { if (!h) return "-"; if (typeof h === 'string') return h.slice(0,5); try { return new Date(`1970-01-01T${h}`).toTimeString().slice(0,5); } catch { return String(h); } };
+      const fmt = (v) => (v == null || v === "") ? "-" : v;
+      const fmtFecha = (f) => { if (!f) return "-"; try { return new Date(f).toLocaleDateString('es-AR'); } catch { return String(f); } };
+      const fmtHora = (h) => { if (!h) return "-"; if (typeof h === 'string') return h.slice(0,5); try { return new Date(`1970-01-01T${h}`).toTimeString().slice(0,5); } catch { return String(h); } };
 
-        const rows = data.map(r => `
-          <tr>
-            <td>${fmtFecha(r.fecha)}</td>
-            <td>${fmt(r.trabajo)}</td>
-            <td>${fmtHora(r.hora_inicio)}</td>
-            <td>${fmtHora(r.hora_fin)}</td>
-            <td>${fmt(r.tecnico)}</td>
-            <td>${r.garantia === 'si' ? 'Si' : 'No'}</td>
-          </tr>
-        `).join("");
-        if (tbody) tbody.innerHTML = rows;
-      }
-
+      const rows = (Array.isArray(data) ? data : []).map(r => `
+        <tr>
+          <td>${fmtFecha(r.fecha)}</td>
+          <td>${fmt(r.trabajo)}</td>
+          <td>${fmtHora(r.hora_inicio)}</td>
+          <td>${fmtHora(r.hora_fin)}</td>
+          <td>${fmt(r.tecnico)}</td>
+          <td>${r.garantia === 'si' ? 'Si' : 'No'}</td>
+        </tr>
+      `).join("");
+      if (tbody) tbody.innerHTML = rows || `<tr><td colspan="6" style="text-align:center; padding:10px; color:#666">Sin historial disponible.</td></tr>`;
       if (modal) modal.classList.add('mostrar');
     } catch (err) {
-      console.error('Error historial:', err);
+      console.error('Error al cargar historial:', err);
       const tbody = document.getElementById('tbody-historial');
-      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:red">Error al buscar historial.</td></tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan=\"6\" style=\"text-align:center; padding:10px; color:red\">Error al buscar historial.</td></tr>`;
     }
-  };
+  }
 
   newBtn.onclick = buscar;
   newInput.addEventListener('keydown', (e) => {

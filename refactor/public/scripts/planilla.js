@@ -994,19 +994,35 @@ function bindHistorialSearch(){
   const newInput = input.cloneNode(true); input.parentNode.replaceChild(newInput, input);
 
   const buscar = async () => {
-    const id = (newInput.value||'').trim();
-    if(!id){ alert('Ingrese ID de reparacion'); return; }
+    const q = (newInput.value||'').trim();
+    if(!q){ alert('Ingrese texto a buscar'); return; }
     const modal = document.getElementById('modal-historial');
     const tbody = document.getElementById('tbody-historial');
     if(tbody) tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Buscando...</td></tr>";
     if(modal) modal.style.display='flex';
 
     try{
-      const res = await fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(id)}`, { credentials:'include' });
-      const data = await res.json();
-      if(!res.ok) throw new Error(data && data.error || 'Error');
-
-      const first = Array.isArray(data) && data.length>0 ? data[0] : null;
+      // Búsqueda parcial primero
+      const rbus = await fetch(`/api/reparaciones_planilla/buscar?q=${encodeURIComponent(q)}`, { credentials:'include' });
+      const list = rbus.ok ? await rbus.json() : [];
+      if (Array.isArray(list) && list.length === 1) {
+        return cargarHistorial(list[0].id_reparacion);
+      }
+      if (Array.isArray(list) && list.length > 1) {
+        const filas = list.map(r => `
+          <tr class='resultado-clickable' data-id='${r.id_reparacion}'>
+            <td colspan='2'><b>${r.id_reparacion}</b>${r.id_dota ? ` · DOTA ${r.id_dota}` : ''}</td>
+            <td>${r.cliente || '-'}</td>
+            <td>${r.equipo || '-'}</td>
+            <td>${r.coche_numero || '-'}</td>
+            <td>Ver</td>
+          </tr>`).join('');
+        if (tbody) tbody.innerHTML = filas;
+        tbody.querySelectorAll('tr.resultado-clickable').forEach(tr => tr.addEventListener('click', () => cargarHistorial(tr.dataset.id)));
+        return;
+      }
+      // Fallback exacto por compatibilidad
+      return cargarHistorial(q);
       const txt = (v)=> (v==null||v==='')? '-' : String(v);
       const set = (elId, val)=>{ const el=document.getElementById(elId); if(el){ el.replaceChildren(document.createTextNode(txt(val))); } };
       set('historial-id', id);
