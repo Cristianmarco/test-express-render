@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 
 const router = express.Router();
 
@@ -8,7 +8,7 @@ let ExcelJS; // lazy require to avoid local dev errors if not installed
 
 
 // ============================
-// GET historial por ID de reparaciÃ³n
+// GET historial por ID de reparación
 // ============================
 router.get("/historial/:id_reparacion", async (req, res) => {
   const { id_reparacion } = req.params;
@@ -47,34 +47,34 @@ router.get("/historial/:id_reparacion", async (req, res) => {
 
     res.json(result.rows);
   } catch (err) {
-    console.error("âŒ Error GET /reparaciones_planilla/historial:", err);
+    console.error("❌ Error GET /reparaciones_planilla/historial:", err);
     res.status(500).json({ error: "Error al obtener historial" });
   }
 });
 
 
 // ============================
-// âœ… NUEVA RUTA: DÃ­as con reparaciones en un rango
+// ✅ NUEVA RUTA: Días con reparaciones en un rango
 // ============================
 router.get("/rango", async (req, res) => {
   try {
     const { inicio, fin } = req.query;
 
     if (!inicio || !fin) {
-      return res.status(400).json({ error: "Faltan parÃ¡metros 'inicio' o 'fin'" });
+      return res.status(400).json({ error: "Faltan parámetros 'inicio' o 'fin'" });
     }
 
     const result = await pool.query(
-      `SELECT DISTINCT DATE(fecha) as fecha
+      `SELECT DISTINCT to_char(DATE(fecha), 'YYYY-MM-DD') AS fecha
        FROM equipos_reparaciones
        WHERE DATE(fecha) BETWEEN $1 AND $2
-       ORDER BY fecha ASC`,
+       ORDER BY 1 ASC`,
       [inicio, fin]
     );
 
     res.json(result.rows);
   } catch (err) {
-    console.error("âŒ Error al obtener dÃ­as con reparaciones:", err);
+    console.error("❌ Error al obtener días con reparaciones:", err);
     res.status(500).json({ error: "Error en el servidor" });
   }
 });
@@ -120,7 +120,7 @@ router.get("/", async (req, res) => {
     const result = await pool.query(query, [fecha]);
     res.json(result.rows);
   } catch (err) {
-    console.error("âŒ Error GET /reparaciones_planilla:", err);
+    console.error("❌ Error GET /reparaciones_planilla:", err);
     res.status(500).json({ error: "Error al obtener reparaciones" });
   }
 });
@@ -166,8 +166,8 @@ router.get("/export", async (req, res) => {
 
     const result = await pool.query(query, [fecha]);
 
-    const sep = ";"; // Excel ES utiliza ; por configuraciÃ³n regional
-    const header = ["Fecha","Cliente","ID ReparaciÃ³n","NÂ° Coche","Equipo","TÃ©cnico","Hora inicio","Hora fin","GarantÃ­a","Trabajo","Observaciones"];
+    const sep = ";"; // Excel ES utiliza ; por configuración regional
+    const header = ["Fecha","Cliente","ID Reparación","N° Coche","Equipo","Técnico","Hora inicio","Hora fin","Garantía","Trabajo","Observaciones"];
 
     function esc(v){
       if (v === null || v === undefined) return "";
@@ -175,7 +175,7 @@ router.get("/export", async (req, res) => {
       return '"' + s + '"';
     }
 
-    // Fecha corta en espaÃ±ol (dd/mm/yyyy)
+    // Fecha corta en español (dd/mm/yyyy)
     function fmtFechaES(val){
       const s = String(val || '').slice(0,10);
       const p = s.split('-');
@@ -265,9 +265,9 @@ router.get("/export", async (req, res) => {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-      // PresentaciÃ³n: estilo amigable para Excel
+      // Presentación: estilo amigable para Excel
       const title = `Planilla diaria - ${fecha}`;
-      const sub = `Generado: ${new Date().toLocaleString('es-AR')} Â· Registros: ${result.rows.length}`;
+      const sub = `Generado: ${new Date().toLocaleString('es-AR')} · Registros: ${result.rows.length}`;
 
       const styles = `
         <style>
@@ -359,7 +359,7 @@ router.get("/export", async (req, res) => {
 
 
 // ===============================================
-// POST - Crear reparaciÃ³n y descontar stock usado
+// POST - Crear reparación y descontar stock usado
 // ===============================================
 router.post("/", async (req, res) => {
   const client = await pool.connect();
@@ -418,7 +418,7 @@ router.post("/", async (req, res) => {
 
     const reparacionId = result.rows[0].id;
 
-    // ðŸ” Detectar productos usados
+    // 🔍 Detectar productos usados
     const productosUsados = [];
     if (trabajo) {
       const regex = /\((.*?)\)/g;
@@ -428,7 +428,7 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // ðŸ“¦ Descontar stock y registrar movimiento
+    // 📦 Descontar stock y registrar movimiento
     for (const codigoRaw of productosUsados) {
       const codigo = codigoRaw.trim().replace(/\s+/g, "");
       const prod = await client.query(
@@ -453,11 +453,11 @@ router.post("/", async (req, res) => {
       await client.query(
         `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, fecha, observacion)
          VALUES ($1, $2, 'SALIDA', 1, NOW(), $3)`,
-        [productoId, depositoId, `Usado en reparaciÃ³n ID ${reparacionId}`]
+        [productoId, depositoId, `Usado en reparación ID ${reparacionId}`]
       );
     }
 
-    // Descontar pendientes de R.Vigentes si se indicÃ³ un nro de pedido de licitaciones
+    // Descontar pendientes de R.Vigentes si se indicó un nro de pedido de licitaciones
     try {
       const nroRef = (req.body && (req.body.nro_pedido_ref || req.body.nro_pedido)) || null;
       if (nroRef) {
@@ -481,8 +481,8 @@ router.post("/", async (req, res) => {
     res.json({ ok: true, id: reparacionId });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("âŒ Error al guardar reparaciÃ³n:", err);
-    res.status(500).json({ error: "Error al guardar reparaciÃ³n" });
+    console.error("❌ Error al guardar reparación:", err);
+    res.status(500).json({ error: "Error al guardar reparación" });
   } finally {
     client.release();
   }
@@ -490,7 +490,7 @@ router.post("/", async (req, res) => {
 
 
 // ============================
-// PUT - Actualizar reparaciÃ³n existente
+// PUT - Actualizar reparación existente
 // ============================
 router.put("/:id", async (req, res) => {
   try {
@@ -538,18 +538,18 @@ router.put("/:id", async (req, res) => {
     );
 
     if (result.rows.length === 0)
-      return res.status(404).json({ error: "ReparaciÃ³n no encontrada" });
+      return res.status(404).json({ error: "Reparación no encontrada" });
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("âŒ Error actualizando reparaciÃ³n:", err);
-    res.status(500).json({ error: "Error al actualizar reparaciÃ³n" });
+    console.error("❌ Error actualizando reparación:", err);
+    res.status(500).json({ error: "Error al actualizar reparación" });
   }
 });
 
 
 // ============================
-// DELETE eliminar reparaciÃ³n
+// DELETE eliminar reparación
 // ============================
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
@@ -561,7 +561,7 @@ router.delete("/:id", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "ReparaciÃ³n no encontrada" });
+      return res.status(404).json({ error: "Reparación no encontrada" });
     }
 
     try {
@@ -585,8 +585,8 @@ router.delete("/:id", async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error("âŒ Error DELETE /reparaciones_planilla:", err);
-    res.status(500).json({ error: "Error al eliminar reparaciÃ³n" });
+    console.error("❌ Error DELETE /reparaciones_planilla:", err);
+    res.status(500).json({ error: "Error al eliminar reparación" });
   }
 });
 

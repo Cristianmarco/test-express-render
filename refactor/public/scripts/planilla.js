@@ -7,6 +7,26 @@ const _repuestosTrack = new Map(); // code -> { id: number, count: number }
 
 let currentDate = new Date();
 
+// Devuelve un Set de fechas ISO (YYYY-MM-DD) con datos en el rango dado
+async function fetchDiasConDatosIso(y, m0) {
+  try {
+    const firstDate = `${y}-${String(m0 + 1).padStart(2, '0')}-01`;
+    const lastDate = `${y}-${String(m0 + 1).padStart(2, '0')}-${String(new Date(y, m0 + 1, 0).getDate()).padStart(2, '0')}`;
+    const res = await fetch(`/api/reparaciones_planilla/rango?inicio=${firstDate}&fin=${lastDate}`, { credentials: 'include' });
+    if (!res.ok) return new Set();
+    const data = await res.json();
+    const set = new Set();
+    for (const r of (Array.isArray(data) ? data : [])) {
+      const iso = String(r.fecha || '').split('T')[0];
+      if (iso) set.add(iso);
+    }
+    return set;
+  } catch {
+    return new Set();
+  }
+}
+
+
 // ---------- Calendar ----------
 function bindMonthNavigation() {
   const prev = document.getElementById('prevMonth');
@@ -32,16 +52,10 @@ async function renderCalendar(date) {
 
   grid.innerHTML = '';
 
-  // Days with data (best effort)
-  let daysWithData = [];
+  // Obtener días con datos como ISO exactas (evita problemas de TZ)
+  let diasConDatosISO = new Set();
   try {
-    const firstDate = `${y}-${String(m+1).padStart(2,'0')}-01`;
-    const lastDate  = `${y}-${String(m+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`;
-    const res = await fetch(`/api/reparaciones_planilla/rango?inicio=${firstDate}&fin=${lastDate}`, { credentials: 'include' });
-    if (res.ok) {
-      const data = await res.json();
-      daysWithData = (Array.isArray(data)?data:[]).map(r => new Date(r.fecha).getDate());
-    }
+    diasConDatosISO = await fetchDiasConDatosIso(y, m);
   } catch {}
 
   // blanks
@@ -57,7 +71,8 @@ async function renderCalendar(date) {
     cell.textContent = String(d);
     const today = new Date();
     if (d === today.getDate() && m === today.getMonth() && y === today.getFullYear()) cell.classList.add('today');
-    if (daysWithData.includes(d)) cell.classList.add('has-data');
+    const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    if (diasConDatosISO.has(iso)) cell.classList.add('has-data');
     cell.addEventListener('click', () => abrirModalPlanilla(`${d}/${m+1}/${y}`));
     grid.appendChild(cell);
   }
@@ -1271,6 +1286,7 @@ document.addEventListener('view:changed', (e)=>{
     if(inp) inp.setAttribute('placeholder', 'Escribir codigo de producto y Enter');
   }
 });
+
 
 
 

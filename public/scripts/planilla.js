@@ -109,7 +109,29 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  async function renderCalendarV2(dateObj) {
+    // Devuelve Set de fechas ISO completas YYYY-MM-DD (sin usar Date)
+  async function fetchDiasConDatosIso(y, m0) {
+    const yStr = String(y);
+    const mStr = String(m0 + 1).padStart(2, '0');
+    const last = new Date(y, m0 + 1, 0).getDate();
+    const inicio = ${yStr}--01;
+    const fin = ${yStr}--;
+    try {
+      const res = await fetch(/api/reparaciones_planilla/rango?inicio=&fin=, { credentials: 'include' });
+      if (!res.ok) return new Set();
+      const data = await res.json();
+      const set = new Set();
+      for (const r of Array.isArray(data) ? data : []) {
+        const iso = String(r.fecha).split('T')[0];
+        if (iso) set.add(iso);
+      }
+      return set;
+    } catch {
+      return new Set();
+    }
+  }
+
+async function renderCalendarV2(dateObj) {
     grid.innerHTML = "";
     const y = dateObj.getFullYear();
     const m0 = dateObj.getMonth();
@@ -131,11 +153,11 @@ document.addEventListener("DOMContentLoaded", () => {
       grid.appendChild(e);
     }
 
-    const marked = await fetchDiasConDatos(y, m0);
+    const marked = await fetchDiasConDatosIso(y, m0);
     const lastDay = new Date(y, m0 + 1, 0).getDate();
     for (let d = 1; d <= lastDay; d++) {
       const cell = document.createElement("div");
-      cell.className = "calendar-day" + (marked.has(d) ? " has-data" : "");
+      cell.className = "calendar-day" + (marked.has(iso) ? " has-data" : "");
       cell.textContent = d;
       const iso = `${y}-${String(m0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       cell.onclick = () => abrirModalPlanilla(iso);

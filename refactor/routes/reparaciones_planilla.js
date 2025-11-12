@@ -51,10 +51,10 @@ router.get("/rango", async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT DISTINCT DATE(fecha) as fecha
+      `SELECT DISTINCT to_char(DATE(fecha), 'YYYY-MM-DD') AS fecha
        FROM reparaciones
        WHERE DATE(fecha) BETWEEN $1 AND $2
-       ORDER BY fecha ASC`,
+       ORDER BY 1 ASC`,
       [inicio, fin]
     );
 

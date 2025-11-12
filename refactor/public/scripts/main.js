@@ -1,4 +1,4 @@
-﻿// === ERP Refactor - Control dinÃ¡mico de vistas y tabs ===
+﻿// === ERP Refactor - Control dinámico de vistas y tabs ===
 
 const mainContent = document.getElementById("main-content");
 const tabsContainer = document.getElementById("tabs");
@@ -9,7 +9,7 @@ async function loadView(view) {
   const existing = openTabs.find(t => t.view === view);
   if (existing) return activateTab(view);
 
-  // Crear pestaÃ±a
+  // Crear pestaña
   const tab = document.createElement("button");
   tab.className = "tab";
   tab.textContent = view.charAt(0).toUpperCase() + view.slice(1);
@@ -37,10 +37,10 @@ async function loadView(view) {
   section.innerHTML = html;
   mainContent.appendChild(section);
 
-  // Mostrar la pestaÃ±a
+  // Mostrar la pestaña
   activateTab(view);
 
-  // ðŸ”” Avisar a otros scripts que una nueva vista fue cargada
+  // 🔔 Avisar a otros scripts que una nueva vista fue cargada
   const event = new CustomEvent("view:changed", { detail: view });
   document.dispatchEvent(event);
 
@@ -48,7 +48,7 @@ async function loadView(view) {
   ejecutarScriptVista(view);
 } 
 
-  // === Activar pestaÃ±a
+  // === Activar pestaña
   function activateTab(view) {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
     document.querySelectorAll(".tab-content").forEach(c => (c.style.display = "none"));
@@ -60,7 +60,7 @@ async function loadView(view) {
     if (content) content.style.display = "block";
   }
 
-  // === Cerrar pestaÃ±a
+  // === Cerrar pestaña
   function closeTab(view) {
     const idx = openTabs.findIndex(t => t.view === view);
     if (idx === -1) return;
@@ -76,7 +76,7 @@ async function loadView(view) {
     else mainContent.innerHTML = "";
   }
 
-  // === Ejecutar JS especÃ­fico segÃºn la vista cargada
+  // === Ejecutar JS específico según la vista cargada
   function ejecutarScriptVista(view) {
   try { console.log(`Ejecutando script para vista: ${view}`); } catch {}
   switch (view) {
@@ -100,13 +100,15 @@ async function loadView(view) {
   }
 }// === Cargar y ejecutar script externo
   function cargarScript(src) {
-    const script = document.createElement("script");
-    script.src = src;
-    script.defer = true;
-    document.body.appendChild(script);
-  }
+  const v = (window.__ASSET_V || Date.now());
+  const script = document.createElement('script');
+  const sep = src.includes('?') ? '&' : '?';
+  script.src = src + sep + 'v=' + v;
+  script.defer = true;
+  document.body.appendChild(script);
+}
 
-  // === Eventos de menÃº
+  // === Eventos de menú
 document.querySelectorAll(".menu-link").forEach(btn => {
   btn.addEventListener("click", e => {
     e.preventDefault();
@@ -115,7 +117,7 @@ document.querySelectorAll(".menu-link").forEach(btn => {
   });
 });
 
-// === Cargar inicio automÃ¡ticamente
+// === Cargar inicio automáticamente
 document.addEventListener("DOMContentLoaded", () => loadView("inicio"));
 document.addEventListener("DOMContentLoaded", () => {
   // Cargar inicio por defecto
@@ -133,7 +135,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-// Submenús: toggle desplegable (Ventas, etc.)
+// Submen�s: toggle desplegable (Ventas, etc.)
 document.querySelectorAll('.menu-item[data-toggle]').forEach(btn => {
   if (btn._bound) return; btn._bound = true;
   btn.addEventListener('click', () => {
