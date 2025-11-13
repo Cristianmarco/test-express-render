@@ -98,6 +98,41 @@ router.get("/buscar", async (req, res) => {
   }
 });
 
+// ============================
+// Buscar por nro de pedido (parcial) en equipos_reparaciones
+// ============================
+router.get("/por_pedido", async (req, res) => {
+  const nro = (req.query.nro || "").trim();
+  if (!nro) return res.json([]);
+  try {
+    await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
+    const pattern = `%${nro}%`;
+    const sql = `
+      SELECT DISTINCT ON (r.id_reparacion)
+        r.id_reparacion,
+        r.id_dota,
+        r.coche_numero,
+        f.descripcion AS equipo,
+        t.nombre AS tecnico,
+        COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
+        r.fecha,
+        r.hora_inicio,
+        r.nro_pedido_ref
+      FROM equipos_reparaciones r
+      LEFT JOIN familia f ON r.familia_id = f.id
+      LEFT JOIN tecnicos t ON r.tecnico_id = t.id
+      LEFT JOIN clientes c ON r.cliente_id = c.id
+      WHERE COALESCE(r.nro_pedido_ref,'') ILIKE $1
+      ORDER BY r.id_reparacion, r.fecha DESC, r.hora_inicio DESC, r.id DESC
+      LIMIT 100`;
+    const { rows } = await pool.query(sql, [pattern]);
+    return res.json(rows);
+  } catch (err) {
+    console.error("Error GET /reparaciones_planilla/por_pedido:", err);
+    return res.status(500).json({ error: "Error al buscar por nro de pedido" });
+  }
+});
+
 
 // ============================
 // ✅ NUEVA RUTA: Días con reparaciones en un rango

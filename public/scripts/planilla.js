@@ -922,7 +922,27 @@ function bindHistorialSearch() {
         return;
       }
 
-      // 2) Sin coincidencias parciales: intentar exacto por compatibilidad
+      // 2) Si no hubo coincidencias, intentar por nro de pedido
+      const rPed = await fetch(`/api/reparaciones_planilla/por_pedido?nro=${encodeURIComponent(q)}`, { credentials: 'include' });
+      const porPedido = rPed.ok ? await rPed.json() : [];
+      if (Array.isArray(porPedido) && porPedido.length > 0) {
+        const filas = porPedido.map(r => `
+          <tr class="resultado-clickable" data-id="${r.id_reparacion}">
+            <td colspan="2"><b>${r.id_reparacion}</b>${r.nro_pedido_ref ? ` · Pedido ${r.nro_pedido_ref}` : ''}</td>
+            <td>${r.cliente || '-'}</td>
+            <td>${r.equipo || '-'}</td>
+            <td>${r.coche_numero || '-'}</td>
+            <td>Ver</td>
+          </tr>`).join('');
+        if (tbody) tbody.innerHTML = filas;
+        tbody.querySelectorAll('tr.resultado-clickable').forEach(tr => {
+          tr.addEventListener('click', () => cargarHistorialPara(tr.dataset.id));
+        });
+        if (modal) modal.classList.add('mostrar');
+        return;
+      }
+
+      // 3) Sin coincidencias: intentar exacto por compatibilidad
       return cargarHistorialPara(q);
 
     } catch (err) {

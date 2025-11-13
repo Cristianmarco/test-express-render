@@ -1002,7 +1002,7 @@ function bindHistorialSearch(){
     if(modal) modal.style.display='flex';
 
     try{
-      // Búsqueda parcial primero
+      // 1) Búsqueda parcial general
       const rbus = await fetch(`/api/reparaciones_planilla/buscar?q=${encodeURIComponent(q)}`, { credentials:'include' });
       const list = rbus.ok ? await rbus.json() : [];
       if (Array.isArray(list) && list.length === 1) {
@@ -1021,7 +1021,23 @@ function bindHistorialSearch(){
         tbody.querySelectorAll('tr.resultado-clickable').forEach(tr => tr.addEventListener('click', () => cargarHistorial(tr.dataset.id)));
         return;
       }
-      // Fallback exacto por compatibilidad
+      // 2) Si no hubo coincidencias, probar por nro de pedido
+      const rped = await fetch(`/api/reparaciones_planilla/por_pedido?nro=${encodeURIComponent(q)}`, { credentials:'include' });
+      const porPedido = rped.ok ? await rped.json() : [];
+      if (Array.isArray(porPedido) && porPedido.length > 0) {
+        const filas = porPedido.map(r => `
+          <tr class='resultado-clickable' data-id='${r.id_reparacion}'>
+            <td colspan='2'><b>${r.id_reparacion}</b>${r.nro_pedido_ref ? ` · Pedido ${r.nro_pedido_ref}` : ''}</td>
+            <td>${r.cliente || '-'}</td>
+            <td>${r.equipo || '-'}</td>
+            <td>${r.coche_numero || '-'}</td>
+            <td>Ver</td>
+          </tr>`).join('');
+        if (tbody) tbody.innerHTML = filas;
+        tbody.querySelectorAll('tr.resultado-clickable').forEach(tr => tr.addEventListener('click', () => cargarHistorial(tr.dataset.id)));
+        return;
+      }
+      // 3) Fallback exacto por compatibilidad
       return cargarHistorial(q);
       const txt = (v)=> (v==null||v==='')? '-' : String(v);
       const set = (elId, val)=>{ const el=document.getElementById(elId); if(el){ el.replaceChildren(document.createTextNode(txt(val))); } };
