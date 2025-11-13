@@ -83,7 +83,8 @@ router.get("/buscar", async (req, res) => {
         COALESCE(r.coche_numero::text, '') ILIKE $1 OR
         COALESCE(f.descripcion, '') ILIKE $1 OR
         COALESCE(t.nombre, '') ILIKE $1 OR
-        COALESCE(c.fantasia, c.razon_social, '') ILIKE $1
+        COALESCE(c.fantasia, c.razon_social, '') ILIKE $1 OR
+        COALESCE(r.nro_pedido_ref, '') ILIKE $1
       ORDER BY r.id_reparacion, r.fecha DESC, r.hora_inicio DESC, r.id DESC
       LIMIT 50`;
 
@@ -151,7 +152,8 @@ router.get("/", async (req, res) => {
         r.id_dota,
         r.ultimo_reparador,
         ur.nombre AS ultimo_reparador_nombre,
-        r.resolucion
+        r.resolucion,
+        r.nro_pedido_ref
       FROM equipos_reparaciones r
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
@@ -418,7 +420,8 @@ router.post("/", async (req, res) => {
       garantia,
       id_dota,
       ultimo_reparador,
-      resolucion
+      resolucion,
+      nro_pedido_ref
     } = req.body;
 
     id_reparacion = id_reparacion || null;
@@ -431,13 +434,15 @@ router.post("/", async (req, res) => {
     garantia = garantia === "si" ? "si" : "no";
 
     await client.query("BEGIN");
+    // Asegura columna para enlazar nro de pedido si no existe
+    await client.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
 
     const result = await client.query(
       `
       INSERT INTO equipos_reparaciones
         (id_reparacion, cliente_id, cliente_tipo, tecnico_id, trabajo, observaciones, fecha, garantia,
-         id_dota, ultimo_reparador, resolucion, coche_numero, familia_id, hora_inicio, hora_fin)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         id_dota, ultimo_reparador, resolucion, coche_numero, familia_id, hora_inicio, hora_fin, nro_pedido_ref)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       RETURNING id;
     `,
       [
@@ -455,7 +460,8 @@ router.post("/", async (req, res) => {
         req.body.coche_numero || null,
         req.body.familia_id || null,
         req.body.hora_inicio || null,
-        req.body.hora_fin || null
+        req.body.hora_fin || null,
+        nro_pedido_ref || null
       ]
     );
 
@@ -551,15 +557,19 @@ router.put("/:id", async (req, res) => {
       observaciones,
       id_dota,
       ultimo_reparador,
-      resolucion
+      resolucion,
+      nro_pedido_ref
     } = req.body;
 
+    // Asegura columna
+    await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
     const result = await pool.query(
       `UPDATE equipos_reparaciones
        SET cliente_tipo=$1, cliente_id=$2, id_reparacion=$3, coche_numero=$4,
            familia_id=$5, tecnico_id=$6, hora_inicio=$7, hora_fin=$8, trabajo=$9,
-           garantia=$10, observaciones=$11, id_dota=$12, ultimo_reparador=$13, resolucion=$14
-       WHERE id=$15
+           garantia=$10, observaciones=$11, id_dota=$12, ultimo_reparador=$13, resolucion=$14,
+           nro_pedido_ref=$15
+       WHERE id=$16
        RETURNING *`,
       [
         cliente_tipo,
@@ -576,6 +586,7 @@ router.put("/:id", async (req, res) => {
         id_dota || null,
         ultimo_reparador || null,
         resolucion || null,
+        nro_pedido_ref || null,
         req.params.id
       ]
     );
