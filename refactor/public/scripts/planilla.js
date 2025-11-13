@@ -114,23 +114,25 @@ async function abrirModalPlanilla(fechaTxt) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error');
     if (!Array.isArray(data) || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#666">Sin reparaciones para esta fecha.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:10px; color:#666">Sin reparaciones para esta fecha.</td></tr>';
       const cEl = document.getElementById('planilla-count'); if (cEl) cEl.textContent = '0';
       return;
     }
     const cEl = document.getElementById('planilla-count'); if (cEl) cEl.textContent = String(data.length);
-    tbody.innerHTML = data.map(rep => `
+    tbody.innerHTML = data.map((rep, idx) => `
       <tr data-id="${rep.id||''}"
           data-familia-id="${rep.familia_id||''}"
           data-tecnico-id="${rep.tecnico_id||''}"
           data-cliente-id="${rep.cliente_id||''}"
           data-cliente-tipo="${rep.cliente_tipo||''}">
+        <td>${idx + 1}</td>
         <td>${rep.cliente||'-'}</td>
         <td>${rep.id_reparacion||'-'}</td>
         <td>${rep.coche_numero||'-'}</td>
         <td>${rep.equipo||'-'}</td>
         <td>${rep.tecnico||'-'}</td>
         <td>${rep.garantia==='si'?'Si':'No'}</td>
+        <td>${rep.nro_pedido_ref||'-'}</td>
         <td>${rep.observaciones||'-'}</td>
         <td style="display:none" class="col-hora-inicio">${rep.hora_inicio||''}</td>
         <td style="display:none" class="col-hora-fin">${rep.hora_fin||''}</td>
@@ -146,7 +148,7 @@ async function abrirModalPlanilla(fechaTxt) {
       </tr>`).join('');
   } catch (err) {
     console.error('planilla load error:', err);
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#c33">Error al conectar con el servidor.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:10px; color:#c33">Error al conectar con el servidor.</td></tr>';
   }
 }
 

@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const calendarGrid = document.getElementById("calendarGrid");
 
   if (!calendarTitle || !calendarGrid) {
-    console.warn("⚠️ Elementos del calendario no encontrados en el DOM");
+    console.warn("Ã¢Å¡Â Ã¯Â¸Â Elementos del calendario no encontrados en el DOM");
     return;
   }
 
@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const monthName = date.toLocaleString("es-ES", { month: "long", year: "numeric" });
     calendarTitle.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
-    const weekdays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+    const weekdays = ["Lun", "Mar", "MiÃƒÂ©", "Jue", "Vie", "SÃƒÂ¡b", "Dom"];
     weekdays.forEach(day => {
       const div = document.createElement("div");
       div.textContent = day;
@@ -55,7 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Navegación mensual
+  // NavegaciÃƒÂ³n mensual
   document.getElementById("prevMonth").onclick = () => {
     currentDate.setMonth(currentDate.getMonth() - 1);
     renderCalendar(currentDate);
@@ -137,7 +137,7 @@ async function renderCalendarV2(dateObj) {
     const m0 = dateObj.getMonth();
     title.textContent = `${monthNames[m0]} de ${y}`;
 
-    const weekdays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+    const weekdays = ["Lun", "Mar", "MiÃƒÂ©", "Jue", "Vie", "SÃƒÂ¡b", "Dom"];
     for (const w of weekdays) {
       const d = document.createElement("div");
       d.className = "calendar-weekday";
@@ -217,13 +217,13 @@ async function cargarReparaciones(fecha) {
       credentials: "include"
     });
     const data = await res.json();
-    console.log("📊 Datos recibidos en la planilla:", data);
+    console.log("Ã°Å¸â€œÅ  Datos recibidos en la planilla:", data);
 
     const tbody = document.getElementById("tbody-reparaciones");
     tbody.innerHTML = "";
 
     if (!data.length) {
-      tbody.innerHTML = "<tr><td colspan='7'>No hay reparaciones</td></tr>";
+      tbody.innerHTML = "<tr><td colspan='9'>No hay reparaciones</td></tr>";
     } else {
       data.forEach(r => {
         const tr = document.createElement("tr");
@@ -233,7 +233,7 @@ async function cargarReparaciones(fecha) {
           <td>${r.coche_numero || "-"}</td>
           <td>${r.equipo}</td>
           <td>${r.tecnico}</td>
-          <td>${r.garantia === "si" ? "✔️" : "❌"}</td>
+          <td>${r.garantia === "si" ? "Ã¢Å“â€Ã¯Â¸Â" : "Ã¢ÂÅ’"}</td>
           <td>${r.observaciones || "-"}</td>
         `;
         tr.onclick = () => seleccionarReparacion(tr, r);
@@ -242,7 +242,7 @@ async function cargarReparaciones(fecha) {
       });
     }
   } catch (err) {
-    console.error("❌ Error cargando reparaciones:", err);
+    console.error("Ã¢ÂÅ’ Error cargando reparaciones:", err);
   }
 }
 
@@ -253,14 +253,14 @@ function seleccionarReparacion(tr, datos) {
   document.querySelectorAll("#tbody-reparaciones tr").forEach(x => x.classList.remove("seleccionado"));
   tr.classList.add("seleccionado");
   reparacionSeleccionada = datos;
-  console.log("🟢 Reparación seleccionada:", reparacionSeleccionada);
+  console.log("Ã°Å¸Å¸Â¢ ReparaciÃƒÂ³n seleccionada:", reparacionSeleccionada);
 }
 
 // ============================
 // Modal Detalle
 // ============================
 function abrirModalDetalle() {
-  if (!reparacionSeleccionada) return mostrarToast("Selecciona una reparación primero");
+  if (!reparacionSeleccionada) return mostrarToast("Selecciona una reparaciÃƒÂ³n primero");
 
   const r = reparacionSeleccionada;
 
@@ -273,10 +273,10 @@ function abrirModalDetalle() {
   document.getElementById("detalle-hora-fin").textContent = r.hora_fin || "-";
   document.getElementById("detalle-trabajo").textContent = r.trabajo;
   document.getElementById("detalle-garantia").textContent =
-    r.garantia === true || r.garantia === "si" ? "✔️ Sí" : "❌ No";
+    r.garantia === true || r.garantia === "si" ? "Ã¢Å“â€Ã¯Â¸Â SÃƒÂ­" : "Ã¢ÂÅ’ No";
   document.getElementById("detalle-observaciones").textContent = r.observaciones || "-";
 
-  // ⚙️ Nuevos campos de garantía
+  // Ã¢Å¡â„¢Ã¯Â¸Â Nuevos campos de garantÃƒÂ­a
   const extra = document.getElementById("detalle-garantia-extra");
   if (r.garantia === "si") {
     extra.style.display = "block";
@@ -314,10 +314,10 @@ function cerrarModalDetalle() {
 }
 
 // ============================
-// Modal Reparación
+// Modal ReparaciÃƒÂ³n
 // ============================
-async function abrirModalReparacion(titulo = "Nueva Reparación", datos = null) {
-  console.log("🟢 abrirModalReparacion ejecutado", titulo, datos);
+async function abrirModalReparacion(titulo = "Nueva ReparaciÃƒÂ³n", datos = null) {
+  console.log("Ã°Å¸Å¸Â¢ abrirModalReparacion ejecutado", titulo, datos);
 
   const modal = document.getElementById("modal-reparacion");
   const form = document.getElementById("form-reparacion");
@@ -333,7 +333,7 @@ async function abrirModalReparacion(titulo = "Nueva Reparación", datos = null) 
   await cargarOpcionesSelect("/api/familias", "familia_id", "id", "descripcion", datos ? datos.familia_id : null);
   await cargarOpcionesSelect("/api/tecnicos", "tecnico_id", "id", "nombre", datos ? datos.tecnico_id : null);
 
-  // ⚙️ Campos extra de garantía
+  // Ã¢Å¡â„¢Ã¯Â¸Â Campos extra de garantÃƒÂ­a
   const wrapper = document.getElementById("cliente_externo_wrapper");
   const garantiaExtra = document.getElementById("garantia-extra-fields");
 
@@ -345,7 +345,7 @@ async function abrirModalReparacion(titulo = "Nueva Reparación", datos = null) 
     // Mostrar cliente externo si corresponde
     wrapper.style.display = datos.cliente_tipo === "externo" ? "block" : "none";
 
-    // Mostrar bloque de garantía si corresponde
+    // Mostrar bloque de garantÃƒÂ­a si corresponde
     if (datos.garantia === "si") {
       garantiaExtra.style.display = "block";
       await cargarOpcionesSelect("/api/tecnicos", "ultimo_reparador", "id", "nombre", datos.ultimo_reparador);
@@ -376,10 +376,10 @@ async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto, valor
   try {
     const res = await fetch(url, { credentials: "include" });
 
-    // 🔐 Si la sesión expiró → redirigir al login
+    // Ã°Å¸â€Â Si la sesiÃƒÂ³n expirÃƒÂ³ Ã¢â€ â€™ redirigir al login
     if (res.status === 401) {
-      console.warn(`⚠️ Sesión expirada al acceder a ${url}`);
-      mostrarToast("Tu sesión expiró. Inicia sesión nuevamente.");
+      console.warn(`Ã¢Å¡Â Ã¯Â¸Â SesiÃƒÂ³n expirada al acceder a ${url}`);
+      mostrarToast("Tu sesiÃƒÂ³n expirÃƒÂ³. Inicia sesiÃƒÂ³n nuevamente.");
       setTimeout(() => window.location.href = "/login", 1500);
       return;
     }
@@ -387,7 +387,7 @@ async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto, valor
     if (!res.ok) throw new Error(`Error cargando ${url}`);
 
     const data = await res.json();
-    console.log("📥 Opciones cargadas en", selectId, data);
+    console.log("Ã°Å¸â€œÂ¥ Opciones cargadas en", selectId, data);
 
     select.innerHTML = `<option value="">Seleccione</option>`;
 
@@ -401,8 +401,8 @@ async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto, valor
       select.appendChild(opt);
     });
   } catch (err) {
-    console.error(`❌ Error cargando opciones de ${url}`, err);
-    select.innerHTML = `<option value="">⚠️ Error al cargar</option>`;
+    console.error(`Ã¢ÂÅ’ Error cargando opciones de ${url}`, err);
+    select.innerHTML = `<option value="">Ã¢Å¡Â Ã¯Â¸Â Error al cargar</option>`;
   }
 }
 
@@ -427,7 +427,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("form-reparacion");
 
   if (!form) {
-    console.error("⚠️ No se encontró #form-reparacion en el DOM");
+    console.error("Ã¢Å¡Â Ã¯Â¸Â No se encontrÃƒÂ³ #form-reparacion en el DOM");
     return;
   }
 
@@ -444,7 +444,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let url = "/api/reparaciones_planilla";
     let method = "POST";
 
-    console.log("🔎 Estado antes de enviar:", {
+    console.log("Ã°Å¸â€Å½ Estado antes de enviar:", {
       modoEdicion: window.modoEdicion,
       reparacionSeleccionada: window.reparacionSeleccionada
     });
@@ -455,7 +455,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      console.log("📤 Enviando datos:", datos, "➡️", method, url);
+      console.log("Ã°Å¸â€œÂ¤ Enviando datos:", datos, "Ã¢Å¾Â¡Ã¯Â¸Â", method, url);
 
       const res = await fetch(url, {
         method,
@@ -464,10 +464,10 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify(datos),
       });
 
-      if (!res.ok) throw new Error("Error al guardar reparación");
+      if (!res.ok) throw new Error("Error al guardar reparaciÃƒÂ³n");
 
       const reparacionGuardada = await res.json();
-      console.log("✅ Respuesta del servidor:", reparacionGuardada);
+      console.log("Ã¢Å“â€¦ Respuesta del servidor:", reparacionGuardada);
 
       cerrarModalReparacion();
       cargarReparaciones(datos.fecha);
@@ -475,8 +475,8 @@ document.addEventListener("DOMContentLoaded", () => {
       window.reparacionSeleccionada = null;
       window.modoEdicion = false;
     } catch (err) {
-      console.error("❌ Error en el guardado:", err);
-      mostrarToast("Error al guardar reparación");
+      console.error("Ã¢ÂÅ’ Error en el guardado:", err);
+      mostrarToast("Error al guardar reparaciÃƒÂ³n");
     }
   };
 
@@ -488,11 +488,11 @@ document.addEventListener("DOMContentLoaded", () => {
     btnBuscar.onclick = async () => {
       const valor = inputBuscar.value.trim();
       if (!valor) {
-        mostrarToast("Ingrese un ID de reparación");
+        mostrarToast("Ingrese un ID de reparaciÃƒÂ³n");
         return;
       }
 
-      console.log(`🔎 Buscando historial para: ${valor}`);
+      console.log(`Ã°Å¸â€Å½ Buscando historial para: ${valor}`);
 
       try {
         const res = await fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(valor)}`, {
@@ -501,14 +501,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!res.ok) throw new Error("No se encontraron reparaciones");
         const data = await res.json();
 
-        console.log("📜 Historial recibido:", data);
+        console.log("Ã°Å¸â€œÅ“ Historial recibido:", data);
         if (data.length > 0) {
           abrirModalHistorial(data[0], data);
         } else {
           mostrarToast("No se encontraron reparaciones para ese ID");
         }
       } catch (err) {
-        console.error("❌ Error al buscar historial:", err);
+        console.error("Ã¢ÂÅ’ Error al buscar historial:", err);
         mostrarToast("No se encontraron reparaciones para ese ID");
       }
     };
@@ -519,40 +519,40 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================
-  // Botones de acción
+  // Botones de acciÃƒÂ³n
   // ============================
   document.getElementById("btn-agregar-rep").onclick = () => {
     window.modoEdicion = false;
     window.reparacionSeleccionada = null;
-    console.log("➕ Nueva reparación → POST");
-    abrirModalReparacion("Nueva Reparación");
+    console.log("Ã¢Å¾â€¢ Nueva reparaciÃƒÂ³n Ã¢â€ â€™ POST");
+    abrirModalReparacion("Nueva ReparaciÃƒÂ³n");
   };
 
   document.getElementById("btn-modificar-rep").onclick = () => {
     if (!window.reparacionSeleccionada) {
-      mostrarToast("Selecciona una reparación primero");
+      mostrarToast("Selecciona una reparaciÃƒÂ³n primero");
       return;
     }
     window.modoEdicion = true;
-    console.log("✏️ Editando reparación ID:", window.reparacionSeleccionada.id, "→ PUT");
-    abrirModalReparacion("Editar Reparación", window.reparacionSeleccionada);
+    console.log("Ã¢Å“ÂÃ¯Â¸Â Editando reparaciÃƒÂ³n ID:", window.reparacionSeleccionada.id, "Ã¢â€ â€™ PUT");
+    abrirModalReparacion("Editar ReparaciÃƒÂ³n", window.reparacionSeleccionada);
   };
 
   document.getElementById("btn-eliminar-rep").onclick = async () => {
-    if (!reparacionSeleccionada) return mostrarToast("Selecciona una reparación primero");
-    if (!confirm(`¿Eliminar reparación ${reparacionSeleccionada.id_reparacion}?`)) return;
+    if (!reparacionSeleccionada) return mostrarToast("Selecciona una reparaciÃƒÂ³n primero");
+    if (!confirm(`Ã‚Â¿Eliminar reparaciÃƒÂ³n ${reparacionSeleccionada.id_reparacion}?`)) return;
     try {
       const res = await fetch(`/api/reparaciones_planilla/${reparacionSeleccionada.id}`, {
         method: "DELETE",
         credentials: "include"
       });
       if (!res.ok) throw new Error("Error al eliminar");
-      mostrarToast("Reparación eliminada ✔️");
+      mostrarToast("ReparaciÃƒÂ³n eliminada Ã¢Å“â€Ã¯Â¸Â");
       reparacionSeleccionada = null;
       cargarReparaciones(document.getElementById("fecha-planilla").textContent);
     } catch (err) {
-      console.error("❌ Error en DELETE:", err);
-      mostrarToast("❌ Error al eliminar reparación");
+      console.error("Ã¢ÂÅ’ Error en DELETE:", err);
+      mostrarToast("Ã¢ÂÅ’ Error al eliminar reparaciÃƒÂ³n");
     }
   };
 
@@ -572,11 +572,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tbody && !tbody.contains(e.target) && !modalPlanilla.contains(e.target)) {
       filaSeleccionada.classList.remove("seleccionado");
       reparacionSeleccionada = null;
-      console.log("ℹ️ Fila deseleccionada");
+      console.log("Ã¢â€žÂ¹Ã¯Â¸Â Fila deseleccionada");
     }
   });
 
-  // === Mostrar/Ocultar campos extra de garantía ===
+  // === Mostrar/Ocultar campos extra de garantÃƒÂ­a ===
   const garantiaSelect = document.getElementById("garantia");
   const extraFields = document.getElementById("garantia-extra-fields");
 
@@ -594,26 +594,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // === Validación dinámica del campo "trabajo" según resolución ===
+  // === ValidaciÃƒÂ³n dinÃƒÂ¡mica del campo "trabajo" segÃƒÂºn resoluciÃƒÂ³n ===
   document.getElementById("resolucion").addEventListener("change", (e) => {
     const trabajoField = document.getElementById("trabajo");
     const btnRepuesto = document.getElementById("btn-seleccionar-repuesto");
     const valor = e.target.value;
 
     if (valor === "funciona_ok") {
-      // 🔹 Caso devolución: sin reparación
+      // Ã°Å¸â€Â¹ Caso devoluciÃƒÂ³n: sin reparaciÃƒÂ³n
       trabajoField.removeAttribute("required");
       trabajoField.value = "";
-      trabajoField.placeholder = "Sin reparación (devolución)";
-      if (btnRepuesto) btnRepuesto.style.display = "none"; // opcional: oculta el botón de repuesto
+      trabajoField.placeholder = "Sin reparaciÃƒÂ³n (devoluciÃƒÂ³n)";
+      if (btnRepuesto) btnRepuesto.style.display = "none"; // opcional: oculta el botÃƒÂ³n de repuesto
     } else {
-      // 🔹 Otros casos: trabajo obligatorio
+      // Ã°Å¸â€Â¹ Otros casos: trabajo obligatorio
       trabajoField.setAttribute("required", "required");
       trabajoField.placeholder = "Detalle del trabajo o repuestos utilizados...";
-      if (btnRepuesto) btnRepuesto.style.display = "inline-block"; // muestra el botón
+      if (btnRepuesto) btnRepuesto.style.display = "inline-block"; // muestra el botÃƒÂ³n
     }
   });
-}); // 👈 cierre FINAL del DOMContentLoaded
+}); // Ã°Å¸â€˜Ë† cierre FINAL del DOMContentLoaded
 
 
 // ============================
@@ -626,7 +626,7 @@ function abrirModalHistorial(datosEquipo, historial) {
   document.getElementById("historial-equipo").textContent = datosEquipo.equipo;
   document.getElementById("historial-coche").textContent = datosEquipo.coche_numero || "-";
 
-  // ⚙️ Bloque extra de garantía
+  // Ã¢Å¡â„¢Ã¯Â¸Â Bloque extra de garantÃƒÂ­a
   const bloqueGarantia = document.getElementById("historial-garantia-extra");
   if (datosEquipo.garantia === "si") {
     bloqueGarantia.style.display = "flex";
@@ -652,7 +652,7 @@ function abrirModalHistorial(datosEquipo, historial) {
       <td>${r.hora_inicio || "-"}</td>
       <td>${r.hora_fin || "-"}</td>
       <td>${r.tecnico || "-"}</td>
-      <td>${r.garantia === "si" ? "✔️" : "❌"}</td>
+      <td>${r.garantia === "si" ? "Ã¢Å“â€Ã¯Â¸Â" : "Ã¢ÂÅ’"}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -664,7 +664,7 @@ function abrirModalHistorial(datosEquipo, historial) {
 function cerrarModalHistorial() {
   document.getElementById("modal-historial").classList.remove("mostrar");
 
-  // 👇 limpiar campo buscador
+  // Ã°Å¸â€˜â€¡ limpiar campo buscador
   const inputBuscar = document.getElementById("buscar-reparacion");
   if (inputBuscar) inputBuscar.value = "";
 }
@@ -684,7 +684,7 @@ function mostrarToast(mensaje, tipo = "info") {
   // Mostrar animado
   setTimeout(() => toast.classList.add("mostrar"), 100);
 
-  // Ocultar después de 3s
+  // Ocultar despuÃƒÂ©s de 3s
   setTimeout(() => {
     toast.classList.remove("mostrar");
     setTimeout(() => toast.remove(), 400);
@@ -697,7 +697,7 @@ function mostrarToast(mensaje, tipo = "info") {
 const modalGrupos = document.getElementById("modal-grupos");
 const modalProductos = document.getElementById("modal-productos");
 
-// --- Abrir modal de grupos desde el botón ---
+// --- Abrir modal de grupos desde el botÃƒÂ³n ---
 document.getElementById("btn-seleccionar-repuesto").addEventListener("click", async () => {
   await cargarGrupos();
 });
@@ -725,7 +725,7 @@ async function cargarGrupos() {
         <td>${g.descripcion}</td>
       `;
 
-      // ✅ Cuando clickeás un grupo, se cierra el modal y se abre el de productos
+      // Ã¢Å“â€¦ Cuando clickeÃƒÂ¡s un grupo, se cierra el modal y se abre el de productos
       tr.onclick = () => {
         cerrarModalGrupos();
         cargarProductosPorGrupo(g.id);
@@ -736,7 +736,7 @@ async function cargarGrupos() {
 
     modalGrupos.classList.add("mostrar");
   } catch (err) {
-    console.error("❌ Error cargando grupos:", err);
+    console.error("Ã¢ÂÅ’ Error cargando grupos:", err);
   }
 }
 
@@ -763,7 +763,7 @@ async function cargarProductosPorGrupo(grupoId) {
 
       const tr = document.createElement("tr");
 
-      // ✅ escapamos comillas simples y dobles en la descripción
+      // Ã¢Å“â€¦ escapamos comillas simples y dobles en la descripciÃƒÂ³n
       const descripcionEscapada = p.descripcion
         ? p.descripcion.replace(/'/g, "\\'").replace(/"/g, "&quot;")
         : "";
@@ -781,7 +781,7 @@ async function cargarProductosPorGrupo(grupoId) {
         <td>${stockTexto}</td>
       `;
 
-      // 👇 Doble clic también agrega el repuesto
+      // Ã°Å¸â€˜â€¡ Doble clic tambiÃƒÂ©n agrega el repuesto
       if (p.stock_total > 0) {
         tr.ondblclick = () => seleccionarProducto(p.id, p.codigo, p.descripcion);
       }
@@ -791,7 +791,7 @@ async function cargarProductosPorGrupo(grupoId) {
 
     modalProductos.classList.add("mostrar");
   } catch (err) {
-    console.error("❌ Error cargando productos:", err);
+    console.error("Ã¢ÂÅ’ Error cargando productos:", err);
   }
 }
 
@@ -852,7 +852,7 @@ function cerrarModalProductos() {
   modalProductos.classList.remove("mostrar");
 }
 
-// === MANEJO DE MODALES (abrir / cerrar / navegación) ===
+// === MANEJO DE MODALES (abrir / cerrar / navegaciÃƒÂ³n) ===
 const modalReparacion = document.getElementById("modal-reparacion");
 const modalDetalle = document.getElementById("modal-detalle");
 
@@ -908,7 +908,7 @@ function bindHistorialSearch() {
       if (Array.isArray(coincidencias) && coincidencias.length > 1) {
         const filas = coincidencias.map(r => `
           <tr class="resultado-clickable" data-id="${r.id_reparacion}">
-            <td colspan="2"><b>${r.id_reparacion}</b>${r.id_dota ? ` · DOTA ${r.id_dota}` : ''}</td>
+            <td colspan="2"><b>${r.id_reparacion}</b>${r.id_dota ? ` Ã‚Â· DOTA ${r.id_dota}` : ''}</td>
             <td>${r.cliente || '-'}</td>
             <td>${r.equipo || '-'}</td>
             <td>${r.coche_numero || '-'}</td>
@@ -928,7 +928,7 @@ function bindHistorialSearch() {
       if (Array.isArray(porPedido) && porPedido.length > 0) {
         const filas = porPedido.map(r => `
           <tr class="resultado-clickable" data-id="${r.id_reparacion}">
-            <td colspan="2"><b>${r.id_reparacion}</b>${r.nro_pedido_ref ? ` · Pedido ${r.nro_pedido_ref}` : ''}</td>
+            <td colspan="2"><b>${r.id_reparacion}</b>${r.nro_pedido_ref ? ` Ã‚Â· Pedido ${r.nro_pedido_ref}` : ''}</td>
             <td>${r.cliente || '-'}</td>
             <td>${r.equipo || '-'}</td>
             <td>${r.coche_numero || '-'}</td>
@@ -946,8 +946,8 @@ function bindHistorialSearch() {
       return cargarHistorialPara(q);
 
     } catch (err) {
-      console.error('Error en búsqueda:', err);
-      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:red">Error en la búsqueda.</td></tr>`;
+      console.error('Error en bÃƒÂºsqueda:', err);
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:10px; color:red">Error en la bÃƒÂºsqueda.</td></tr>`;
     }
   };
 
