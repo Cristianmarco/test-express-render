@@ -296,15 +296,13 @@ function bindPlanillaActions() {
       tecnico_id: fila.dataset.tecnicoId||'',
       cliente_id: fila.dataset.clienteId||'',
       cliente_tipo: fila.dataset.clienteTipo||'',
-      // con nueva columna inicial '#'
-      cliente: c[1]?.textContent.trim()||'-',
-      id_reparacion: c[2]?.textContent.trim()||'-',
-      coche: c[3]?.textContent.trim()||'-',
-      equipo: c[4]?.textContent.trim()||'-',
-      tecnico: c[5]?.textContent.trim()||'-',
-      garantia: c[6]?.textContent.trim()||'-',
-      nro_pedido_ref: (fila.getAttribute('data-nro-pedido-ref')||c[7]?.textContent.trim()||''),
-      observaciones: c[8]?.textContent.trim()||'-',
+      cliente: c[0]?.textContent.trim()||'-',
+      id_reparacion: c[1]?.textContent.trim()||'-',
+      coche: c[2]?.textContent.trim()||'-',
+      equipo: c[3]?.textContent.trim()||'-',
+      tecnico: c[4]?.textContent.trim()||'-',
+      garantia: c[5]?.textContent.trim()||'-',
+      observaciones: c[6]?.textContent.trim()||'-',
       hora_inicio: fila.querySelector('.col-hora-inicio')?.textContent.trim()||'',
       hora_fin: fila.querySelector('.col-hora-fin')?.textContent.trim()||'',
       trabajo: fila.querySelector('.col-trabajo')?.textContent.trim()||'',
@@ -396,7 +394,6 @@ function bindPlanillaActions() {
     const tec=document.getElementById('tecnico_id'); if(tec && seleccion.tecnico_id) tec.value=String(seleccion.tecnico_id);
     const ult=document.getElementById('ultimo_reparador'); if(ult && seleccion.ultimo_reparador) ult.value=String(seleccion.ultimo_reparador);
     setVal("select[name='resolucion']", seleccion.resolucion);
-    setVal("input[name='nro_pedido_ref']", (seleccion.nro_pedido_ref||''));
 
     // Familia: solo cargar y seleccionar
     await prepararSelectFamilias();
@@ -1368,6 +1365,7 @@ document.addEventListener('view:changed', (e)=>{
     if(inp) inp.setAttribute('placeholder', 'Escribir codigo de producto y Enter');
   }
 });
+
 
 
 
