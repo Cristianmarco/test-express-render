@@ -62,6 +62,8 @@ router.get("/buscar", async (req, res) => {
   if (!q) return res.json([]);
 
   try {
+    // Asegurar columna auxiliar si aún no existe
+    await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
     const pattern = `%${q}%`;
     const sql = `
       SELECT DISTINCT ON (r.id_reparacion)
@@ -132,6 +134,8 @@ router.get("/", async (req, res) => {
   if (!fecha) return res.status(400).json({ error: "Falta fecha" });
 
   try {
+    // Asegurar columna auxiliar si aún no existe
+    await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
     const query = `
       SELECT 
         r.id,
