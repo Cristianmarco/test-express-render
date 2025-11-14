@@ -383,7 +383,14 @@ function bindPlanillaActions() {
     if(selTipo){ selTipo.value = (seleccion.cliente_tipo || '').toLowerCase() || 'dota'; }
     const wrapCli = document.getElementById('cliente_externo_wrapper');
     if(wrapCli) wrapCli.style.display = (selTipo && selTipo.value === 'externo') ? 'block' : 'none';
+    // Asegurar que el select de cliente externo no quede 'required' si el tipo no es externo
+    try {
+      const selCli = document.getElementById('cliente_id');
+      if (selCli) selCli.required = (selTipo && selTipo.value === 'externo');
+    } catch(_) {}
     await prepararSelectClientes();
+    // Reaplicar toggle de cliente externo luego de poblar el select
+    bindClienteExternoToggle(true);
     const selCli = document.getElementById('cliente_id');
     if (selCli && seleccion.cliente_id) selCli.value = String(seleccion.cliente_id);
 
