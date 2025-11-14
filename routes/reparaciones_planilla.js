@@ -267,12 +267,14 @@ router.get("/export", async (req, res) => {
       return s;
     }
 
-    const hdr = ["Fecha","Cliente","ID Reparacion","Nro Coche","Equipo","Tecnico","Hora inicio","Hora fin","Garantia","Ultimo Reparador","Trabajo","Observaciones"];
+    const hdr = ["#","Fecha","Cliente","ID Reparacion","Nro Coche","Equipo","Tecnico","Hora inicio","Hora fin","Garantia","Ultimo Reparador","Trabajo","Observaciones"];
     const lines = [hdr.map(esc).join(sep)];
-    for (const r of result.rows) {
+    for (let i = 0; i < result.rows.length; i++) {
+      const r = result.rows[i];
       const esGarantia = (r.garantia === true || r.garantia === 'si');
       const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : '';
       lines.push([
+        esc(String(i + 1)),
         esc(fmtFechaES(r.fecha)),
         esc(r.cliente || ""),
         esc(r.id_reparacion || ""),
@@ -299,6 +301,7 @@ router.get("/export", async (req, res) => {
       const ws = wb.addWorksheet('Planilla');
 
       ws.columns = [
+        { header: '#', width: 5 },
         { header: 'Fecha', width: 12 },
         { header: 'Cliente', width: 18 },
         { header: 'ID Reparacion', width: 14 },
@@ -324,16 +327,17 @@ router.get("/export", async (req, res) => {
         if (isNaN(hh) || isNaN(mm)) return null; return new Date(1970,0,1, Number(hh), Number(mm));
       };
 
-      for (const r of result.rows) {
+      let i = 0; for (const r of result.rows) {
         const esGarantia = (r.garantia === true || r.garantia === 'si');
         const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : '';
         const row = ws.addRow([
+          ++i,
           toDate(r.fecha), r.cliente || '', r.id_reparacion || '', r.coche_numero || '', r.equipo || '', r.tecnico || '',
           toTime(r.hora_inicio) || '', toTime(r.hora_fin) || '', esGarantia ? 'SI' : 'NO', ultimo, r.trabajo || '', r.observaciones || ''
         ]);
-        row.getCell(1).numFmt = 'dd/mm/yyyy';
-        row.getCell(7).numFmt = 'hh:mm';
+        row.getCell(2).numFmt = 'dd/mm/yyyy';
         row.getCell(8).numFmt = 'hh:mm';
+        row.getCell(9).numFmt = 'hh:mm';
       }
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=planilla-${fecha}.xlsx`);
@@ -356,6 +360,7 @@ router.get("/export", async (req, res) => {
       const styles = `
         <style>
           table { border-collapse: collapse; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; }
+          col.w0 { width: 30pt; text-align:center; } /* # */
           col.w1 { width: 90pt; } /* Fecha */
           col.w2 { width: 140pt; } /* Cliente */
           col.w3 { width: 90pt; } /* ID */
@@ -381,13 +386,14 @@ router.get("/export", async (req, res) => {
 
       const headRow = '<tr>' + hdr.map(h => `<th>${escHtml(h)}</th>`).join('') + '</tr>';
 
-      const bodyRows = result.rows.map(r => {
+      const bodyRows = result.rows.map((r, i) => {
         const df = String(r.fecha).slice(0,10).split('-');
         const dateDisp = (df.length === 3) ? `${df[2]}/${df[1]}/${df[0]}` : escHtml(String(r.fecha).slice(0,10));
         const esGarantia = (r.garantia === true || r.garantia === 'si');
         const garantiaTxt = esGarantia ? 'SI' : 'NO';
         const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : '';
         const tds = [
+          `<td class="center">${i+1}</td>`,
           `<td class="date">${escHtml(dateDisp)}</td>`,
           `<td>${escHtml(r.cliente || '')}</td>`,
           `<td>${escHtml(r.id_reparacion || '')}</td>`,
@@ -415,7 +421,7 @@ router.get("/export", async (req, res) => {
           <div class="small">${escHtml(sub)}</div>
           <table>
             <colgroup>
-              <col class="w1"/><col class="w2"/><col class="w3"/>
+              <col class="w0"/><col class="w1"/><col class="w2"/><col class="w3"/>
               <col class="w4"/><col class="w5"/><col class="w6"/>
               <col class="w7"/><col class="w8"/><col class="w9"/>
               <col class="w10"/><col class="w11"/><col class="w12"/>
