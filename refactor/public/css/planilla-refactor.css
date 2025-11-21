@@ -202,6 +202,139 @@
   padding-bottom: 12px; /* respiro para el botón */
 }
 
+.modal-detalle-fixed {
+  width: min(940px, 95vw);
+  height: 80vh;
+  max-height: 90vh;
+  background: #fff;
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 15px 40px rgba(15, 23, 42, 0.15);
+}
+
+.modal-detalle-fixed .modal-titulo-principal {
+  margin-bottom: 6px;
+}
+
+.modal-detalle-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.modal-detalle-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .modal-detalle-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detalle-card {
+  background: #f9fafb;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detalle-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #14532d;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detalle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+.detalle-grid.garantia {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.detalle-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #fff;
+  border: 1px dashed #d1fae5;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.detalle-card label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #6b7280;
+  letter-spacing: 0.03em;
+}
+
+.detalle-card span {
+  font-size: 0.95rem;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.detalle-card.detalle-textos .detalle-texto {
+  min-height: 90px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  font-size: 0.95rem;
+  color: #1f2937;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.resultado-clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.resultado-clickable:hover td {
+  background: #f0fdf4;
+}
+
+#modal-historial[data-mode="seleccion"] .tabla-erp th,
+#modal-historial[data-mode="seleccion"] .tabla-erp td {
+  text-align: left;
+}
+#modal-historial[data-mode="seleccion"] .tabla-erp td.hist-ver {
+  color: #15803d;
+  font-weight: 600;
+}
+.historial-id-cell .hist-id {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.historial-id-cell .hist-meta {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: #6b7280;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 #modal-reparacion form#form-reparacion .btn-guardar {
   position: static; /* que no flote; queda dentro del flujo */
   bottom: auto;
@@ -245,6 +378,10 @@
 .tabla-erp tbody tr.selected {
   background-color: #e0f2fe !important; /* celeste suave */
   border-left: 4px solid #0ea5e9;
+}
+
+.tabla-garantias tr.multi-selected {
+  background-color: rgba(255, 59, 59, 0.12);
 }
 
 /* === PANEL FLOTANTE === */

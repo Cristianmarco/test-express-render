@@ -1,6 +1,7 @@
 // === Configuracion -> Tablas Generales ===
 (function () {
   let thead, tbody, tabs, modal, form, fieldsWrap, title;
+  let btnAgregar, btnModificar, btnEliminar;
 
   let entidad = 'familias';
   let seleccionado = null; // objeto actual
@@ -88,11 +89,37 @@
         { name: 'ubicacion', label: 'Ubicacion', type: 'text', required: false },
       ],
     },
+    pendientes: {
+      endpoint: '/api/reparaciones_dota',
+      pk: 'id',
+      columns: [
+        { key: 'nro_pedido', label: 'Nro Pedido' },
+        { key: 'pendientes', label: 'Pendientes' },
+      ],
+      form: [
+        { name: 'nro_pedido', label: 'Nro Pedido', type: 'text', required: false, attrs: 'readonly' },
+        { name: 'pendientes', label: 'Pendientes', type: 'number', required: true, attrs: 'min="0" step="1"' },
+      ],
+    },
   };
+
+  function isPendientes() {
+    return entidad === 'pendientes';
+  }
+
+  function updateToolbarState() {
+    if (!btnAgregar || !btnEliminar) return;
+    const hide = isPendientes();
+    btnAgregar.style.display = hide ? 'none' : '';
+    btnEliminar.style.display = hide ? 'none' : '';
+    if (btnAgregar) btnAgregar.disabled = hide;
+    if (btnEliminar) btnEliminar.disabled = hide;
+  }
 
   function renderHead() {
     const cols = entidades[entidad].columns;
     thead.innerHTML = cols.map(c => `<th>${c.label}</th>`).join('');
+    updateToolbarState();
   }
 
   async function cargarLista() {
@@ -122,17 +149,30 @@
   }
 
   function openModal(edit = false) {
+    if (isPendientes() && !edit) {
+      alert('Solo se puede editar el numero pendiente de pedidos existentes.');
+      return;
+    }
     const meta = entidades[entidad];
+    if (form) {
+      form.dataset.mode = edit ? 'edit' : 'create';
+      form.dataset.editId = edit && seleccionado ? seleccionado[meta.pk] : '';
+    }
     title.innerHTML = `<i class="fas fa-database"></i> ${edit ? 'Editar' : 'Nuevo'} ${entidad}`;
     fieldsWrap.innerHTML = meta.form.map(f => {
       const req = f.required ? 'required' : '';
       if (f.type === 'select' || f.type === 'multiselect') {
         const opts = (f.options || []).map(o => `<option value="${o.value}">${o.label}</option>`).join('');
         const multiple = f.type === 'multiselect' ? ' multiple size="6"' : '';
-        return `<div><label>${f.label}${f.required ? ' *' : ''}</label><select name="${f.name}" ${req}${multiple}>${opts}</select></div>`;
+        const extraAttrs = f.attrs ? ` ${f.attrs}` : '';
+        return `<div><label>${f.label}${f.required ? ' *' : ''}</label><select name="${f.name}" ${req}${multiple}${extraAttrs}>${opts}</select></div>`;
       }
-      const typeAttr = f.type ? `type="${f.type}"` : '';
-      return `<div><label>${f.label}${f.required ? ' *' : ''}</label><input name="${f.name}" ${typeAttr} ${req} /></div>`;
+      const typeAttr = f.type && f.type !== 'textarea' ? `type="${f.type}"` : '';
+      const extraAttrs = f.attrs ? ` ${f.attrs}` : '';
+      if (f.type === 'textarea') {
+        return `<div><label>${f.label}${f.required ? ' *' : ''}</label><textarea name="${f.name}" ${req}${extraAttrs}></textarea></div>`;
+      }
+      return `<div><label>${f.label}${f.required ? ' *' : ''}</label><input name="${f.name}" ${typeAttr} ${req}${extraAttrs} /></div>`;
     }).join('');
 
     // Extra para tecnicos: mostrar QR si existe
@@ -161,7 +201,7 @@
     if (edit && seleccionado) {
       meta.form.forEach(f => {
         const input = form.querySelector(`[name='${f.name}']`);
-        if (input) input.value = seleccionado[f.name] || '';
+        if (input) input.value = seleccionado[f.name] ?? '';
       });
     } else {
       form.reset();
@@ -229,9 +269,36 @@
           const vals = Array.from(sel.selectedOptions).map(o => o.value);
           data[f.name] = vals;
         }
+      } else if (f.type === 'number') {
+        const val = data[f.name];
+        if (val === '' || val === undefined) data[f.name] = null;
+        else {
+          const num = Number(val);
+          data[f.name] = Number.isNaN(num) ? null : num;
+        }
       }
     });
-    const isEdit = !!(seleccionado && seleccionado[meta.pk]);
+    if (isPendientes()) {
+      if (!seleccionado) return alert('Selecciona un pedido para ajustar el pendiente.');
+      try {
+        const res = await fetch(`${meta.endpoint}/${encodeURIComponent(seleccionado[meta.pk])}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pendientes: data.pendientes }),
+          credentials: 'include',
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload.error || 'Error al actualizar pendiente');
+        modal.style.display = 'none';
+        await cargarLista();
+      } catch (err) {
+        console.error(err);
+        alert('No se pudo actualizar el pendiente');
+      }
+      return;
+    }
+
+    const isEdit = form.dataset.mode === 'edit' && seleccionado && seleccionado[meta.pk];
     const url = isEdit ? `${meta.endpoint}/${encodeURIComponent(seleccionado[meta.pk])}` : meta.endpoint;
     const method = isEdit ? 'PUT' : 'POST';
     try {
@@ -240,6 +307,8 @@
       if (!res.ok) throw new Error(payload.error || 'Error al guardar');
       modal.style.display = 'none';
       form.reset();
+      form.dataset.mode = 'create';
+      form.dataset.editId = '';
       await cargarLista();
     } catch (err) {
       console.error(err);
@@ -276,12 +345,29 @@
       });
     });
 
-    document.getElementById('btn-conf-agregar').onclick = () => openModal(false);
-    document.getElementById('btn-conf-modificar').onclick = () => {
+    btnAgregar = document.getElementById('btn-conf-agregar');
+    btnModificar = document.getElementById('btn-conf-modificar');
+    btnEliminar = document.getElementById('btn-conf-eliminar');
+
+    btnAgregar.onclick = () => {
+      if (isPendientes()) {
+        alert('Solo se permite editar pendientes cargados.');
+        return;
+      }
+      openModal(false);
+    };
+    btnModificar.onclick = () => {
       if (!seleccionado) return alert('Selecciona un elemento');
       openModal(true);
     };
-    document.getElementById('btn-conf-eliminar').onclick = eliminar;
+    btnEliminar.onclick = () => {
+      if (isPendientes()) {
+        alert('No se pueden eliminar pendientes desde este modulo.');
+        return;
+      }
+      eliminar();
+    };
+    updateToolbarState();
     form.onsubmit = guardar;
   }
 

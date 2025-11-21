@@ -6,6 +6,83 @@ console.log('planilla.js loaded');
 const _repuestosTrack = new Map(); // code -> { id: number, count: number }
 
 let currentDate = new Date();
+let historialTableMode = 'historial';
+
+function setHistorialTableMode(mode) {
+  historialTableMode = mode === 'seleccion' ? 'seleccion' : 'historial';
+  const head = document.getElementById('historial-head-row');
+  if (head) {
+    head.innerHTML = historialTableMode === 'seleccion'
+      ? `<th>ID Reparacion</th><th>Cliente</th><th>Equipo</th><th>Nro Coche</th><th>Accion</th>`
+      : `<th>Fecha</th><th>Trabajo</th><th>Hora Inicio</th><th>Hora Fin</th><th>Tecnico</th><th>Garantia</th>`;
+  }
+  const modal = document.getElementById('modal-historial');
+  if (modal) modal.setAttribute('data-mode', historialTableMode);
+}
+
+function setHistorialInfo(info) {
+  const assign = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = (value == null || value === '') ? '-' : String(value);
+  };
+  if (!info) {
+    assign('historial-id', '-');
+    assign('historial-cliente', '-');
+    assign('historial-equipo', '-');
+    assign('historial-coche', '-');
+    assign('historial-id-dota', '-');
+    assign('historial-ultimo-reparador', '-');
+    assign('historial-resolucion', '-');
+    const extra = document.getElementById('historial-garantia-extra');
+    if (extra) extra.style.display = 'none';
+    return;
+  }
+  assign('historial-id', info.id);
+  assign('historial-cliente', info.cliente);
+  assign('historial-equipo', info.equipo);
+  assign('historial-coche', info.coche);
+  const extra = document.getElementById('historial-garantia-extra');
+  const show = !!(info.id_dota || info.ultimo_reparador || info.resolucion || info.garantia === 'si');
+  if (extra) extra.style.display = show ? 'flex' : 'none';
+  assign('historial-id-dota', info.id_dota);
+  assign('historial-ultimo-reparador', info.ultimo_reparador);
+  assign('historial-resolucion', info.resolucion);
+}
+
+function renderHistorialPlaceholder(message, color = '#666') {
+  const tbody = document.getElementById('tbody-historial');
+  if (!tbody) return;
+  const cols = historialTableMode === 'seleccion' ? 5 : 6;
+  tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align:center; padding:10px; color:${color}">${message}</td></tr>`;
+}
+
+function renderHistorialResultados(list) {
+  const tbody = document.getElementById('tbody-historial');
+  if (!tbody) return;
+  setHistorialTableMode('seleccion');
+  setHistorialInfo(null);
+  const rows = (Array.isArray(list) ? list : []).map(r => {
+    const meta = [];
+    if (r.id_dota) meta.push(`ID DOTA: ${r.id_dota}`);
+    if (r.nro_pedido_ref) meta.push(`Pedido: ${r.nro_pedido_ref}`);
+    const metaHtml = meta.length ? `<div class="hist-meta">${meta.map(t => `<span>${t}</span>`).join('')}</div>` : '';
+    return `
+      <tr class="resultado-clickable historial-select-row" data-id="${r.id_reparacion}">
+        <td class="historial-id-cell">
+          <div class="hist-id">${r.id_reparacion || '-'}</div>
+          ${metaHtml}
+        </td>
+        <td>${r.cliente || '-'}</td>
+        <td>${r.equipo || '-'}</td>
+        <td>${r.coche_numero || '-'}</td>
+        <td class="hist-ver">Ver</td>
+      </tr>`;
+  }).join('');
+  tbody.innerHTML = rows || `<tr><td colspan="5" style="text-align:center; padding:10px; color:#666">Sin resultados.</td></tr>`;
+  tbody.querySelectorAll('tr.resultado-clickable').forEach(tr => {
+    tr.addEventListener('click', () => cargarHistorial(tr.dataset.id));
+  });
+}
 
 // Devuelve un Set de fechas ISO (YYYY-MM-DD) con datos en el rango dado
 async function fetchDiasConDatosIso(y, m0) {
@@ -324,10 +401,14 @@ function bindPlanillaActions() {
       'detalle-equipo': seleccion.equipo,
       'detalle-tecnico': seleccion.tecnico,
       'detalle-garantia': seleccion.garantia,
-      'detalle-observaciones': seleccion.observaciones,
       'detalle-hora-inicio': seleccion.hora_inicio||'-',
       'detalle-hora-fin': seleccion.hora_fin||'-',
-      'detalle-trabajo': seleccion.trabajo||'-'
+      'detalle-trabajo': seleccion.trabajo||'-',
+      'detalle-observaciones': seleccion.observaciones||'-',
+      'detalle-id-dota': seleccion.id_dota||'-',
+      'detalle-ultimo-reparador': seleccion.ultimo_reparador_nombre||seleccion.ultimo_reparador||'-',
+      'detalle-estado': seleccion.resolucion||'-',
+      'detalle-nro-pedido': seleccion.nro_pedido_ref||'-'
     };
     Object.entries(map).forEach(([id,val])=>{ const el=document.getElementById(id); if(el) el.textContent=val; });
     const modal = document.getElementById('modal-detalle'); if (modal) modal.style.display='flex';
@@ -1010,84 +1091,34 @@ function bindHistorialSearch(){
     const q = (newInput.value||'').trim();
     if(!q){ alert('Ingrese texto a buscar'); return; }
     const modal = document.getElementById('modal-historial');
-    const tbody = document.getElementById('tbody-historial');
-    if(tbody) tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Buscando...</td></tr>";
+    setHistorialTableMode('historial');
+    setHistorialInfo(null);
+    renderHistorialPlaceholder("<i class='fas fa-spinner fa-spin'></i> Buscando...");
     if(modal) modal.style.display='flex';
 
     try{
-      // 1) Búsqueda parcial general
+      // 1) Busqueda parcial general
       const rbus = await fetch(`/api/reparaciones_planilla/buscar?q=${encodeURIComponent(q)}`, { credentials:'include' });
       const list = rbus.ok ? await rbus.json() : [];
       if (Array.isArray(list) && list.length === 1) {
         return cargarHistorial(list[0].id_reparacion);
       }
       if (Array.isArray(list) && list.length > 1) {
-        const filas = list.map(r => `
-          <tr class='resultado-clickable' data-id='${r.id_reparacion}'>
-            <td colspan='2'><b>${r.id_reparacion}</b>${r.id_dota ? ` · DOTA ${r.id_dota}` : ''}</td>
-            <td>${r.cliente || '-'}</td>
-            <td>${r.equipo || '-'}</td>
-            <td>${r.coche_numero || '-'}</td>
-            <td>Ver</td>
-          </tr>`).join('');
-        if (tbody) tbody.innerHTML = filas;
-        tbody.querySelectorAll('tr.resultado-clickable').forEach(tr => tr.addEventListener('click', () => cargarHistorial(tr.dataset.id)));
+        renderHistorialResultados(list);
         return;
       }
       // 2) Si no hubo coincidencias, probar por nro de pedido
       const rped = await fetch(`/api/reparaciones_planilla/por_pedido?nro=${encodeURIComponent(q)}`, { credentials:'include' });
       const porPedido = rped.ok ? await rped.json() : [];
       if (Array.isArray(porPedido) && porPedido.length > 0) {
-        const filas = porPedido.map(r => `
-          <tr class='resultado-clickable' data-id='${r.id_reparacion}'>
-            <td colspan='2'><b>${r.id_reparacion}</b>${r.nro_pedido_ref ? ` · Pedido ${r.nro_pedido_ref}` : ''}</td>
-            <td>${r.cliente || '-'}</td>
-            <td>${r.equipo || '-'}</td>
-            <td>${r.coche_numero || '-'}</td>
-            <td>Ver</td>
-          </tr>`).join('');
-        if (tbody) tbody.innerHTML = filas;
-        tbody.querySelectorAll('tr.resultado-clickable').forEach(tr => tr.addEventListener('click', () => cargarHistorial(tr.dataset.id)));
+        renderHistorialResultados(porPedido);
         return;
       }
       // 3) Fallback exacto por compatibilidad
       return cargarHistorial(q);
-      const txt = (v)=> (v==null||v==='')? '-' : String(v);
-      const set = (elId, val)=>{ const el=document.getElementById(elId); if(el){ el.replaceChildren(document.createTextNode(txt(val))); } };
-      set('historial-id', id);
-      set('historial-cliente', first && first.cliente);
-      set('historial-equipo', first && first.equipo);
-      set('historial-coche', first && first.coche_numero);
-
-      const extra = document.getElementById('historial-garantia-extra');
-      if(extra){
-        const show = !!(first && (first.id_dota || first.ultimo_reparador_nombre || first.resolucion || first.garantia==='si'));
-        extra.style.display = show ? 'flex' : 'none';
-        set('historial-id-dota', first && first.id_dota);
-        set('historial-ultimo-reparador', first && first.ultimo_reparador_nombre);
-        set('historial-resolucion', first && first.resolucion);
-      }
-
-      if(!Array.isArray(data) || data.length===0){
-        if(tbody) tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:10px; color:#666'>Sin historial disponible.</td></tr>";
-      } else {
-        const ff = (f)=>{ try{ return new Date(f).toLocaleDateString('es-AR'); }catch{ return txt(f); } };
-        const fh = (h)=>{ if(!h) return '-'; if(typeof h==='string') return h.slice(0,5); try{ return new Date(`1970-01-01T${h}`).toTimeString().slice(0,5); }catch{ return txt(h);} };
-        const rows = data.map(r=>
-          `<tr>
-            <td>${ff(r.fecha)}</td>
-            <td>${txt(r.trabajo)}</td>
-            <td>${fh(r.hora_inicio)}</td>
-            <td>${fh(r.hora_fin)}</td>
-            <td>${txt(r.tecnico)}</td>
-            <td>${r.garantia==='si'?'Si':'No'}</td>
-          </tr>`
-        ).join('');
-        if(tbody) tbody.innerHTML = rows;
-      }
     } catch(err){
       console.error('Error historial (refactor):', err);
-      if(tbody) tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:10px; color:red'>Error al buscar historial.</td></tr>";
+      renderHistorialPlaceholder('Error al buscar historial.', 'red');
     }
   };
 
@@ -1301,24 +1332,23 @@ async function cargarHistorial(id){
   const modal = document.getElementById('modal-historial');
   const tbody = document.getElementById('tbody-historial');
   try{
+    setHistorialTableMode('historial');
+    renderHistorialPlaceholder("<i class='fas fa-spinner fa-spin'></i> Cargando historial...");
     const res = await fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(id)}`, { credentials:'include' });
     const data = await res.json();
     if(!res.ok) throw new Error(data && data.error || 'Error');
 
     const first = Array.isArray(data) && data.length>0 ? data[0] : null;
-    document.getElementById('historial-id')?.replaceChildren(document.createTextNode(id));
-    document.getElementById('historial-cliente')?.replaceChildren(document.createTextNode(first?.cliente || '-'));
-    document.getElementById('historial-equipo')?.replaceChildren(document.createTextNode(first?.equipo || '-'));
-    document.getElementById('historial-coche')?.replaceChildren(document.createTextNode(first?.coche_numero || '-'));
-
-    const extra = document.getElementById('historial-garantia-extra');
-    if (extra) {
-      const showExtra = !!(first && (first.id_dota || first.ultimo_reparador_nombre || first.resolucion || first.garantia === 'si'));
-      extra.style.display = showExtra ? 'flex' : 'none';
-      document.getElementById('historial-id-dota')?.replaceChildren(document.createTextNode(first?.id_dota ?? '-'));
-      document.getElementById('historial-ultimo-reparador')?.replaceChildren(document.createTextNode(first?.ultimo_reparador_nombre || '-'));
-      document.getElementById('historial-resolucion')?.replaceChildren(document.createTextNode(first?.resolucion || '-'));
-    }
+    setHistorialInfo({
+      id,
+      cliente: first?.cliente,
+      equipo: first?.equipo,
+      coche: first?.coche_numero,
+      id_dota: first?.id_dota,
+      ultimo_reparador: first?.ultimo_reparador_nombre,
+      resolucion: first?.resolucion,
+      garantia: first?.garantia,
+    });
 
     const fmt = (v) => (v == null || v === '') ? '-' : v;
     const fmtFecha = (f) => { try { return new Date(f).toLocaleDateString('es-AR'); } catch { return String(f||'-'); } };
@@ -1332,11 +1362,16 @@ async function cargarHistorial(id){
       const gar = r.garantia === 'si' ? 'Si' : 'No';
       return `<tr><td>${fecha}</td><td>${trabajo}</td><td>${hi}</td><td>${hf}</td><td>${tec}</td><td>${gar}</td></tr>`;
     }).join('');
-    if (tbody) tbody.innerHTML = rows || "<tr><td colspan='6' style='text-align:center; padding:10px; color:#666'>Sin historial disponible.</td></tr>";
+    if (rows) {
+      if (tbody) tbody.innerHTML = rows;
+    } else {
+      renderHistorialPlaceholder('Sin historial disponible.');
+    }
     if (modal) modal.style.display='flex';
   } catch(err){
     console.error('Error historial:', err);
-    if (tbody) tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:10px; color:red'>Error al buscar historial.</td></tr>";
+    setHistorialInfo(null);
+    renderHistorialPlaceholder('Error al buscar historial.', 'red');
   }
 }
 

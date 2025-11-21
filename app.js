@@ -84,8 +84,9 @@ function requireLogin(req, res, next) {
 // ============================
 // Middlewares generales
 // ============================
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const BODY_LIMIT = process.env.BODY_LIMIT || '10mb';
+app.use(express.json({ limit: BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static('public'));
 

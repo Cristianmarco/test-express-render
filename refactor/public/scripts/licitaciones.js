@@ -1,8 +1,47 @@
-// Licitaciones (refactor) - ASCII only to avoid encoding issues
+﻿// Licitaciones (refactor) - ASCII only to avoid encoding issues
 
 let licSeleccionada = null; // selected licitacion number
 let licFamilias = []; // cache familias for datalist
 let vigSeleccionada = null; // id seleccionada en R.Vigentes
+let garSeleccionada = null; // item seleccionado en garantias
+const garSeleccionMultiple = new Set(); // ids marcados para eliminación múltiple
+let garSeleccionAnchorIndex = null; // último índice usado para selección por shift
+
+function buildGarantiaFromRow(tr) {
+  if (!tr) return null;
+  return {
+    id: tr.dataset.id,
+    id_cliente: tr.dataset.idcliente || '',
+    ingreso: tr.dataset.ingreso || '',
+    cabecera: tr.dataset.cabecera || '',
+    interno: tr.dataset.interno || '',
+    codigo: tr.dataset.codigo || '',
+    alt: tr.dataset.alt || '',
+    cantidad: tr.dataset.cantidad || '',
+    notificacion: tr.dataset.notificacion || '',
+    notificado_en: tr.dataset.notificado || '',
+    detalle: tr.dataset.detalle || '',
+    recepcion: tr.dataset.recepcion || '',
+    cod_proveedor: tr.dataset.codprov || '',
+    proveedor: tr.dataset.proveedor || '',
+    ref_proveedor: tr.dataset.refprov || '',
+    ref_proveedor_alt: tr.dataset.refprov2 || '',
+    resolucion: tr.dataset.resolucion || ''
+  };
+}
+
+function applyGarantiaSelectionStyles() {
+  const tbody = document.getElementById('tbody-garantias');
+  if (!tbody) return;
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const id = tr.dataset.id;
+    if (!id) return;
+    tr.classList.toggle('multi-selected', garSeleccionMultiple.has(id) && garSeleccionMultiple.size > 1);
+    if (garSeleccionada && garSeleccionada.id === id) tr.classList.add('selected');
+    else tr.classList.remove('selected');
+  });
+}
+let garImportBusy = false;
 
 async function cargarLicitaciones() {
   const tbody = document.getElementById('tbody-licitaciones');
@@ -253,6 +292,7 @@ if (document.querySelector('[data-view="licitaciones"]')) {
     if (e.detail === 'licitaciones') setTimeout(()=>{
       bindLicitacionesView();
       bindLicitacionesPanel();
+      bindGarantiasPanel();
       setupLicitacionesTabs();
       bindLicitacionesDeselect();
       bindVigentesDeselect();
@@ -260,6 +300,7 @@ if (document.querySelector('[data-view="licitaciones"]')) {
   });
   bindLicitacionesView();
   bindLicitacionesPanel();
+  bindGarantiasPanel();
   setupLicitacionesTabs();
   bindLicitacionesDeselect();
   bindVigentesDeselect();
@@ -638,27 +679,39 @@ function setupLicitacionesTabs(){
     const tabsBar = document.getElementById('lic-tabs');
     const tabLicEl = document.getElementById('lic-tab');
     const tabVigEl = document.getElementById('vig-tab');
+    const tabGarEl = document.getElementById('gar-tab');
+    const panelLic = document.getElementById('lic-panel');
+    const panelGar = document.getElementById('gar-panel');
+    const btnVigClear = document.getElementById('btn-vig-clear');
     if (tabsBar && tabLicEl && tabVigEl) {
       host._tabsInit = true;
-      // estado inicial: Licitaciones activa
-      try {
-        const btnLic = tabsBar.querySelector('button[data-tab="lic"]');
-        const btnVig = tabsBar.querySelector('button[data-tab="vig"]');
-        if (btnLic) btnLic.classList.add('tab-active');
-        if (btnVig) btnVig.classList.remove('tab-active');
-      } catch {}
+      const activate = (which) => {
+        tabsBar.querySelectorAll('button[data-tab]').forEach(x=> x.classList.remove('tab-active'));
+        const btn = tabsBar.querySelector(`button[data-tab="${which}"]`);
+        if (btn) btn.classList.add('tab-active');
+        tabLicEl.style.display = which==='lic'? 'block' : 'none';
+        tabVigEl.style.display = which==='vig'? 'block' : 'none';
+        if (tabGarEl) tabGarEl.style.display = which==='gar' ? 'block' : 'none';
+        if (panelLic) panelLic.style.display = which==='gar' ? 'none' : 'flex';
+        if (panelGar) panelGar.style.display = which==='gar' ? 'flex' : 'none';
+        if (btnVigClear) btnVigClear.style.display = which==='vig' ? 'inline-flex' : 'none';
+        if(which==='vig') cargarVigentes();
+        if(which==='gar') cargarGarantias();
+      };
 
       tabsBar.addEventListener('click', (e)=>{
         const b = e.target.closest('button[data-tab]'); if(!b) return;
         const which = b.getAttribute('data-tab');
-        // visual activo
-        tabsBar.querySelectorAll('button[data-tab]').forEach(x=> x.classList.remove('tab-active'));
-        b.classList.add('tab-active');
-        tabLicEl.style.display = which==='lic'? 'block' : 'none';
-        tabVigEl.style.display = which==='vig'? 'block' : 'none';
-        if(which==='vig') cargarVigentes();
+        activate(which);
       });
-      return; // no construir dinámicamente
+      activate('lic');
+      if (btnVigClear && !btnVigClear._bound){
+        btnVigClear._bound = true;
+        btnVigClear.addEventListener('click', ()=>{
+          clearVigenteSelection();
+        });
+      }
+      return; // no construir dinamicamente
     }
     host._tabsInit = true;
     const mainCard = host.querySelector('.erp-main-card'); if(!mainCard) return;
@@ -754,6 +807,11 @@ function isVigenteActiveView(){
   return !!(vt && vt.style.display !== 'none');
 }
 
+function isGarantiaActiveView(){
+  const gt = document.getElementById('gar-tab') || document.getElementById('tab-gar');
+  return !!(gt && gt.style.display !== 'none');
+}
+
 function bindVigentesDeselect(){
   if (document._vigDeselectBound) return;
   document._vigDeselectBound = true;
@@ -784,4 +842,300 @@ function bindVigentesDeselect(){
   }, true);
 }
 
+// -------- Garantias --------
+function formatGarantiaDate(value, opts = {}) {
+  if (!value) return '-';
+  const { dateOnly = false } = opts;
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    const dateStr = d.toLocaleDateString('es-AR');
+    if (dateOnly) return dateStr;
+    return dateStr + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return value;
+  }
+}
+
+async function cargarGarantias() {
+  const tbody = document.getElementById('tbody-garantias');
+  if (!tbody) return;
+  garSeleccionMultiple.clear();
+  garSeleccionAnchorIndex = null;
+  garSeleccionada = null;
+  tbody.innerHTML = "<tr><td colspan='16' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  try {
+    const res = await fetch('/api/licitaciones/garantias', { credentials: 'include' });
+    const data = await res.json();
+    const lista = Array.isArray(data) ? data : [];
+    if (!lista.length) {
+      tbody.innerHTML = "<tr><td colspan='16' style='text-align:center; padding:10px; color:#666'>Sin garantias registradas.</td></tr>";
+      garSeleccionada = null;
+      return;
+    }
+    const rows = lista.map((g, idx) => {
+      const attr = (v) => (v == null ? '' : String(v)).replace(/"/g, '&quot;');
+      const html = (v) => {
+        if (v == null) return '';
+        return String(v)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      };
+      const numero = idx + 1;
+      return `
+        <tr
+          data-id="${attr(g.id)}"
+          data-index="${idx}"
+          data-idcliente="${attr(g.id_cliente || '')}"
+          data-ingreso="${attr(g.ingreso || '')}"
+          data-cabecera="${attr(g.cabecera || '')}"
+          data-interno="${attr(g.interno || '')}"
+          data-codigo="${attr(g.codigo || '')}"
+          data-alt="${attr(g.alt || '')}"
+          data-cantidad="${attr(g.cantidad || '')}"
+          data-notificacion="${attr(g.notificacion || '')}"
+          data-notificado="${attr(g.notificado_en || '')}"
+          data-detalle="${attr(g.detalle || '')}"
+          data-recepcion="${attr(g.recepcion || '')}"
+          data-codprov="${attr(g.cod_proveedor || '')}"
+          data-proveedor="${attr(g.proveedor || '')}"
+          data-refprov="${attr(g.ref_proveedor || '')}"
+          data-refprov2="${attr(g.ref_proveedor_alt || '')}"
+          data-resolucion="${attr(g.resolucion || '')}"
+        >
+          <td>${html(numero)}</td>
+          <td>${html(g.id_cliente || g.id || '')}</td>
+          <td>${html(formatGarantiaDate(g.ingreso, { dateOnly: true }))}</td>
+          <td>${html(g.cabecera || '')}</td>
+          <td>${html(g.interno || '')}</td>
+          <td>${html(g.codigo || '')}</td>
+          <td>${html(g.alt || '')}</td>
+          <td>${html(g.cantidad ?? '')}</td>
+          <td>${html(formatGarantiaDate(g.notificacion, { dateOnly: true }))}</td>
+          <td>${html(g.detalle || '')}</td>
+          <td>${html(g.ref_proveedor || '')}</td>
+        </tr>`;
+    }).join('');
+    tbody.innerHTML = rows;
+    applyGarantiaSelectionStyles();
+    if (!tbody._garBound) {
+      tbody._garBound = true;
+      tbody.addEventListener('click', (e) => {
+        const tr = e.target.closest('tr');
+        if (!tr || !tr.dataset.id) return;
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const currentIndex = rows.indexOf(tr);
+        if (currentIndex === -1) return;
+        if (e.shiftKey && garSeleccionAnchorIndex != null) {
+          garSeleccionMultiple.clear();
+          const start = Math.min(garSeleccionAnchorIndex, currentIndex);
+          const end = Math.max(garSeleccionAnchorIndex, currentIndex);
+          for (let i = start; i <= end; i++) {
+            const row = rows[i];
+            if (row?.dataset.id) garSeleccionMultiple.add(row.dataset.id);
+          }
+          garSeleccionAnchorIndex = currentIndex;
+        } else if (e.ctrlKey || e.metaKey) {
+          if (garSeleccionMultiple.has(tr.dataset.id)) garSeleccionMultiple.delete(tr.dataset.id);
+          else garSeleccionMultiple.add(tr.dataset.id);
+          garSeleccionAnchorIndex = currentIndex;
+        } else {
+          garSeleccionMultiple.clear();
+          garSeleccionMultiple.add(tr.dataset.id);
+          garSeleccionAnchorIndex = currentIndex;
+        }
+        garSeleccionada = buildGarantiaFromRow(tr);
+        if (!garSeleccionMultiple.size) garSeleccionada = null;
+        applyGarantiaSelectionStyles();
+      });
+    } else {
+      applyGarantiaSelectionStyles();
+    }
+  } catch (err) {
+    console.error('garantias load', err);
+    tbody.innerHTML = "<tr><td colspan='16' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+  }
+}
+
+function openGarantiaModal(edit = false) {
+  const modal = document.getElementById('modal-garantia');
+  const form = document.getElementById('form-garantia');
+  if (!modal || !form) return;
+  if (edit && !garSeleccionada) {
+    alert('Seleccione una garantia.');
+    return;
+  }
+  form.reset();
+  form.dataset.mode = edit ? 'edit' : 'create';
+  if (edit && garSeleccionada) {
+    Object.entries(garSeleccionada).forEach(([key, val]) => {
+      const input = form.querySelector(`[name="${key}"]`);
+      if (input) input.value = val ?? '';
+    });
+  }
+  if (!form._bound) {
+    form._bound = true;
+    form.addEventListener('submit', guardarGarantia);
+  }
+  const title = document.getElementById('gar-modal-title');
+  if (title) title.textContent = edit ? 'Editar garantia' : 'Nueva garantia';
+  modal.style.display = 'flex';
+}
+
+async function guardarGarantia(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = Object.fromEntries(new FormData(form).entries());
+  data.cantidad = data.cantidad === '' ? 1 : Number(data.cantidad);
+  if (!Number.isFinite(data.cantidad) || data.cantidad <= 0) data.cantidad = 1;
+  const payload = {
+    id_cliente: data.id_cliente || null,
+    ingreso: data.ingreso || null,
+    cabecera: data.cabecera || null,
+    interno: data.interno || null,
+    codigo: data.codigo || null,
+    alt: data.alt || null,
+    cantidad: data.cantidad,
+    notificacion: data.notificacion || null,
+    notificado_en: data.notificado_en || null,
+    detalle: data.detalle || null,
+    recepcion: data.recepcion || null,
+    cod_proveedor: data.cod_proveedor || null,
+    proveedor: data.proveedor || null,
+    ref_proveedor: data.ref_proveedor || null,
+    ref_proveedor_alt: data.ref_proveedor_alt || null,
+    resolucion: data.resolucion || null
+  };
+  const isEdit = form.dataset.mode === 'edit' && garSeleccionada && garSeleccionada.id;
+  const url = isEdit ? `/api/licitaciones/garantias/${garSeleccionada.id}` : '/api/licitaciones/garantias';
+  const method = isEdit ? 'PUT' : 'POST';
+  try {
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Error al guardar');
+    alert('Garantia guardada');
+    document.getElementById('modal-garantia').style.display = 'none';
+    garSeleccionada = null;
+    cargarGarantias();
+  } catch (err) {
+    console.error('guardar garantia', err);
+    alert('No se pudo guardar la garantia');
+  }
+}
+
+async function eliminarGarantia() {
+  if (garSeleccionMultiple.size > 0) {
+    if (!confirm(`Eliminar ${garSeleccionMultiple.size} garantias seleccionadas?`)) return;
+    try {
+      const ids = Array.from(garSeleccionMultiple);
+      const res = await fetch('/api/licitaciones/garantias/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ids })
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Error al eliminar');
+      alert(`Se eliminaron ${body.deleted || ids.length} garantias`);
+      garSeleccionMultiple.clear();
+      garSeleccionada = null;
+      cargarGarantias();
+    } catch (err) {
+      console.error('eliminar garantias', err);
+      alert('No se pudo eliminar las garantias seleccionadas');
+    }
+    return;
+  }
+  if (!garSeleccionada || !garSeleccionada.id) {
+    alert('Seleccione una garantia.');
+    return;
+  }
+  if (!confirm('Eliminar garantia seleccionada?')) return;
+  try {
+    const res = await fetch(`/api/licitaciones/garantias/${garSeleccionada.id}`, { method: 'DELETE', credentials: 'include' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Error al eliminar');
+    alert('Garantia eliminada');
+    garSeleccionada = null;
+    cargarGarantias();
+  } catch (err) {
+    console.error('eliminar garantia', err);
+    alert('No se pudo eliminar la garantia');
+  }
+}
+
+function bindGarantiasPanel() {
+  const btnAdd = document.getElementById('btn-gar-agregar');
+  const btnEdit = document.getElementById('btn-gar-modificar');
+  const btnDel = document.getElementById('btn-gar-eliminar');
+  const btnImp = document.getElementById('btn-gar-importar');
+  const inputFile = document.getElementById('gar-import-file');
+  if (btnAdd && !btnAdd._bound) { btnAdd._bound = true; btnAdd.addEventListener('click', () => openGarantiaModal(false)); }
+  if (btnEdit && !btnEdit._bound) { btnEdit._bound = true; btnEdit.addEventListener('click', () => openGarantiaModal(true)); }
+  if (btnDel && !btnDel._bound) { btnDel._bound = true; btnDel.addEventListener('click', eliminarGarantia); }
+  if (btnImp && !btnImp._bound) {
+    btnImp._bound = true;
+    btnImp.addEventListener('click', () => {
+      if (garImportBusy) return;
+      if (inputFile) inputFile.click();
+    });
+  }
+  if (inputFile && !inputFile._bound) {
+    inputFile._bound = true;
+    inputFile.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        garImportBusy = true;
+        if (btnImp) btnImp.disabled = true;
+        await importarGarantiasDesdeArchivo(file);
+      } finally {
+        garImportBusy = false;
+        if (btnImp) btnImp.disabled = false;
+        e.target.value = '';
+      }
+    });
+  }
+}
+
+async function importarGarantiasDesdeArchivo(file) {
+  try {
+    const base64 = await leerArchivoComoBase64(file);
+    if (!base64) {
+      alert('No se pudo leer el archivo.');
+      return;
+    }
+    const res = await fetch('/api/licitaciones/garantias/import-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ filename: file.name, content: base64 })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Error al importar');
+    alert(`Importacion completada (${body.inserted || 0} filas).`);
+    cargarGarantias();
+  } catch (err) {
+    console.error('import garantias', err);
+    alert(err.message || 'No se pudo importar el archivo de garantias.');
+  }
+}
+
+function leerArchivoComoBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const result = reader.result || '';
+        const base64 = typeof result === 'string' ? result.split(',').pop() : '';
+        resolve(base64 || '');
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 // IIFE duplicado eliminado - la logica de deseleccion esta ahora centralizada en bindVigentesDeselect

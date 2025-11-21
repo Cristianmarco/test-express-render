@@ -238,30 +238,54 @@
 
 <!-- MODAL DETALLE -->
 <div id="modal-detalle" class="modal-refactor">
-  <div class="modal-contenido modal-erp-producto tabla-chica">
+  <div class="modal-contenido-refactor modal-detalle-fixed">
     <span class="cerrar" onclick="cerrarModalDetalle()">&times;</span>
-    <h2 class="modal-titulo-principal"><i class="fas fa-info-circle"></i> Detalle de Reparacion</h2>
-    <div class="detalle-grid">
-      <p><b>Cliente:</b> <span id="detalle-cliente"></span></p>
-      <p><b>ID Reparacion:</b> <span id="detalle-id-reparacion"></span></p>
-      <p><b>Nro Coche:</b> <span id="detalle-coche"></span></p>
-      <p><b>Equipo:</b> <span id="detalle-equipo"></span></p>
-      <p><b>Tecnico:</b> <span id="detalle-tecnico"></span></p>
-      <p><b>Hora inicio:</b> <span id="detalle-hora-inicio">-</span></p>
-      <p><b>Hora fin:</b> <span id="detalle-hora-fin">-</span></p>
-      <p><b>Trabajo:</b> <span id="detalle-trabajo">-</span></p>
-      <p><b>Garantia:</b> <span id="detalle-garantia"></span></p>
-      <div id="detalle-garantia-extra" style="display:none;">
-        <p><b>ID DOTA:</b> <span id="detalle-id-dota"></span></p>
-        <p><b>Ultimo reparador:</b> <span id="detalle-ultimo-reparador"></span></p>
-        <p><b>Resolucion:</b> <span id="detalle-resolucion"></span></p>
+    <h2 class="modal-titulo-principal">
+      <i class="fas fa-info-circle"></i> Detalle de Reparacion
+    </h2>
+
+    <div class="modal-detalle-scroll">
+      <div class="modal-detalle-layout">
+        <section class="detalle-card">
+        <h3><i class="fas fa-clipboard-list"></i> Datos generales</h3>
+        <div class="detalle-grid">
+          <div><label>Cliente</label><span id="detalle-cliente">-</span></div>
+          <div><label>ID Reparacion</label><span id="detalle-id-reparacion">-</span></div>
+          <div><label>Nro Coche</label><span id="detalle-coche">-</span></div>
+          <div><label>Equipo</label><span id="detalle-equipo">-</span></div>
+          <div><label>Tecnico</label><span id="detalle-tecnico">-</span></div>
+          <div><label>Hora inicio</label><span id="detalle-hora-inicio">-</span></div>
+          <div><label>Hora fin</label><span id="detalle-hora-fin">-</span></div>
+          <div><label>Nro Pedido</label><span id="detalle-nro-pedido">-</span></div>
+        </div>
+        </section>
+
+        <section class="detalle-card detalle-garantia">
+          <h3><i class="fas fa-shield-alt"></i> Garantia y estado</h3>
+          <div class="detalle-grid garantia">
+            <div><label>Garantia</label><span id="detalle-garantia">-</span></div>
+            <div><label>ID DOTA</label><span id="detalle-id-dota">-</span></div>
+            <div><label>Ultimo reparador</label><span id="detalle-ultimo-reparador">-</span></div>
+            <div><label>Estado / Resolucion</label><span id="detalle-estado">-</span></div>
+          </div>
+        </section>
       </div>
+
+      <section class="detalle-card detalle-textos">
+        <h3><i class="fas fa-tools"></i> Trabajo y repuestos</h3>
+        <div id="detalle-trabajo" class="detalle-texto"></div>
+      </section>
+
+      <section class="detalle-card detalle-textos">
+        <h3><i class="fas fa-comment-alt"></i> Observaciones</h3>
+        <div id="detalle-observaciones" class="detalle-texto"></div>
+      </section>
     </div>
   </div>
 </div>
 
 <!-- MODAL HISTORIAL -->
-<div id="modal-historial" class="modal-refactor">
+<div id="modal-historial" class="modal-refactor" data-mode="historial">
   <div class="modal-contenido modal-historial-ancho">
     <span class="cerrar" onclick="cerrarModalHistorial()">&times;</span>
     <h2 class="modal-titulo-principal"><i class="fas fa-history"></i> Historial de Reparaciones</h2>
@@ -282,7 +306,7 @@
     <div class="erp-table-card historial-tabla">
       <table class="tabla-erp">
         <thead>
-          <tr>
+          <tr id="historial-head-row">
             <th>Fecha</th>
             <th>Trabajo</th>
             <th>Hora Inicio</th>

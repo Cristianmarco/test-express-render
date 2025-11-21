@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db');
 
 function normDate(s){ return String(s||'').slice(0,10); }
+const garantiaCase = alias => `LOWER(COALESCE(${alias ? alias + '.' : ''}garantia::text,'')) IN ('si','true','t','1')`;
 
 // GET /api/reportes/planilla/resumen?inicio=YYYY-MM-DD&fin=YYYY-MM-DD
 router.get('/planilla/resumen', async (req, res, next) => {
@@ -12,16 +13,18 @@ router.get('/planilla/resumen', async (req, res, next) => {
   try {
     const params = [inicio, fin];
     const total = await db.query(
-      `SELECT COUNT(*)::int AS total,
-              SUM(CASE WHEN garantia='si' THEN 1 ELSE 0 END)::int AS garantias
-         FROM equipos_reparaciones
-        WHERE DATE(fecha) BETWEEN $1 AND $2`, params);
+      `SELECT
+              SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE 1 END)::int AS total,
+              SUM(CASE WHEN ${garantiaCase('r')} THEN 1 ELSE 0 END)::int AS garantias
+         FROM equipos_reparaciones r
+        WHERE DATE(r.fecha) BETWEEN $1 AND $2`, params);
 
     const porTecnico = await db.query(
       `SELECT COALESCE(t.nombre,'(Sin tecnico)') AS tecnico, COUNT(*)::int AS cantidad
          FROM equipos_reparaciones r
          LEFT JOIN tecnicos t ON t.id = r.tecnico_id
         WHERE DATE(r.fecha) BETWEEN $1 AND $2
+          AND NOT ${garantiaCase('r')}
         GROUP BY tecnico
         ORDER BY cantidad DESC, tecnico ASC
         LIMIT 10`, params);
@@ -31,17 +34,19 @@ router.get('/planilla/resumen', async (req, res, next) => {
          FROM equipos_reparaciones r
          LEFT JOIN familia f ON f.id = r.familia_id
         WHERE DATE(r.fecha) BETWEEN $1 AND $2
+          AND NOT ${garantiaCase('r')}
         GROUP BY equipo
         ORDER BY cantidad DESC, equipo ASC
         LIMIT 10`, params);
 
     const porDia = await db.query(
-      `SELECT DATE(fecha) AS fecha, COUNT(*)::int AS cantidad,
-              SUM(CASE WHEN garantia='si' THEN 1 ELSE 0 END)::int AS garantias
-         FROM equipos_reparaciones
-        WHERE DATE(fecha) BETWEEN $1 AND $2
-        GROUP BY DATE(fecha)
-        ORDER BY DATE(fecha)`, params);
+      `SELECT DATE(r.fecha) AS fecha,
+              SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE 1 END)::int AS cantidad,
+              SUM(CASE WHEN ${garantiaCase('r')} THEN 1 ELSE 0 END)::int AS garantias
+         FROM equipos_reparaciones r
+        WHERE DATE(r.fecha) BETWEEN $1 AND $2
+        GROUP BY DATE(r.fecha)
+        ORDER BY DATE(r.fecha)`, params);
 
     res.json({
       rango: { inicio, fin },

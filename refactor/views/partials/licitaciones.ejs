@@ -6,8 +6,13 @@
       </div>
     </div>
 
-    <!-- Tabs: Licitaciones / R.Vigentes -->
-    <div id="lic-tabs" class="tabs-simple" style="display:flex; gap:8px; margin:6px 0 12px; align-items:center"><button class="btn-secundario" data-tab="lic">Licitaciones</button><button class="btn-secundario" data-tab="vig">R.Vigentes</button><button id="btn-vig-clear" class="btn-secundario" style="margin-left:auto; display:none;">Limpiar selección</button></div>
+    <!-- Tabs: Licitaciones / R.Vigentes / Garantias -->
+    <div id="lic-tabs" class="tabs-simple" style="display:flex; gap:8px; margin:6px 0 12px; align-items:center">
+      <button class="btn-secundario" data-tab="lic">Licitaciones</button>
+      <button class="btn-secundario" data-tab="vig">R.Vigentes</button>
+      <button class="btn-secundario" data-tab="gar">Garantias</button>
+      <button id="btn-vig-clear" class="btn-secundario" style="margin-left:auto; display:none;">Limpiar seleccion</button>
+    </div>
 
     <div id="lic-tab" class="lic-tab-pane" style="display:block;">
     <div class="erp-table-card">
@@ -46,7 +51,30 @@
       </div>
     </div>
 
-    <div class="erp-panel-flotante">
+
+
+    <div id="gar-tab" class="lic-tab-pane" style="display:none;">
+      <div class="erp-table-card">
+        <table class="tabla-erp tabla-erp-inputs tabla-garantias">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>ID Cliente</th>
+              <th>Ingreso</th>
+              <th>Cabecera</th>
+              <th>Interno</th>
+              <th>CÃ³digo</th>
+              <th>Equipo</th>
+              <th>Cantidad</th>
+              <th>Colocado</th>
+              <th>Detalle</th>
+              <th>Fecha proveedor</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-garantias"></tbody>
+        </table>
+      </div>
+    </div>    <div id="lic-panel" class="erp-panel-flotante">
       <button id="btn-lic-agregar" class="icon-button-erp agregar" title="Agregar">
         <i class="fas fa-plus"></i>
       </button>
@@ -56,6 +84,120 @@
       <button id="btn-lic-eliminar" class="icon-button-erp eliminar" title="Eliminar">
         <i class="fas fa-trash"></i>
       </button>
+    </div>
+
+    <div id="gar-panel" class="erp-panel-flotante" style="display:none;">
+      <button id="btn-gar-agregar" class="icon-button-erp agregar" title="Agregar garantia">
+        <i class="fas fa-plus"></i>
+      </button>
+      <button id="btn-gar-modificar" class="icon-button-erp modificar" title="Editar garantia">
+        <i class="fas fa-edit"></i>
+      </button>
+      <button id="btn-gar-eliminar" class="icon-button-erp eliminar" title="Eliminar garantia">
+        <i class="fas fa-trash"></i>
+      </button>
+      <button id="btn-gar-importar" class="icon-button-erp importar" title="Importar desde Excel/CSV">
+        <i class="fas fa-file-import"></i>
+      </button>
+      <input type="file" id="gar-import-file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="display:none;" />
+    </div>
+  </div>
+
+  <!-- Modal Garantia -->
+  <div id="modal-garantia" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:960px;">
+      <span class="cerrar" onclick="(function(){const m=document.getElementById('modal-garantia'); if(m) m.style.display='none';})()">&times;</span>
+      <h2 class="modal-titulo-principal" id="gar-modal-title">
+        <i class="fas fa-shield-alt"></i> Garantia
+      </h2>
+
+      <form id="form-garantia" autocomplete="off">
+        <div class="form-grid doble">
+          <div>
+            <label>ID Cliente</label>
+            <input type="text" name="id_cliente" />
+          </div>
+          <div>
+            <label>Ingreso</label>
+            <input type="datetime-local" name="ingreso" />
+          </div>
+        </div>
+        <div class="form-grid doble">
+          <div>
+            <label>Cabecera</label>
+            <input type="text" name="cabecera" />
+          </div>
+          <div>
+            <label>Interno</label>
+            <input type="text" name="interno" />
+          </div>
+        </div>
+        <div class="form-grid doble">
+          <div>
+            <label>Codigo</label>
+            <input type="text" name="codigo" />
+          </div>
+          <div>
+            <label>Alternativo</label>
+            <input type="text" name="alt" />
+          </div>
+        </div>
+        <div class="form-grid doble">
+          <div>
+            <label>Cantidad</label>
+            <input type="number" name="cantidad" min="1" step="1" value="1" />
+          </div>
+          <div>
+            <label>Notificacion</label>
+            <input type="text" name="notificacion" />
+          </div>
+        </div>
+        <div class="form-grid doble">
+          <div>
+            <label>Fecha notificacion</label>
+            <input type="date" name="notificado_en" />
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Detalle</label>
+            <textarea name="detalle" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="form-grid doble">
+          <div>
+            <label>Recepcion</label>
+            <input type="text" name="recepcion" />
+          </div>
+          <div>
+            <label>Codigo Proveedor</label>
+            <input type="text" name="cod_proveedor" />
+          </div>
+        </div>
+        <div class="form-grid doble">
+          <div>
+            <label>Proveedor</label>
+            <input type="text" name="proveedor" />
+          </div>
+          <div>
+            <label>Ref Proveedor</label>
+            <input type="text" name="ref_proveedor" />
+          </div>
+        </div>
+        <div class="form-grid doble">
+          <div>
+            <label>Ref Proveedor 2</label>
+            <input type="text" name="ref_proveedor_alt" />
+          </div>
+          <div>
+            <label>Resolucion</label>
+            <input type="text" name="resolucion" />
+          </div>
+        </div>
+        <div style="text-align:right; margin-top:16px;">
+          <button type="submit" class="btn-guardar">Guardar</button>
+        </div>
+      </form>
     </div>
   </div>
 
