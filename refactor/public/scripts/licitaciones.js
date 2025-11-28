@@ -287,23 +287,35 @@ function bindLicitacionesView() {
   cargarLicitaciones();
 }
 
-if (document.querySelector('[data-view="licitaciones"]')) {
-  document.addEventListener('view:changed', (e)=>{
-    if (e.detail === 'licitaciones') setTimeout(()=>{
-      bindLicitacionesView();
-      bindLicitacionesPanel();
-      bindGarantiasPanel();
-      setupLicitacionesTabs();
-      bindLicitacionesDeselect();
-      bindVigentesDeselect();
-    }, 50);
-  });
+function resetLicitacionesTabsState() {
+  const host = document.querySelector('[data-view="licitaciones"]');
+  if (host) {
+    host._tabsInit = false;
+    const mainCard = host.querySelector('.erp-main-card');
+    if (mainCard) mainCard._tabsBuilt = false;
+  }
+}
+
+function initLicitacionesView() {
   bindLicitacionesView();
   bindLicitacionesPanel();
   bindGarantiasPanel();
   setupLicitacionesTabs();
   bindLicitacionesDeselect();
   bindVigentesDeselect();
+}
+
+if (document.querySelector('[data-view="licitaciones"]')) {
+  document.addEventListener('view:changed', (e)=>{
+    if (e.detail === 'licitaciones') setTimeout(()=>{
+      resetLicitacionesTabsState();
+      initLicitacionesView();
+    }, 50);
+  });
+  setTimeout(() => {
+    resetLicitacionesTabsState();
+    initLicitacionesView();
+  }, 0);
 }
 
 // ---------- Panel y ABM ----------

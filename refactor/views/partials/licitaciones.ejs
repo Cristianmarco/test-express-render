@@ -105,7 +105,7 @@
 
   <!-- Modal Garantia -->
   <div id="modal-garantia" class="modal-refactor" style="display:none;">
-    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:960px;">
+    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:960px; max-height:85vh; overflow-y:auto;">
       <span class="cerrar" onclick="(function(){const m=document.getElementById('modal-garantia'); if(m) m.style.display='none';})()">&times;</span>
       <h2 class="modal-titulo-principal" id="gar-modal-title">
         <i class="fas fa-shield-alt"></i> Garantia
@@ -134,12 +134,12 @@
         </div>
         <div class="form-grid doble">
           <div>
-            <label>Codigo</label>
+            <label>Código</label>
             <input type="text" name="codigo" />
           </div>
           <div>
-            <label>Alternativo</label>
-            <input type="text" name="alt" />
+            <label>Equipo</label>
+            <input type="text" name="alt" placeholder="Descripción / Art" />
           </div>
         </div>
         <div class="form-grid doble">
@@ -148,14 +148,8 @@
             <input type="number" name="cantidad" min="1" step="1" value="1" />
           </div>
           <div>
-            <label>Notificacion</label>
-            <input type="text" name="notificacion" />
-          </div>
-        </div>
-        <div class="form-grid doble">
-          <div>
-            <label>Fecha notificacion</label>
-            <input type="date" name="notificado_en" />
+            <label>Colocado</label>
+            <input type="date" name="notificacion" />
           </div>
         </div>
         <div class="form-grid">
@@ -164,34 +158,10 @@
             <textarea name="detalle" rows="2"></textarea>
           </div>
         </div>
-        <div class="form-grid doble">
+        <div class="form-grid">
           <div>
-            <label>Recepcion</label>
-            <input type="text" name="recepcion" />
-          </div>
-          <div>
-            <label>Codigo Proveedor</label>
-            <input type="text" name="cod_proveedor" />
-          </div>
-        </div>
-        <div class="form-grid doble">
-          <div>
-            <label>Proveedor</label>
-            <input type="text" name="proveedor" />
-          </div>
-          <div>
-            <label>Ref Proveedor</label>
-            <input type="text" name="ref_proveedor" />
-          </div>
-        </div>
-        <div class="form-grid doble">
-          <div>
-            <label>Ref Proveedor 2</label>
-            <input type="text" name="ref_proveedor_alt" />
-          </div>
-          <div>
-            <label>Resolucion</label>
-            <input type="text" name="resolucion" />
+            <label>Fecha proveedor</label>
+            <input type="date" name="ref_proveedor" />
           </div>
         </div>
         <div style="text-align:right; margin-top:16px;">

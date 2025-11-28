@@ -25,10 +25,15 @@ router.get('/resumen', async (req, res, next) => {
     );
     const dotaVigentes = Number(qDota.rows?.[0]?.vigentes || 0);
 
+    const qGarantiasDota = await db.query(
+      `SELECT COUNT(*) AS total FROM licitacion_garantias`
+    );
+    const garantiasDota = Number(qGarantiasDota.rows?.[0]?.total || 0);
+
     const respuesta = {
       externos: { vigentes: 0, garantias: 0, vencidos: 0 },
-      dota: { vigentes: dotaVigentes, garantias: 0, vencidos: 0 },
-      totales: { vigentes: dotaVigentes, garantias: 0, vencidos: 0 }
+      dota: { vigentes: dotaVigentes, garantias: garantiasDota, vencidos: 0 },
+      totales: { vigentes: dotaVigentes, garantias: garantiasDota, vencidos: 0 }
     };
 
     res.json(respuesta);

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Informe de garantia</title>
+  <style>
+    html, body {
+      font-family: "Times New Roman", serif;
+      margin: 0;
+      padding: 15px;
+      color: #111;
+      background: #fff;
+    }
+    .sheet { max-width: 520px; margin: 0 auto; text-align: left; line-height: 1.65; }
+    header { margin-bottom: 16px; text-align:center; }
+    header img { height: 60px; display:inline-block; }
+    .report-title {
+      font-size: 18px;
+      margin: 0;
+      text-transform: uppercase;
+      text-align: center;
+    }
+    .report-date {
+      text-align:center;
+      font-size: 12px;
+      margin-bottom: 20px;
+    }
+    .meta { font-size: 15px; margin-bottom: 24px; line-height: 1.5; }
+    .meta-line { margin-bottom: 6px; }
+    .detalle p { margin: 0 0 14px; font-size: 14px; text-transform: uppercase; text-align:left; white-space: pre-line; }
+    .detalle p + p { margin-top: 8px; }
+    .firma { margin-top: 36px; font-size: 15px; }
+    .firma-linea { margin-top: 28px; border-top: 1px solid #000; width: 220px; }
+    @media print {
+      @page { margin: 0; }
+      body { padding: 12mm; }
+      .sheet { max-width: 500px; }
+      .print-hide { display: none !important; }
+    }
+  </style>
+  <script>
+    function imprimir(){
+      window.print();
+      return false;
+    }
+  </script>
+</head>
+<body>
+  <div style="display:flex; justify-content:flex-end; margin-bottom:12px;" class="print-hide">
+    <button onclick="imprimir()" style="padding:6px 12px; font-size:14px; cursor:pointer;">Imprimir</button>
+  </div>
+  <div class="sheet">
+    <header style="text-align:center;">
+      <img src="/static/images/logo.png" alt="Amorim" />
+    </header>
+    <div class="report-title">Informe de garantía</div>
+    <div class="report-date"><small><%= reporte.fecha %></small></div>
+
+    <div class="meta">
+      <% if (reporte.equipoCodigo || reporte.coche || reporte.idReparacion) { %>
+        <div class="meta-line">
+          <span><strong><%= reporte.equipoCodigo || '-' %></strong></span>
+          <% if (reporte.coche) { %> &ndash; <span>Coche: <%= reporte.coche %></span><% } %>
+          <% if (reporte.idReparacion) { %> &ndash; <span>ID: <%= reporte.idReparacion %></span><% } %>
+        </div>
+      <% } %>
+      <div class="meta-line">ID (DOTA): <strong><%= reporte.idDota || '-' %></strong></div>
+    </div>
+
+    <div class="detalle">
+      <% if (reporte.parrafos && reporte.parrafos.length) { %>
+        <% reporte.parrafos.forEach(function(p) { %>
+          <p><%= (p || '').toString().trim().toUpperCase() %></p>
+        <% }) %>
+      <% } else { %>
+        <p>SE REGISTRA GARANTIA SIN OBSERVACIONES ESPECIFICAS.</p>
+      <% } %>
+    </div>
+
+    <div class="firma">
+      Firma:
+      <div class="firma-linea"></div>
+    </div>
+  </div>
+</body>
+</html>
+
+
+

@@ -28,6 +28,9 @@
       <button id="btn-agregar-rep" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
       <button id="btn-modificar-rep" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
       <button id="btn-eliminar-rep" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+      <button id="btn-reporte-garantia" class="icon-button-erp visualizar" title="Informe de garantía">
+        <i class="fas fa-file-alt"></i>
+      </button>
       <div class="panel-spacer"></div>
       <button id="btn-exportar-planilla" class="icon-button-erp exportar-min" title="Exportar planilla diaria">
         <i class="fas fa-file-excel"></i>
@@ -159,6 +162,25 @@
               <option value="aceptada">Aceptada</option>
               <option value="rechazada">Rechazada (Facturada)</option>
               <option value="funciona_ok">Funciona OK (Devolucion)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid doble">
+          <div>
+            <label for="garantia_prueba_banco">Prueba en banco</label>
+            <textarea name="garantia_prueba_banco" id="garantia_prueba_banco" rows="2" placeholder="Resultados de banco de pruebas"></textarea>
+          </div>
+          <div>
+            <label for="garantia_desarme">Desarme / falla</label>
+            <textarea name="garantia_desarme" id="garantia_desarme" rows="2" placeholder="Observaciones del desarme"></textarea>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label for="garantia_template">Plantilla rápida</label>
+            <select id="garantia_template">
+              <option value="">Sin plantilla</option>
+              <option value="funciona_ok">Funciona OK</option>
             </select>
           </div>
         </div>

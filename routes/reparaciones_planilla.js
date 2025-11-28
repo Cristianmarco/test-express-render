@@ -6,6 +6,39 @@ const router = express.Router();
 const pool = require('../db');
 let ExcelJS; // lazy require to avoid local dev errors if not installed
 
+const GARANTIA_ARCHIVE_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS licitacion_garantias_archive (
+    id SERIAL PRIMARY KEY,
+    reparacion_id INTEGER NOT NULL,
+    garantia_original_id INTEGER,
+    id_cliente TEXT,
+    ingreso TIMESTAMP NULL,
+    cabecera TEXT,
+    interno TEXT,
+    codigo TEXT,
+    alt TEXT,
+    cantidad INTEGER,
+    notificacion TEXT,
+    notificado_en DATE,
+    detalle TEXT,
+    recepcion TEXT,
+    cod_proveedor TEXT,
+    proveedor TEXT,
+    ref_proveedor TEXT,
+    ref_proveedor_alt TEXT,
+    resolucion TEXT,
+    archived_at TIMESTAMP DEFAULT NOW()
+  );
+`;
+
+async function ensureGarantiasArchiveTable(dbClient) {
+  await dbClient.query(GARANTIA_ARCHIVE_TABLE_SQL);
+}
+
+async function ensurePlanillaGarantiaColumns(dbClient) {
+  await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_prueba_banco TEXT");
+  await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_desarme TEXT");
+}
 
 // ============================
 // GET historial por ID de reparación
@@ -14,6 +47,7 @@ router.get("/historial/:id_reparacion", async (req, res) => {
   const { id_reparacion } = req.params;
 
   try {
+    await ensurePlanillaGarantiaColumns(pool);
     const query = `
       SELECT 
         r.id,
@@ -29,6 +63,8 @@ router.get("/historial/:id_reparacion", async (req, res) => {
         r.ultimo_reparador,
         ur.nombre AS ultimo_reparador_nombre,
         r.resolucion,
+        r.garantia_prueba_banco,
+        r.garantia_desarme,
         f.descripcion AS equipo,
         t.nombre AS tecnico,
         COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
@@ -139,6 +175,7 @@ router.get("/por_pedido", async (req, res) => {
 // ============================
 router.get("/rango", async (req, res) => {
   try {
+    await ensurePlanillaGarantiaColumns(pool);
     const { inicio, fin } = req.query;
 
     if (!inicio || !fin) {
@@ -192,7 +229,9 @@ router.get("/", async (req, res) => {
         r.ultimo_reparador,
         ur.nombre AS ultimo_reparador_nombre,
         r.resolucion,
-        r.nro_pedido_ref
+        r.nro_pedido_ref,
+        r.garantia_prueba_banco,
+        r.garantia_desarme
       FROM equipos_reparaciones r
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
@@ -454,6 +493,7 @@ router.get("/export", async (req, res) => {
 router.post("/", async (req, res) => {
   const client = await pool.connect();
   try {
+    await ensurePlanillaGarantiaColumns(client);
     let {
       id_reparacion,
       cliente_id,
@@ -466,7 +506,9 @@ router.post("/", async (req, res) => {
       id_dota,
       ultimo_reparador,
       resolucion,
-      nro_pedido_ref
+      nro_pedido_ref,
+      garantia_prueba_banco,
+      garantia_desarme
     } = req.body;
 
     id_reparacion = id_reparacion || null;
@@ -486,8 +528,8 @@ router.post("/", async (req, res) => {
       `
       INSERT INTO equipos_reparaciones
         (id_reparacion, cliente_id, cliente_tipo, tecnico_id, trabajo, observaciones, fecha, garantia,
-         id_dota, ultimo_reparador, resolucion, coche_numero, familia_id, hora_inicio, hora_fin, nro_pedido_ref)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         id_dota, ultimo_reparador, resolucion, coche_numero, familia_id, hora_inicio, hora_fin, nro_pedido_ref, garantia_prueba_banco, garantia_desarme)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
       RETURNING id;
     `,
       [
@@ -506,11 +548,58 @@ router.post("/", async (req, res) => {
         req.body.familia_id || null,
         req.body.hora_inicio || null,
         req.body.hora_fin || null,
-        nro_pedido_ref || null
+        nro_pedido_ref || null,
+        garantia_prueba_banco || null,
+        garantia_desarme || null
       ]
     );
 
     const reparacionId = result.rows[0].id;
+
+    // Si esta reparación tiene ID DOTA, eliminar la garantía correspondiente (id_cliente)
+    if (id_dota != null && id_dota !== '') {
+      const idCliente = String(id_dota).trim();
+      if (idCliente) {
+        try {
+          await ensureGarantiasArchiveTable(client);
+          const deleted = await client.query(
+            `DELETE FROM licitacion_garantias WHERE btrim(id_cliente) = $1 RETURNING *`,
+            [idCliente]
+          );
+          if (deleted.rowCount) {
+            const insertArchive = `
+              INSERT INTO licitacion_garantias_archive
+                (reparacion_id, garantia_original_id, id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
+              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+            `;
+            for (const row of deleted.rows) {
+              await client.query(insertArchive, [
+                reparacionId,
+                row.id,
+                row.id_cliente,
+                row.ingreso,
+                row.cabecera,
+                row.interno,
+                row.codigo,
+                row.alt,
+                row.cantidad,
+                row.notificacion,
+                row.notificado_en,
+                row.detalle,
+                row.recepcion,
+                row.cod_proveedor,
+                row.proveedor,
+                row.ref_proveedor,
+                row.ref_proveedor_alt,
+                row.resolucion
+              ]);
+            }
+          }
+        } catch (garErr) {
+          if (garErr.code !== '42P01') throw garErr; // ignora si la tabla no existe
+        }
+      }
+    }
 
     // 🔍 Detectar productos usados
     const productosUsados = [];
@@ -588,6 +677,7 @@ router.post("/", async (req, res) => {
 // ============================
 router.put("/:id", async (req, res) => {
   try {
+    await ensurePlanillaGarantiaColumns(pool);
     const {
       cliente_tipo,
       cliente_id,
@@ -613,8 +703,8 @@ router.put("/:id", async (req, res) => {
        SET cliente_tipo=$1, cliente_id=$2, id_reparacion=$3, coche_numero=$4,
            familia_id=$5, tecnico_id=$6, hora_inicio=$7, hora_fin=$8, trabajo=$9,
            garantia=$10, observaciones=$11, id_dota=$12, ultimo_reparador=$13, resolucion=$14,
-           nro_pedido_ref=$15
-       WHERE id=$16
+           nro_pedido_ref=$15, garantia_prueba_banco=$16, garantia_desarme=$17
+       WHERE id=$18
        RETURNING *`,
       [
         cliente_tipo,
@@ -632,6 +722,8 @@ router.put("/:id", async (req, res) => {
         ultimo_reparador || null,
         resolucion || null,
         nro_pedido_ref || null,
+        req.body.garantia_prueba_banco || null,
+        req.body.garantia_desarme || null,
         req.params.id
       ]
     );
@@ -662,6 +754,7 @@ router.delete("/:id", async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Reparación no encontrada" });
     }
+    const deletedRow = result.rows[0];
 
     try {
       const nroRef = (req.query && (req.query.nro_pedido_ref || req.query.nro_pedido)) || null;
@@ -681,6 +774,57 @@ router.delete("/:id", async (req, res) => {
         `, [nroRef]);
       }
     } catch (_) {}
+
+    try {
+      await ensureGarantiasArchiveTable(pool);
+      let archived = await pool.query(
+        `SELECT * FROM licitacion_garantias_archive WHERE reparacion_id=$1`,
+        [deletedRow.id]
+      );
+      if (!archived.rowCount && deletedRow.id_dota) {
+        archived = await pool.query(
+          `SELECT * FROM licitacion_garantias_archive WHERE btrim(id_cliente)=btrim($1) ORDER BY archived_at DESC`,
+          [String(deletedRow.id_dota).trim()]
+        );
+      }
+      if (archived.rowCount) {
+        const insertGarantia = `
+          INSERT INTO licitacion_garantias
+            (id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        `;
+        for (const row of archived.rows) {
+          await pool.query(insertGarantia, [
+            row.id_cliente,
+            row.ingreso,
+            row.cabecera,
+            row.interno,
+            row.codigo,
+            row.alt,
+            row.cantidad,
+            row.notificacion,
+            row.notificado_en,
+            row.detalle,
+            row.recepcion,
+            row.cod_proveedor,
+            row.proveedor,
+            row.ref_proveedor,
+            row.ref_proveedor_alt,
+            row.resolucion
+          ]);
+        }
+        await pool.query('DELETE FROM licitacion_garantias_archive WHERE reparacion_id=$1', [deletedRow.id]);
+      } else if (deletedRow.id_dota) {
+        await pool.query(
+          `INSERT INTO licitacion_garantias (id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
+           VALUES ($1, NULL, NULL, NULL, NULL, NULL, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)`,
+          [String(deletedRow.id_dota).trim()]
+        );
+      }
+    } catch (archiveErr) {
+      console.error("Error restaurando garantia tras eliminar reparación:", archiveErr);
+    }
+
 
     res.json({ success: true });
   } catch (err) {
