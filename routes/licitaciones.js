@@ -269,7 +269,8 @@ router.get('/garantias', async (req, res, next) => {
     const { rows } = await db.query(
       `SELECT * FROM licitacion_garantias
        ORDER BY
-         COALESCE(NULLIF(regexp_replace(id_cliente, '[^0-9]', '', 'g'), ''),'0')::bigint,
+         LENGTH(COALESCE(NULLIF(regexp_replace(id_cliente, '[^0-9]', '', 'g'), ''),'0')),
+         COALESCE(NULLIF(regexp_replace(id_cliente, '[^0-9]', '', 'g'), ''),'0'),
          id`
     );
     res.json(rows);

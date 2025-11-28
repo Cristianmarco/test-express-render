@@ -4,6 +4,78 @@
 console.log('planilla.js loaded');
 // Track scanned items to auto-revert stock when removed from textarea
 const _repuestosTrack = new Map(); // code -> { id: number, count: number }
+const GARANTIA_TEMPLATES = {
+  funciona_ok: {
+    label: 'Funciona OK',
+    banco: 'EN EL BANCO DE PRUEBA FUNCIONA OK (CARGA 28V - BUENA RECUPERACION AL CONSUMO).\nSE DEJA PROBANDO HASTA CALENTAR, SIN EVIDENCIA DE FALLA NI RUIDOS INTERNOS.',
+    desarme: 'EN EL DESARME NO SE OBSERVA FALLA DE SUS COMPONENTES.\n\nSE ARMA Y ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  rulemanes: {
+    label: 'Rulemanes',
+    banco: 'EN EL BANCO DE PRUEBA NO CARGA Y RUIDOSO.',
+    desarme: 'EN EL DESARME SE OBSERVA RULEMANES RUIDOSOS, FALLA PRODUCIDA POR EXCESO DE TENSION EN LAS CORREAS.\n\nSE CAMBIA RULEMAN (62306 y NU202).\nSE HACE LA FACTURA CORRESPONDIENTE.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  centrifugado: {
+    label: 'Centrifugado',
+    banco: 'EN EL BANCO DE PRUEBA NO FUNCIONA.',
+    desarme: 'EN EL DESARME SE OBSERVA BOBINA CENTRIFUGADA, CAMPO QUEMADO, IMPULSOR FLOJO Y PORTAESCOBILLA DAÑADO, TODOS LOS COMPONENTES CON SIGNOS DE RECALENTAMIENTO. ARRANQUE QUEMADO POR EXCESO DE CONSUMO.\n\nSE CAMBIA BOBINA, CAMPO, IMPULSOR Y PORTAESCOBILLA.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.\nSE HACE FACTURA CORRESPONDIENTE.'
+  },
+  impulsor: {
+    label: 'Impulsor',
+    banco: 'EN EL BANCO DE PRUEBA FUNCIONA, PERO PATINA IMPULSOR.',
+    desarme: 'EN EL DESARME SE OBSERVA FALLA DEL IMPULSOR.\n\nSE CAMBIA IMPULSOR.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  solenoide: {
+    label: 'Solenoide',
+    banco: 'EN EL BANCO DE PRUEBA NO FUNCIONA (EN CORTO).',
+    desarme: 'EN EL DESARME SE OBSERVA FALLA DE SOLENOIDE.\n\nSE CAMBIA SOLENOIDE.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  rotor: {
+    label: 'Rotor',
+    banco: 'EN EL BANCO DE PRUEBA NO CARGA.',
+    desarme: 'EN EL DESARME SE OBSERVA FALLA DE ROTOR (CORTADO).\n\nSE CAMBIA ROTOR Y RULEMANES.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  regulador: {
+    label: 'Regulador',
+    banco: 'EN EL BANCO DE PRUEBA NO FUNCIONA (EN CORTO).',
+    desarme: 'EN EL DESARME SE OBSERVA FALLA DE REGULADOR (EN CORTO).\n\nSE CAMBIA REGULADOR.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  estator: {
+    label: 'Estator',
+    banco: 'EN EL BANCO DE PRUEBA NO CARGA (RUIDO MAGNETICO).',
+    desarme: 'EN EL DESARME SE OBSERVA FALLA DE ESTATOR (EN CORTO).\n\nSE CAMBIA ESTATOR.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  bobina: {
+    label: 'Bobina',
+    banco: 'EN EL BANCO DE PRUEBA NO FUNCIONA (EN CORTO).',
+    desarme: 'EN EL DESARME SE OBSERVA FALLA DE BOBINA (EN CORTO).\n\nSE CAMBIA BOBINA Y SOLENOIDE.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  arranque_ok: {
+    label: 'Funciona OK Arranques',
+    banco: 'EN EL BANCO DE PRUEBA FUNCIONA OK, CON VELOCIDAD Y FUERZA DENTRO DE PARAMETROS NORMALES.',
+    desarme: 'EN EL DESARME NO SE OBSERVA FALLA DE SUS COMPONENTES.\n\nSE PRUEBA EL IMPULSOR (MANUAL Y CON FRENO) SIN EVIDENCIA DE FALLA.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  tapa_trasera_arr: {
+    label: 'Tapa Trasera Arr',
+    banco: 'EN EL BANCO DE PRUEBA GIRA PESADO.',
+    desarme: 'EN EL DESARME SE OBSERVA TAPA TRASERA ROTA.\n\nSE CAMBIA TAPA TRASERA Y RULEMAN 6200.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  pinon: {
+    label: 'Piñon',
+    banco: 'EN EL BANCO DE PRUEBA FUNCIONA OK, PERO PIÑON CON DIENTE PARTIDO.',
+    desarme: 'EN EL DESARME SE OBSERVA PIÑON ORIGINAL PARTIDO POR GOLPE (PROBABLEMENTE CON LA CORONA).\n\nSE CAMBIA PIÑON Y SEGURO, Y SE FACTURA.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  portacarbon: {
+    label: 'Portacarbon',
+    banco: 'EN EL BANCO DE PRUEBA NO FUNCIONA (EN CORTO).',
+    desarme: 'EN EL DESARME SE OBSERVA CARBONES DEL PORTAESCOBILLA CON CARBONES DESOLDADOS.\n\nSE CAMBIA PORTAESCOBILLA.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  plaqueta: {
+    label: 'Plaqueta',
+    banco: 'EN EL BANCO DE PRUEBA CARGA BAJO (26V).',
+    desarme: 'EN EL DESARME SE OBSERVA FALLA EN LA PLAQUETA RECTIFICADORA (DIODO QUEMADO).\n\nSE CAMBIA PLAQUETA RECTIFICADORA.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  }
+};
 
 let currentDate = new Date();
 let historialTableMode = 'historial';
@@ -219,6 +291,8 @@ async function abrirModalPlanilla(fechaTxt) {
         <td style="display:none" class="col-ultimo-reparador-nombre">${rep.ultimo_reparador_nombre||''}</td>
         <td style="display:none" class="col-ultimo-reparador-id">${rep.ultimo_reparador||''}</td>
         <td style="display:none" class="col-resolucion">${rep.resolucion||''}</td>
+        <td style="display:none" class="col-gar-prueba">${rep.garantia_prueba_banco||''}</td>
+        <td style="display:none" class="col-gar-desarme">${rep.garantia_desarme||''}</td>
         <td style="display:none" class="col-familia-id">${rep.familia_id||''}</td>
         <td style="display:none" class="col-tecnico-id">${rep.tecnico_id||''}</td>
         <td style="display:none" class="col-cliente-id">${rep.cliente_id||''}</td>
@@ -358,6 +432,7 @@ function bindPlanillaActions() {
   const btnAgregar = document.getElementById('btn-agregar-rep');
   const btnEditar = document.getElementById('btn-modificar-rep');
   const btnEliminar = document.getElementById('btn-eliminar-rep');
+  const btnReporte = document.getElementById('btn-reporte-garantia');
   if (!tbody) return;
 
   let seleccion = null;
@@ -388,7 +463,9 @@ function bindPlanillaActions() {
       id_dota: fila.querySelector('.col-id-dota')?.textContent.trim()||'',
       ultimo_reparador_nombre: fila.querySelector('.col-ultimo-reparador-nombre')?.textContent.trim()||'',
       ultimo_reparador: fila.querySelector('.col-ultimo-reparador-id')?.textContent.trim()||'',
-      resolucion: fila.querySelector('.col-resolucion')?.textContent.trim()||''
+      resolucion: fila.querySelector('.col-resolucion')?.textContent.trim()||'',
+      garantia_prueba_banco: fila.querySelector('.col-gar-prueba')?.textContent.trim()||'',
+      garantia_desarme: fila.querySelector('.col-gar-desarme')?.textContent.trim()||''
     };
   };
 
@@ -442,10 +519,20 @@ function bindPlanillaActions() {
       try{ _repuestosTrack.clear(); }catch(_){ }
       const selGar = document.getElementById('garantia'); if (selGar) selGar.value = 'no';
       const extra = document.getElementById('garantia-extra-fields'); if (extra) extra.style.display = 'none';
+      const tpl = document.getElementById('garantia_template'); if (tpl) tpl.value = '';
     }
     prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
     bindClienteExternoToggle(true);
     bindGarantiaToggle(true);
+  };
+
+  if (btnReporte) btnReporte.onclick = () => {
+    if (!seleccion) { alert('Selecciona una reparacion.'); return; }
+    if (String(seleccion.garantia || '').toLowerCase() !== 'si') {
+      alert('Solo disponible para reparaciones en garantia.');
+      return;
+    }
+    window.open(`/api/garantias/report/${encodeURIComponent(seleccion.id)}`, '_blank');
   };
 
   if (btnEditar) btnEditar.onclick = async () => {
@@ -459,6 +546,7 @@ function bindPlanillaActions() {
     setVal("input[name='hora_inicio']", seleccion.hora_inicio);
     setVal("input[name='hora_fin']", seleccion.hora_fin);
     setVal("textarea[name='trabajo']", seleccion.trabajo);
+    const tplSel = document.getElementById('garantia_template'); if (tplSel) tplSel.value = '';
     // Cliente tipo/id
     const selTipo = document.getElementById('cliente_tipo');
     if(selTipo){ selTipo.value = (seleccion.cliente_tipo || '').toLowerCase() || 'dota'; }
@@ -480,6 +568,8 @@ function bindPlanillaActions() {
     if(selGar){ selGar.value = (String(seleccion.garantia||'no').toLowerCase().startsWith('s') ? 'si' : 'no'); }
     bindGarantiaToggle(true);
     setVal("input[name='id_dota']", seleccion.id_dota);
+    setVal("textarea[name='garantia_prueba_banco']", seleccion.garantia_prueba_banco);
+    setVal("textarea[name='garantia_desarme']", seleccion.garantia_desarme);
     await prepararSelectTecnicos();
     const tec=document.getElementById('tecnico_id'); if(tec && seleccion.tecnico_id) tec.value=String(seleccion.tecnico_id);
     const ult=document.getElementById('ultimo_reparador'); if(ult && seleccion.ultimo_reparador) ult.value=String(seleccion.ultimo_reparador);
@@ -657,6 +747,69 @@ function toggleGarantiaExtra(){
   const extra = document.getElementById('garantia-extra-fields');
   if(!sel || !extra) return;
   extra.style.display = (sel.value === 'si') ? 'block' : 'none';
+  if (sel.value === 'si') {
+    refreshGarantiaTemplateOptions();
+    bindGarantiaTemplateControl();
+  } else {
+    const tpl = document.getElementById('garantia_template');
+    if (tpl) tpl.value = '';
+  }
+}
+
+function getGarantiaTemplateContext(){
+  const form = document.getElementById('form-reparacion');
+  const getVal = (selector) => form?.querySelector(selector)?.value?.trim() || '';
+  const familia = form?.querySelector('#familia_id');
+  const familiaTxt = familia && familia.options[familia.selectedIndex]?.textContent?.trim();
+  return {
+    EQUIPO: familiaTxt || '',
+    COCHE: getVal("input[name='coche_numero']"),
+    ID_REPARACION: getVal("input[name='id_reparacion']"),
+    ID_DOTA: getVal("#id_dota")
+  };
+}
+
+function formatGarantiaTemplate(text, ctx){
+  return (text || '').replace(/\{\{(\w+)\}\}/g, (_, key) => ctx[key.toUpperCase()] || '');
+}
+
+function refreshGarantiaTemplateOptions(){
+  const select = document.getElementById('garantia_template');
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = '<option value=\"\">Sin plantilla</option>';
+  Object.entries(GARANTIA_TEMPLATES).forEach(([key, tpl]) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = tpl.label || key;
+    select.appendChild(opt);
+  });
+  if (current && GARANTIA_TEMPLATES[current]) select.value = current;
+}
+
+function applyGarantiaTemplate(key){
+  if (!key) return;
+  const tpl = GARANTIA_TEMPLATES[key];
+  const select = document.getElementById('garantia_template');
+  if (!tpl || !select) return;
+  const banco = document.getElementById('garantia_prueba_banco');
+  const desarme = document.getElementById('garantia_desarme');
+  if ((banco?.value || desarme?.value) && !confirm('Reemplazar el texto actual con la plantilla seleccionada?')){
+    select.value = '';
+    return;
+  }
+  const ctx = getGarantiaTemplateContext();
+  if (banco) banco.value = formatGarantiaTemplate(tpl.banco, ctx);
+  if (desarme) desarme.value = formatGarantiaTemplate(tpl.desarme, ctx);
+}
+
+function bindGarantiaTemplateControl(){
+  const select = document.getElementById('garantia_template');
+  if (!select) return;
+  refreshGarantiaTemplateOptions();
+  if (select._bound) return;
+  select._bound = true;
+  select.addEventListener('change', () => applyGarantiaTemplate(select.value));
 }
 
 // ----- Modal helpers (close) -----
