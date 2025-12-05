@@ -256,6 +256,7 @@ router.get("/export", async (req, res) => {
   if (!fecha) return res.status(400).json({ error: "Falta fecha" });
 
   try {
+    const generatedAt = new Date();
     const query = `
       SELECT 
         r.fecha::date AS fecha,
@@ -263,8 +264,10 @@ router.get("/export", async (req, res) => {
         r.id_reparacion,
         r.coche_numero,
         f.descripcion AS equipo,
+        f.tipo AS tipo,
         t.nombre AS tecnico,
         COALESCE(ur.nombre, hist.ult_name) AS ultimo_reparador_nombre,
+        r.resolucion,
         r.hora_inicio,
         r.hora_fin,
         r.garantia,
@@ -290,7 +293,7 @@ router.get("/export", async (req, res) => {
     const result = await pool.query(query, [fecha]);
 
     const sep = ";"; // Excel ES utiliza ; por configuración regional
-    const header = ["Fecha","Cliente","ID Reparación","N° Coche","Equipo","Técnico","Hora inicio","Hora fin","Garantía","Trabajo","Observaciones"];
+    const header = ["Fecha","Cliente","ID Reparación","N° Coche","Equipo","Técnico","Hora inicio","Hora fin","Garantía","Observaciones"];
 
     function esc(v){
       if (v === null || v === undefined) return "";
@@ -306,12 +309,21 @@ router.get("/export", async (req, res) => {
       return s;
     }
 
-    const hdr = ["#","Fecha","Cliente","ID Reparacion","Nro Coche","Equipo","Tecnico","Hora inicio","Hora fin","Garantia","Ultimo Reparador","Trabajo","Observaciones"];
+    const hdr = ["#","Fecha","Cliente","ID Reparacion","Nro Coche","Equipo","Eq Grande","Tecnico","Hora inicio","Hora fin","Reparacion","Garantia","Ultimo Reparador","Estado","Observaciones"];
     const lines = [hdr.map(esc).join(sep)];
     for (let i = 0; i < result.rows.length; i++) {
       const r = result.rows[i];
       const esGarantia = (r.garantia === true || r.garantia === 'si');
-      const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : '';
+      const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : null;
+      const eqGrande = (r.tipo || '').toLowerCase() === 'grande' ? 'X' : null;
+      const resol = String(r.resolucion || '').toLowerCase();
+      const estado = esGarantia
+        ? (resol.includes('rechaz') || resol.includes('factur')) ? 'Rechazada (Facturada)'
+          : resol.includes('funciona') || resol.includes('devol') ? 'Funciona OK (Devolucion)'
+          : (r.resolucion || '')
+        : null;
+      const repX = esGarantia ? null : 'X';
+      const garX = esGarantia ? 'X' : null;
       lines.push([
         esc(String(i + 1)),
         esc(fmtFechaES(r.fecha)),
@@ -319,12 +331,14 @@ router.get("/export", async (req, res) => {
         esc(r.id_reparacion || ""),
         esc(r.coche_numero || ""),
         esc(r.equipo || ""),
+        esc(eqGrande),
         esc(r.tecnico || ""),
         esc(r.hora_inicio || ""),
         esc(r.hora_fin || ""),
-        esc(esGarantia ? 'SI' : 'NO'),
+        esc(repX),
+        esc(garX),
         esc(ultimo),
-        esc(r.trabajo || ""),
+        esc(estado),
         esc(r.observaciones || ""),
       ].join(sep));
     }
@@ -337,46 +351,135 @@ router.get("/export", async (req, res) => {
       try { if (!ExcelJS) ExcelJS = require('exceljs'); } catch (e) {}
       if (!ExcelJS) { fmt = 'xls'; } else {
       const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet('Planilla');
+      const ws = wb.addWorksheet('Planilla', { views: [{ state: 'frozen', ySplit: 3 }] });
 
+      // Column widths (we set only width to keep headers controlled manually)
       ws.columns = [
-        { header: '#', width: 5 },
-        { header: 'Fecha', width: 12 },
-        { header: 'Cliente', width: 18 },
-        { header: 'ID Reparacion', width: 14 },
-        { header: 'Nro Coche', width: 10 },
-        { header: 'Equipo', width: 30 },
-        { header: 'Tecnico', width: 16 },
-        { header: 'Hora inicio', width: 12 },
-        { header: 'Hora fin', width: 12 },
-        { header: 'Garantia', width: 10 },
-        { header: 'Ultimo Reparador', width: 20 },
-        { header: 'Trabajo', width: 45 },
-        { header: 'Observaciones', width: 45 }
+        { width: 5 },   // #
+        { width: 12 },  // Fecha
+        { width: 18 },  // Cliente
+        { width: 14 },  // ID Reparacion
+        { width: 12 },  // Nro Coche
+        { width: 32 },  // Equipo
+        { width: 10 },  // Eq Grande
+        { width: 16 },  // Tecnico
+        { width: 12 },  // Hora inicio
+        { width: 12 },  // Hora fin
+        { width: 10 },  // Reparacion
+        { width: 10 },  // Garantia
+        { width: 20 },  // Ultimo Reparador
+        { width: 18 },  // Estado
+        { width: 45 }   // Observaciones
       ];
-      ws.getRow(1).font = { bold: true };
-      ws.getRow(1).alignment = { vertical: 'middle' };
+
+      const title = `Planilla diaria - ${fecha}`;
+      const subtitle = `Generado: ${generatedAt.toLocaleString('es-AR')} · Registros: ${result.rows.length}`;
+      const headerLabels = ["#","Fecha","Cliente","ID Reparacion","Nro Coche","Equipo","Eq Grande","Tecnico","Hora inicio","Hora fin","Reparacion","Garantia","Ultimo Reparador","Estado","Observaciones"];
+
+      // Styles
+      const borderThin = { style: 'thin', color: { argb: '9DC1F0' } };
+      const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E8F1FF' } };
+      const zebraFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F7FBFF' } };
+      const headerFont = { bold: true, color: { argb: '0F2E63' } };
+
+      // Title + subtitle rows
+      ws.mergeCells(1, 1, 1, headerLabels.length);
+      ws.mergeCells(2, 1, 2, headerLabels.length);
+      const titleCell = ws.getCell('A1');
+      titleCell.value = title;
+      titleCell.font = { bold: true, size: 14, color: { argb: '0F2E63' } };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      ws.getRow(1).height = 22;
+
+      const subCell = ws.getCell('A2');
+      subCell.value = subtitle;
+      subCell.font = { size: 10, color: { argb: '555555' } };
+      subCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      ws.getRow(2).height = 18;
+
+      // Header row
+      const headerRow = ws.addRow(headerLabels);
+      headerRow.height = 20;
+      headerRow.eachCell((cell, colNumber) => {
+        cell.font = headerFont;
+        cell.fill = headerFill;
+        cell.alignment = { vertical: 'middle', horizontal: colNumber === 1 ? 'center' : 'left' };
+        cell.border = {
+          top: borderThin, left: borderThin, bottom: borderThin, right: borderThin
+        };
+      });
 
       const toDate = (val) => {
-        const s = String(val || '').slice(0,10); const p = s.split('-');
+        if (val instanceof Date && !Number.isNaN(val.getTime())) {
+          return new Date(val.getFullYear(), val.getMonth(), val.getDate());
+        }
+        const iso = String(val || '').trim();
+        const d = Date.parse(iso);
+        if (!Number.isNaN(d)) {
+          const tmp = new Date(d);
+          return new Date(tmp.getFullYear(), tmp.getMonth(), tmp.getDate());
+        }
+        const s = iso.slice(0,10);
+        const p = s.split('-');
         return (p.length === 3) ? new Date(Number(p[0]), Number(p[1])-1, Number(p[2])) : null;
       };
       const toTime = (val) => {
-        if (!val) return null; const [hh,mm] = String(val).split(':');
-        if (isNaN(hh) || isNaN(mm)) return null; return new Date(1970,0,1, Number(hh), Number(mm));
+        if (!val) return null;
+        if (val instanceof Date && !Number.isNaN(val.getTime())) return val;
+        const [hh,mm] = String(val).split(':');
+        if (isNaN(hh) || isNaN(mm)) return null;
+        return new Date(1970,0,1, Number(hh), Number(mm));
       };
 
       let i = 0; for (const r of result.rows) {
         const esGarantia = (r.garantia === true || r.garantia === 'si');
-        const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : '';
+        const ultimo = esGarantia ? (r.ultimo_reparador_nombre || null) : null;
+        const eqGrande = (r.tipo || '').toLowerCase() === 'grande' ? 'X' : undefined;
+        const resol = String(r.resolucion || '').toLowerCase();
+        const estado = esGarantia
+          ? (resol.includes('rechaz') || resol.includes('factur')) ? 'Rechazada (Facturada)'
+            : resol.includes('funciona') || resol.includes('devol') ? 'Funciona OK (Devolucion)'
+            : (r.resolucion || '')
+          : null;
+        const repMark = esGarantia ? undefined : 'X';
+        const garMark = esGarantia ? 'X' : undefined;
         const row = ws.addRow([
           ++i,
-          toDate(r.fecha), r.cliente || '', r.id_reparacion || '', r.coche_numero || '', r.equipo || '', r.tecnico || '',
-          toTime(r.hora_inicio) || '', toTime(r.hora_fin) || '', esGarantia ? 'SI' : 'NO', ultimo, r.trabajo || '', r.observaciones || ''
+          toDate(r.fecha),
+          r.cliente || '',
+          r.id_reparacion || '',
+          r.coche_numero || '',
+          r.equipo || '',
+          eqGrande,
+          r.tecnico || '',
+          toTime(r.hora_inicio) || null,
+          toTime(r.hora_fin) || null,
+          repMark, // Reparacion
+          garMark, // Garantia
+          ultimo,
+          estado,
+          r.trabajo || '',
+          r.observaciones || ''
         ]);
+
+        row.height = 18;
         row.getCell(2).numFmt = 'dd/mm/yyyy';
-        row.getCell(8).numFmt = 'hh:mm';
-        row.getCell(9).numFmt = 'hh:mm';
+        row.getCell(9).numFmt = 'hh:mm';  // Hora inicio
+        row.getCell(10).numFmt = 'hh:mm'; // Hora fin
+
+        row.eachCell((cell, colNumber) => {
+          cell.border = { top: borderThin, left: borderThin, bottom: borderThin, right: borderThin };
+          const align = (() => {
+            if ([1,2,4,7,8,9,10,11,12,13,14].includes(colNumber)) return { horizontal: 'center', vertical: 'middle' };
+            if (colNumber === 16 || colNumber === 15) return { vertical: 'top', wrapText: true };
+            return { vertical: 'middle', horizontal: 'left' };
+          })();
+          cell.alignment = align;
+        });
+        // Zebra fill for readability
+        if ((row.number % 2) === 0) {
+          row.eachCell((cell) => { cell.fill = zebraFill; });
+        }
       }
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=planilla-${fecha}.xlsx`);
@@ -405,13 +508,16 @@ router.get("/export", async (req, res) => {
           col.w3 { width: 90pt; } /* ID */
           col.w4 { width: 90pt; } /* Coche */
           col.w5 { width: 130pt; } /* Equipo */
-          col.w6 { width: 120pt; } /* Tecnico */
-          col.w7 { width: 80pt; } /* Hora inicio */
-          col.w8 { width: 80pt; } /* Hora fin */
-          col.w9 { width: 70pt; text-align:center; } /* Garantia */
-          col.w10 { width: 150pt; } /* Ultimo Reparador */
-          col.w11 { width: 280pt; } /* Trabajo */
-          col.w12 { width: 220pt; } /* Observaciones */
+          col.w6 { width: 80pt; text-align:center; } /* Eq Grande */
+          col.w7 { width: 120pt; } /* Tecnico */
+          col.w8 { width: 80pt; } /* Hora inicio */
+          col.w9 { width: 80pt; } /* Hora fin */
+          col.w10 { width: 70pt; text-align:center; } /* Reparacion */
+          col.w11 { width: 70pt; text-align:center; } /* Garantia */
+          col.w12 { width: 150pt; } /* Ultimo Reparador */
+          col.w13 { width: 160pt; } /* Estado */
+          col.w14 { width: 280pt; } /* Trabajo */
+          col.w15 { width: 220pt; } /* Observaciones */
           th, td { border: 1px solid #9dc1f0; padding: 6px 8px; }
           th { background: #e8f1ff; color: #0f2e63; font-weight: 700; text-align: left; }
           tr:nth-child(even) td { background: #f7fbff; }
@@ -429,7 +535,15 @@ router.get("/export", async (req, res) => {
         const df = String(r.fecha).slice(0,10).split('-');
         const dateDisp = (df.length === 3) ? `${df[2]}/${df[1]}/${df[0]}` : escHtml(String(r.fecha).slice(0,10));
         const esGarantia = (r.garantia === true || r.garantia === 'si');
-        const garantiaTxt = esGarantia ? 'SI' : 'NO';
+        const eqGrande = (r.tipo || '').toLowerCase() === 'grande' ? 'X' : null;
+        const repTxt = esGarantia ? null : 'X';
+        const garTxt = esGarantia ? 'X' : null;
+        const resol = String(r.resolucion || '').toLowerCase();
+        const estado = esGarantia
+          ? (resol.includes('rechaz') || resol.includes('factur')) ? 'Rechazada (Facturada)'
+            : resol.includes('funciona') || resol.includes('devol') ? 'Funciona OK (Devolucion)'
+            : (r.resolucion || '')
+          : '';
         const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : '';
         const tds = [
           `<td class="center">${i+1}</td>`,
@@ -438,12 +552,14 @@ router.get("/export", async (req, res) => {
           `<td>${escHtml(r.id_reparacion || '')}</td>`,
           `<td>${escHtml(r.coche_numero || '')}</td>`,
           `<td>${escHtml(r.equipo || '')}</td>`,
+          `<td class="center">${escHtml(eqGrande)}</td>`,
           `<td>${escHtml(r.tecnico || '')}</td>`,
           `<td class="time">${escHtml(r.hora_inicio || '')}</td>`,
           `<td class="time">${escHtml(r.hora_fin || '')}</td>`,
-          `<td class="center">${escHtml(garantiaTxt)}</td>`,
+          `<td class="center">${escHtml(repTxt)}</td>`,
+          `<td class="center">${escHtml(garTxt)}</td>`,
           `<td>${escHtml(ultimo)}</td>`,
-          `<td>${escHtml(r.trabajo || '')}</td>`,
+          `<td>${escHtml(estado)}</td>`,
           `<td>${escHtml(r.observaciones || '')}</td>`,
         ];
         return `<tr>${tds.join('')}</tr>`;
@@ -461,9 +577,9 @@ router.get("/export", async (req, res) => {
           <table>
             <colgroup>
               <col class="w0"/><col class="w1"/><col class="w2"/><col class="w3"/>
-              <col class="w4"/><col class="w5"/><col class="w6"/>
-              <col class="w7"/><col class="w8"/><col class="w9"/>
-              <col class="w10"/><col class="w11"/><col class="w12"/>
+              <col class="w4"/><col class="w5"/><col class="w6"/><col class="w7"/>
+              <col class="w8"/><col class="w9"/><col class="w10"/><col class="w11"/>
+              <col class="w12"/><col class="w13"/><col class="w14"/>
             </colgroup>
             ${headRow}
             ${bodyRows}
@@ -484,6 +600,215 @@ router.get("/export", async (req, res) => {
     console.error("Error export CSV /reparaciones_planilla/export:", err);
     res.status(500).json({ error: "Error al exportar planilla" });
   }
+});
+
+// ============================
+// GET exportar planilla diaria en rango a XLSX (multi-hoja)
+// ============================
+router.get("/export-range", async (req, res) => {
+  const { inicio, fin } = req.query;
+  if (!inicio || !fin) return res.status(400).json({ error: "Falta inicio o fin" });
+
+  try {
+    if (!ExcelJS) ExcelJS = require('exceljs');
+  } catch (e) {
+    return res.status(500).json({ error: "ExcelJS no disponible en el servidor" });
+  }
+
+  const start = new Date(inicio);
+  const end = new Date(fin);
+  if (Number.isNaN(start) || Number.isNaN(end) || start > end) {
+    return res.status(400).json({ error: "Rango de fechas invalido" });
+  }
+
+  const dates = [];
+  for (let d = new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    const iso = d.toISOString().slice(0, 10);
+    dates.push(iso);
+  }
+
+  const query = `
+      SELECT 
+        r.fecha::date AS fecha,
+        COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
+        r.id_reparacion,
+        r.coche_numero,
+        f.descripcion AS equipo,
+        f.tipo AS tipo,
+        t.nombre AS tecnico,
+        COALESCE(ur.nombre, hist.ult_name) AS ultimo_reparador_nombre,
+        r.resolucion,
+        r.hora_inicio,
+        r.hora_fin,
+        r.garantia,
+        r.trabajo,
+        r.observaciones
+      FROM equipos_reparaciones r
+      LEFT JOIN tecnicos t ON r.tecnico_id = t.id
+      LEFT JOIN familia f ON r.familia_id = f.id
+      LEFT JOIN clientes c ON r.cliente_id = c.id
+      LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
+      LEFT JOIN (
+        SELECT DISTINCT ON (id_reparacion)
+               id_reparacion,
+               ur2.nombre AS ult_name
+        FROM equipos_reparaciones x
+        LEFT JOIN tecnicos ur2 ON ur2.id = x.ultimo_reparador
+        WHERE x.ultimo_reparador IS NOT NULL
+        ORDER BY id_reparacion, x.fecha DESC, x.hora_inicio DESC, x.id DESC
+      ) AS hist ON hist.id_reparacion = r.id_reparacion
+      WHERE r.fecha = $1::date
+      ORDER BY r.hora_inicio ASC`;
+
+  const wb = new ExcelJS.Workbook();
+  const generatedAt = new Date();
+
+  const buildSheet = (ws, fechaLabel, rows) => {
+    ws.views = [{ state: 'frozen', ySplit: 3 }];
+    ws.columns = [
+      { width: 5 },   // #
+      { width: 12 },  // Fecha
+      { width: 18 },  // Cliente
+      { width: 14 },  // ID Reparacion
+      { width: 12 },  // Nro Coche
+      { width: 32 },  // Equipo
+      { width: 10 },  // Eq Grande
+      { width: 16 },  // Tecnico
+      { width: 12 },  // Hora inicio
+      { width: 12 },  // Hora fin
+      { width: 10 },  // Reparacion
+      { width: 10 },  // Garantia
+      { width: 20 },  // Ultimo Reparador
+      { width: 18 },  // Estado
+      { width: 55 }   // Observaciones
+    ];
+
+    const headerLabels = ["#","Fecha","Cliente","ID Reparacion","Nro Coche","Equipo","Eq Grande","Tecnico","Hora inicio","Hora fin","Reparacion","Garantia","Ultimo Reparador","Estado","Observaciones"];
+    const borderThin = { style: 'thin', color: { argb: '9DC1F0' } };
+    const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E8F1FF' } };
+    const zebraFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F7FBFF' } };
+    const headerFont = { bold: true, color: { argb: '0F2E63' } };
+
+    ws.mergeCells(1, 1, 1, headerLabels.length);
+    ws.mergeCells(2, 1, 2, headerLabels.length);
+    const titleCell = ws.getCell('A1');
+    titleCell.value = `Planilla diaria - ${fechaLabel}`;
+    titleCell.font = { bold: true, size: 14, color: { argb: '0F2E63' } };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(1).height = 22;
+
+    const subCell = ws.getCell('A2');
+    subCell.value = `Generado: ${generatedAt.toLocaleString('es-AR')} · Registros: ${rows.length}`;
+    subCell.font = { size: 10, color: { argb: '555555' } };
+    subCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(2).height = 18;
+
+    const headerRow = ws.addRow(headerLabels);
+    headerRow.height = 20;
+    headerRow.eachCell((cell, colNumber) => {
+      cell.font = headerFont;
+      cell.fill = headerFill;
+      cell.alignment = { vertical: 'middle', horizontal: colNumber === 1 ? 'center' : 'left' };
+      cell.border = { top: borderThin, left: borderThin, bottom: borderThin, right: borderThin };
+    });
+
+    const toDate = (val) => {
+      if (val instanceof Date && !Number.isNaN(val.getTime())) {
+        return new Date(val.getFullYear(), val.getMonth(), val.getDate());
+      }
+      const iso = String(val || '').trim();
+      const d = Date.parse(iso);
+      if (!Number.isNaN(d)) {
+        const tmp = new Date(d);
+        return new Date(tmp.getFullYear(), tmp.getMonth(), tmp.getDate());
+      }
+      const s = iso.slice(0,10);
+      const p = s.split('-');
+      return (p.length === 3) ? new Date(Number(p[0]), Number(p[1])-1, Number(p[2])) : null;
+    };
+    const toTime = (val) => {
+      if (!val) return null;
+      if (val instanceof Date && !Number.isNaN(val.getTime())) return val;
+      const [hh,mm] = String(val).split(':');
+      if (isNaN(hh) || isNaN(mm)) return null;
+      return new Date(1970,0,1, Number(hh), Number(mm));
+    };
+
+    let idx = 0;
+    for (const r of rows) {
+      const esGarantia = (r.garantia === true || r.garantia === 'si');
+      const eqGrande = (r.tipo || '').toLowerCase() === 'grande' ? 'X' : null;
+      const resol = String(r.resolucion || '').toLowerCase();
+      const estado = esGarantia
+        ? (resol.includes('rechaz') || resol.includes('factur')) ? 'Rechazada (Facturada)'
+          : resol.includes('funciona') || resol.includes('devol') ? 'Funciona OK (Devolucion)'
+          : (r.resolucion || '')
+        : null;
+      const repMark = esGarantia ? null : 'X';
+      const garMark = esGarantia ? 'X' : null;
+      const ultimo = esGarantia ? (r.ultimo_reparador_nombre || '') : '';
+      const row = ws.addRow([
+        ++idx,
+        toDate(r.fecha),
+        r.cliente || '',
+        r.id_reparacion || '',
+        r.coche_numero || '',
+        r.equipo || '',
+        eqGrande,
+        r.tecnico || '',
+        toTime(r.hora_inicio) || null,
+        toTime(r.hora_fin) || null,
+        repMark,
+        garMark,
+        ultimo,
+        estado,
+        r.observaciones || ''
+      ]);
+      // Normalizar binarios a null para que Excel no cuente celdas vacías
+      row.getCell(7).value  = eqGrande || null;
+      row.getCell(11).value = repMark || null;
+      row.getCell(12).value = garMark || null;
+      row.getCell(13).value = ultimo || null;
+      row.getCell(14).value = estado || null;
+      row.height = 18;
+      row.getCell(2).numFmt = 'dd/mm/yyyy';
+      row.getCell(9).numFmt = 'hh:mm';
+      row.getCell(10).numFmt = 'hh:mm';
+
+      const isEven = (row.number % 2) === 0;
+      for (let col = 1; col <= headerLabels.length; col++) {
+        const cell = row.getCell(col);
+        // Reafirmar valores binarios en columnas 7,11,12,13,14
+        if (col === 7) cell.value = eqGrande || null;
+        if (col === 11) cell.value = repMark || null;
+        if (col === 12) cell.value = garMark || null;
+        if (col === 13) cell.value = ultimo || null;
+        if (col === 14) cell.value = estado || null;
+        cell.border = { top: borderThin, left: borderThin, bottom: borderThin, right: borderThin };
+        const align = (() => {
+          if ([1,2,4,7,8,9,10,11,12,13,14].includes(col)) return { horizontal: 'center', vertical: 'middle' };
+          if (col === 16 || col === 15) return { vertical: 'top', wrapText: true };
+          return { vertical: 'middle', horizontal: 'left' };
+        })();
+        cell.alignment = align;
+        if (isEven) cell.fill = zebraFill;
+      }
+    }
+  };
+
+  for (const iso of dates) {
+    const { rows } = await pool.query(query, [iso]);
+    if (!rows.length) continue; // saltar dias sin reparaciones
+    const ddmm = `${iso.slice(8,10)}_${iso.slice(5,7)}`; // DD_MM
+    const safeName = ddmm.replace(/[\\/*?:\[\]]/g, '-').slice(0, 31);
+    const ws = wb.addWorksheet(safeName);
+    buildSheet(ws, iso, rows);
+  }
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=planilla-${inicio}_a_${fin}.xlsx`);
+  const buf = await wb.xlsx.writeBuffer();
+  return res.send(Buffer.from(buf));
 });
 
 

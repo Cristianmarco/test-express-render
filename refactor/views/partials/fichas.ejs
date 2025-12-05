@@ -1,0 +1,199 @@
+<section class="fichas-section">
+  <div class="erp-header-row">
+    <div class="titulo-dota">
+      <i class="fas fa-id-card-clip"></i>
+      <span class="muted">Fichas</span>
+      <span style="opacity:.5; margin: 0 6px;">/</span>
+      <span class="accent">Equipos</span>
+    </div>
+    <div class="fichas-actions">
+      <button id="fichas-recargar" class="btn-ghost btn-square" title="Refrescar"><i class="fas fa-rotate"></i></button>
+    </div>
+  </div>
+
+  <!-- Listado -->
+  <div id="fichas-list-view">
+    <div class="fichas-toolbar erp-main-card">
+      <div class="fichas-search">
+        <i class="fas fa-search"></i>
+        <input id="fichas-buscar" type="text" placeholder="Buscar por familia, marca o ID" autocomplete="off" />
+      </div>
+      <div class="fichas-filtros">
+        <select id="fichas-categoria">
+          <option value="">Todas las categorias</option>
+        </select>
+        <select id="fichas-estado">
+          <option value="">Todas</option>
+          <option value="con">Con ficha</option>
+          <option value="sin">Sin ficha</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="fichas-lista erp-main-card">
+      <div class="fichas-lista-header">
+        <div id="fichas-count" class="fichas-count-badge">0</div>
+      </div>
+      <div id="fichas-grid" class="ficha-list-vertical">
+        <div class="ficha-placeholder">Cargando fichas...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detalle -->
+  <div id="ficha-detail-view" class="erp-main-card ficha-detalle-card" style="display:none;">
+    <div class="ficha-detail-header">
+      <button id="ficha-volver" class="btn-ghost"><i class="fas fa-arrow-left"></i> Volver al listado</button>
+      <div class="ficha-head-actions">
+        <button type="button" id="ficha-media-config" class="btn-ghost btn-square" title="Administrar medias">
+          <i class="fas fa-gear"></i>
+        </button>
+        <button id="btn-editar-ficha" class="btn-ghost"><i class="fas fa-pen"></i> Editar ficha</button>
+      </div>
+    </div>
+
+    <div class="ficha-detail-body">
+      <div class="ficha-carousel">
+        <button class="carousel-btn" id="slide-prev"><i class="fas fa-chevron-left"></i></button>
+        <div class="carousel-viewport">
+          <div id="ficha-slides" class="carousel-slides"></div>
+        </div>
+        <button class="carousel-btn" id="slide-next"><i class="fas fa-chevron-right"></i></button>
+        <div id="ficha-dots" class="carousel-dots"></div>
+        <div class="ficha-observaciones">
+          <div class="muted">Observaciones</div>
+          <p id="ficha-observaciones" class="info-strong">-</p>
+        </div>
+      </div>
+
+      <div class="ficha-tabs-box">
+        <div class="ficha-tabs">
+          <button class="ficha-tab active" data-tab="general">Informacion</button>
+          <button class="ficha-tab" data-tab="despiece">Despiece / planos</button>
+          <button class="ficha-tab" data-tab="repuestos">Productos relacionados</button>
+        </div>
+
+        <div class="ficha-tab-panel" data-tab="general">
+          <div class="ficha-info-columns">
+            <div class="ficha-info-left">
+              <div class="ficha-info-grid bordered">
+                <div class="ficha-info-item"><span class="muted">Codigo</span><strong id="info-codigo">-</strong></div>
+                <div class="ficha-info-item"><span class="muted">Categoria</span><strong id="info-categoria">-</strong></div>
+                <div class="ficha-info-item"><span class="muted">Marca</span><strong id="info-marca">-</strong></div>
+                <div class="ficha-info-item"><span class="muted">Titulo</span><strong id="ficha-titulo">-</strong></div>
+                <div class="ficha-info-item"><span class="muted">Voltaje</span><strong id="ficha-voltaje">-</strong></div>
+                <div class="ficha-info-item"><span class="muted">Amperaje</span><strong id="ficha-amperaje">-</strong></div>
+              </div>
+              <div class="ficha-updated"><span class="muted">Actualizado</span> <span id="info-updated">-</span></div>
+            </div>
+            <div class="ficha-info-right">
+              <div class="ficha-info-item wide">
+                <span class="muted">ID original</span>
+                <div id="info-id-list" class="info-multi"></div>
+              </div>
+              <div class="ficha-info-item wide">
+                <span class="muted">Aplicaciones</span>
+                <div id="info-aplicaciones-list" class="info-multi"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ficha-tab-panel" data-tab="despiece" style="display:none;">
+          <div class="despiece-layout">
+            <div class="despiece-img-wrap">
+              <img id="despiece-img" src="" alt="Despiece" />
+            </div>
+            <div class="despiece-panel">
+              <div class="muted">Tipos de repuesto</div>
+              <ul class="despiece-list">
+                <li>Rotor</li>
+                <li>Estator</li>
+                <li>Regulador</li>
+                <li>Plaqueta Rectificadora</li>
+                <li>Tapa delantera</li>
+                <li>Tapa trasera</li>
+                <li>Polea</li>
+                <li>Separador</li>
+                <li>Tuerca rotor</li>
+                <li>Pasantes</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="ficha-tab-panel" data-tab="repuestos" style="display:none;">
+          <div class="ficha-media-actions">
+            <div>
+              <div class="muted">Vincular productos</div>
+              <div class="tiny">Busca por codigo o descripcion y agrega alias.</div>
+            </div>
+            <form id="ficha-repuesto-form" class="ficha-inline-form">
+              <input list="ficha-productos" name="producto" id="ficha-producto-input" placeholder="Codigo o descripcion" autocomplete="off" required />
+              <datalist id="ficha-productos"></datalist>
+              <input name="alias_codigo" type="text" placeholder="Codigo original/alias" />
+              <input name="nota" type="text" placeholder="Nota (opcional)" />
+              <button type="submit" class="btn-guardar" style="min-width:140px;"><i class="fas fa-link"></i> Vincular</button>
+            </form>
+          </div>
+          <div class="tabla-scroll">
+            <table class="tabla-erp">
+              <thead>
+                <tr>
+                  <th>Codigo</th>
+                  <th>Descripcion</th>
+                  <th>Alias</th>
+                  <th>Nota</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="ficha-repuestos-body">
+                <tr><td colspan="5" style="text-align:center;" class="muted">Sin repuestos vinculados</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal datos basicos -->
+  <div id="modal-ficha-basica" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor modal-erp-producto">
+      <span class="cerrar" id="modal-ficha-close">&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-pen-to-square"></i> Datos basicos</h2>
+      <form id="form-ficha-basica" class="form-grid">
+        <input type="hidden" name="familia_id" />
+        <div><label>Marca</label><input type="text" name="marca" /></div>
+        <div><label>Categoria</label><input type="text" name="categoria" /></div>
+        <div class="full"><label>ID original</label><textarea name="id_original" rows="2" placeholder="Uno por linea o separados por coma"></textarea></div>
+        <div><label>Titulo</label><input type="text" name="titulo" /></div>
+        <div class="full"><label>Observaciones</label><textarea name="descripcion_corta" rows="2"></textarea></div>
+        <div><label>Voltaje</label><input type="text" name="voltaje" /></div>
+        <div><label>Amperaje</label><input type="text" name="amperaje" /></div>
+        <div class="full"><label>Aplicaciones</label><textarea name="aplicaciones" rows="2" placeholder="Una por linea o separadas por coma"></textarea></div>
+        <div class="full">
+          <label>Portada URL</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="text" name="portada_url" placeholder="/uploads/fichas/portada.jpg" style="flex:1;" />
+            <input type="file" id="ficha-portada-file" accept="image/*" style="display:none;" />
+            <button type="button" id="ficha-portada-browse" class="btn-ghost"><i class="fas fa-folder-open"></i> Examinar</button>
+          </div>
+        </div>
+        <div class="full">
+          <label>Agregar foto al carrusel</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="ficha-foto-url" placeholder="Se completa al subir..." style="flex:1;" readonly />
+            <input type="file" id="ficha-foto-file" accept="image/*" style="display:none;" />
+            <button type="button" id="ficha-foto-browse" class="btn-ghost"><i class="fas fa-folder-open"></i> Examinar</button>
+          </div>
+          <div class="tiny" style="margin-top:4px;">Se sube como foto del carrusel (no reemplaza la portada).</div>
+        </div>
+        <button type="submit" class="btn-guardar" style="margin-top:12px;"><i class="fas fa-save"></i> Guardar cambios</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal configuracion de medias -->
+  <%- include("./modales/ficha_media_config.ejs") %>
+</section>

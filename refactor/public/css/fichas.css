@@ -1,0 +1,257 @@
+.fichas-section { display:flex; flex-direction:column; gap:12px; }
+.fichas-actions { display:flex; gap:8px; }
+
+/* Listado */
+.fichas-toolbar {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:14px 16px;
+  margin-bottom:10px;
+}
+.fichas-actions { display:flex; gap:10px; }
+.fichas-search {
+  flex:1;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  background:#f5f7fb;
+  border:1px solid #dfe7f2;
+  border-radius:12px;
+  padding:8px 12px;
+}
+.fichas-search input {
+  flex:1;
+  border:none;
+  outline:none;
+  background:transparent;
+  font-size:14px;
+}
+.fichas-filtros { display:flex; gap:8px; align-items:center; }
+.fichas-filtros select {
+  border:1px solid #dfe7f2;
+  border-radius:10px;
+  padding:8px 10px;
+  background:#fff;
+}
+
+.ficha-list-vertical { display:flex; flex-direction:column; gap:12px; }
+.ficha-row {
+  display:flex;
+  gap:12px;
+  align-items:center;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  padding:12px;
+  cursor:pointer;
+  transition:box-shadow .15s, transform .1s, border-color .15s;
+}
+.ficha-row:hover { box-shadow:0 6px 18px rgba(15,23,42,0.12); transform:translateY(-1px); }
+.ficha-row.selected { border-color:#0ea5e9; box-shadow:0 6px 18px rgba(14,165,233,0.18); }
+.ficha-row img, .ficha-thumb-small {
+  width:86px;
+  height:86px;
+  object-fit:cover;
+  border-radius:10px;
+  background:#eef2f7;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:700;
+  color:#6b7280;
+}
+.ficha-row-body { flex:1; display:flex; flex-direction:column; gap:4px; }
+.ficha-row-sup { font-size:12px; color:#6b7280; text-transform:uppercase; letter-spacing:.02em; }
+.ficha-row-title { margin:0; font-size:16px; font-weight:800; color:#111827; }
+.ficha-row-id { color:#0f75c0; font-weight:700; font-size:13px; }
+
+.fichas-lista-header { display:flex; align-items:center; justify-content:flex-end; margin-bottom:10px; }
+.fichas-count-badge { background:#0ea5e9; color:#fff; font-weight:700; border-radius:999px; padding:6px 12px; font-size:13px; }
+
+/* Detalle */
+.ficha-detalle-card { margin-top:8px; }
+.ficha-detail-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.ficha-detail-body { display:grid; grid-template-columns: 0.8fr 1.2fr; gap:16px; align-items:start; }
+
+.ficha-carousel {
+  position:relative;
+  background:#f8fafc;
+  border:1px solid #e5e7eb;
+  border-radius:16px;
+  padding:14px;
+  min-height:260px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-width:420px;
+}
+.carousel-viewport { flex:1; overflow:hidden; border-radius:12px; position:relative; background:#fff; display:flex; align-items:center; justify-content:center; }
+.carousel-slides { display:flex; transition:transform .25s ease; width:100%; }
+.carousel-slide {
+  min-width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.carousel-slide img {
+  max-width:100%;
+  max-height:320px;
+  object-fit:contain;
+}
+.carousel-btn {
+  position:absolute;
+  top:50%;
+  transform:translateY(-50%);
+  background:#fff;
+  border:1px solid #dfe3ec;
+  border-radius:50%;
+  width:38px;
+  height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  box-shadow:0 6px 16px rgba(0,0,0,0.08);
+}
+#slide-prev { left:10px; }
+#slide-next { right:10px; }
+.carousel-dots { display:flex; justify-content:center; gap:6px; }
+.carousel-dots button {
+  width:8px; height:8px; border-radius:999px; border:none;
+  background:#d1d5db; cursor:pointer;
+}
+.carousel-dots button.active { background:#0ea5e9; width:18px; }
+
+.ficha-observaciones {
+  margin-top:10px;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  padding:10px 12px;
+}
+.ficha-observaciones p { margin:4px 0 0; color:#0f172a; font-weight:600; }
+
+.ficha-tabs-box {
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  padding:12px;
+}
+.ficha-tabs { display:flex; gap:6px; border-bottom:1px solid #e5e7eb; }
+.ficha-tab {
+  border:none;
+  background:transparent;
+  padding:10px 14px;
+  cursor:pointer;
+  font-weight:700;
+  color:#475569;
+  border-bottom:3px solid transparent;
+}
+.ficha-tab.active { color:#0ea5e9; border-color:#0ea5e9; }
+.ficha-tab-panel { padding-top:10px; }
+
+.ficha-info-columns { display:grid; grid-template-columns: 1.2fr 1fr; gap:12px; align-items:start; }
+.ficha-info-left { display:flex; flex-direction:column; gap:8px; }
+.ficha-info-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+.ficha-info-grid.bordered .ficha-info-item { border:1px solid #e5e7eb; background:#f8fafc; border-radius:10px; padding:10px; }
+.ficha-info-item strong { display:block; font-size:15px; color:#0f172a; }
+.ficha-info-right { display:flex; flex-direction:column; gap:10px; align-items:stretch; }
+.info-multi { display:flex; flex-wrap:wrap; gap:6px; }
+.pill { display:inline-flex; align-items:center; padding:4px 8px; border-radius:12px; background:#eef2ff; color:#1f2937; font-weight:600; font-size:13px; }
+.ficha-updated { font-size:12px; color:#6b7280; text-align:right; margin-top:4px; }
+.ficha-media-actions {
+  display:flex;
+  gap:12px;
+  align-items:flex-end;
+  justify-content:space-between;
+  flex-wrap:wrap;
+}
+.ficha-inline-form { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.ficha-inline-form input,
+.ficha-inline-form select { border:1px solid #dfe7f2; border-radius:10px; padding:8px 10px; min-width:150px; }
+
+.media-grid { margin-top:12px; display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:10px; }
+.media-card {
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  background:#fff;
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.media-thumb {
+  height:140px;
+  border-radius:10px;
+  background:#f3f4f6;
+  background-size:cover;
+  background-position:center;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#6b7280;
+  font-weight:700;
+}
+.media-header { display:flex; justify-content:space-between; align-items:center; }
+.media-title { font-weight:700; color:#0f172a; margin:0; }
+.media-link { font-size:12px; word-break:break-all; color:#2563eb; }
+.media-actions { display:flex; gap:8px; align-items:center; }
+.media-actions button { border:none; background:none; cursor:pointer; color:#ef4444; }
+
+/* Despiece */
+.despiece-layout { display:grid; grid-template-columns: 1.2fr 0.8fr; gap:16px; align-items:start; min-height:320px; }
+.despiece-img-wrap { width:100%; height:100%; display:flex; align-items:flex-start; }
+.despiece-img-wrap img { width:100%; height:auto; object-fit:contain; border-radius:12px; }
+.despiece-panel { border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#fff; }
+.despiece-list { list-style:disc; padding-left:20px; margin:8px 0 0; display:flex; flex-direction:column; gap:6px; color:#111827; font-weight:600; }
+
+.btn-ghost {
+  border:1px solid #dfe3ec;
+  background:#fff;
+  color:#1f2937;
+  border-radius:10px;
+  padding:8px 12px;
+  cursor:pointer;
+  font-weight:600;
+  transition:all .15s ease;
+}
+.btn-ghost:hover { background:#f4f6fb; border-color:#cdd5e5; }
+.btn-square { width:38px; height:38px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; }
+
+.ficha-placeholder {
+  text-align:center;
+  color:#6b7280;
+  padding:40px 20px;
+  border:1px dashed #d5deeb;
+  border-radius:14px;
+  background:#fafcff;
+}
+.tiny { font-size:12px; color:#64748b; }
+
+.tabla-scroll { overflow:auto; max-height:320px; }
+.tabla-erp th, .tabla-erp td { padding:8px 10px; }
+
+/* Modal datos basicos: asegurar scroll */
+#modal-ficha-basica .modal-contenido-refactor {
+  max-height: 85vh;
+  overflow-y: auto;
+}
+#modal-ficha-basica form {
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+@media (max-width: 1024px) {
+  .ficha-detail-body { grid-template-columns: 1fr; }
+  .ficha-carousel { min-height:300px; }
+}
+
+@media (max-width: 640px) {
+  .fichas-toolbar { flex-direction:column; align-items:stretch; }
+  .fichas-filtros { width:100%; }
+  .fichas-filtros select { flex:1; }
+  .ficha-inline-form { flex-direction:column; align-items:stretch; }
+  .ficha-inline-form input, .ficha-inline-form select { width:100%; }
+}
