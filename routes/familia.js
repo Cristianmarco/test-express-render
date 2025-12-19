@@ -2,17 +2,23 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 
+async function ensureFamiliaTipoColumn() {
+  await db.query("ALTER TABLE familia ADD COLUMN IF NOT EXISTS tipo TEXT");
+}
+
 // ============================
 // GET: Listar todas las familias
 // ============================
 router.get("/", async (req, res) => {
   try {
+    await ensureFamiliaTipoColumn();
     const result = await db.query(`
       SELECT 
         f.id, 
         f.codigo, 
         f.descripcion,
         f.categoria_id,
+        f.tipo,
         c.descripcion AS categoria,
         f.descripcion AS nombre
       FROM familia f
@@ -31,14 +37,22 @@ router.get("/", async (req, res) => {
 // ============================
 router.post("/", async (req, res) => {
   try {
-    const { codigo, descripcion, categoria_id } = req.body;
+    await ensureFamiliaTipoColumn();
+    const { codigo, descripcion, categoria_id, tipo } = req.body;
     if (!codigo || !descripcion) {
       return res.status(400).json({ error: "Datos obligatorios" });
     }
+    const tipoClean = (tipo || "").toLowerCase();
+    const tipoVal = tipoClean === "grande" || tipoClean === "chico" ? tipoClean : null;
 
     const result = await db.query(
-      "INSERT INTO familia (codigo, descripcion, categoria_id) VALUES ($1, $2, $3) RETURNING *",
-      [codigo, descripcion, (categoria_id && String(categoria_id).trim() !== '') ? categoria_id : null]
+      "INSERT INTO familia (codigo, descripcion, categoria_id, tipo) VALUES ($1, $2, $3, $4) RETURNING *",
+      [
+        codigo,
+        descripcion,
+        (categoria_id && String(categoria_id).trim() !== "") ? categoria_id : null,
+        tipoVal,
+      ]
     );
 
     res.status(201).json(result.rows[0]);
@@ -53,15 +67,18 @@ router.post("/", async (req, res) => {
 // ============================
 router.put("/:id", async (req, res) => {
   try {
-    let { codigo, descripcion, categoria_id } = req.body;
+    await ensureFamiliaTipoColumn();
+    let { codigo, descripcion, categoria_id, tipo } = req.body;
     if (!codigo || !descripcion) {
       return res.status(400).json({ error: "Datos obligatorios" });
     }
     if (typeof categoria_id === 'string' && categoria_id.trim() === '') categoria_id = null;
+    const tipoClean = (tipo || "").toLowerCase();
+    const tipoVal = tipoClean === "grande" || tipoClean === "chico" ? tipoClean : null;
 
     const result = await db.query(
-      "UPDATE familia SET codigo=$1, descripcion=$2, categoria_id=$3 WHERE id=$4 RETURNING *",
-      [codigo, descripcion, categoria_id || null, req.params.id]
+      "UPDATE familia SET codigo=$1, descripcion=$2, categoria_id=$3, tipo=$4 WHERE id=$5 RETURNING *",
+      [codigo, descripcion, categoria_id || null, tipoVal, req.params.id]
     );
 
     if (result.rows.length === 0) {
@@ -80,6 +97,7 @@ router.put("/:id", async (req, res) => {
 // ============================
 router.delete("/:id", async (req, res) => {
   try {
+    await ensureFamiliaTipoColumn();
     const result = await db.query(
       "DELETE FROM familia WHERE id=$1 RETURNING *",
       [req.params.id]
@@ -101,9 +119,10 @@ router.delete("/:id", async (req, res) => {
 // ============================
 router.get("/by_categoria/:categoria_id", async (req, res) => {
   try {
+    await ensureFamiliaTipoColumn();
     const { categoria_id } = req.params;
     const result = await db.query(
-      `SELECT id, codigo, descripcion, categoria_id
+      `SELECT id, codigo, descripcion, categoria_id, tipo
        FROM familia
        WHERE categoria_id = $1
        ORDER BY codigo ASC`,

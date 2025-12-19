@@ -95,6 +95,9 @@ async function loadView(view) {
     case "usuarios":
       cargarScript("/static/scripts/usuarios.js");
       break;
+    case "fichas":
+      cargarScript("/static/scripts/fichas.js");
+      break;
     default:
       try { console.log(`No hay script especifico para ${view}`); } catch {}
   }

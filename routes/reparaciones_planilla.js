@@ -433,16 +433,16 @@ router.get("/export", async (req, res) => {
 
       let i = 0; for (const r of result.rows) {
         const esGarantia = (r.garantia === true || r.garantia === 'si');
-        const ultimo = esGarantia ? (r.ultimo_reparador_nombre || null) : null;
-        const eqGrande = (r.tipo || '').toLowerCase() === 'grande' ? 'X' : undefined;
+        const eqGrande = (r.tipo || '').toLowerCase() === 'grande' ? 'X' : null;
         const resol = String(r.resolucion || '').toLowerCase();
         const estado = esGarantia
           ? (resol.includes('rechaz') || resol.includes('factur')) ? 'Rechazada (Facturada)'
             : resol.includes('funciona') || resol.includes('devol') ? 'Funciona OK (Devolucion)'
             : (r.resolucion || '')
           : null;
-        const repMark = esGarantia ? undefined : 'X';
-        const garMark = esGarantia ? 'X' : undefined;
+        const repMark = esGarantia ? null : 'X';
+        const garMark = esGarantia ? 'X' : null;
+        const ultimo = esGarantia ? (r.ultimo_reparador_nombre || null) : null;
         const row = ws.addRow([
           ++i,
           toDate(r.fecha),
@@ -458,7 +458,6 @@ router.get("/export", async (req, res) => {
           garMark, // Garantia
           ultimo,
           estado,
-          r.trabajo || '',
           r.observaciones || ''
         ]);
 
@@ -467,18 +466,22 @@ router.get("/export", async (req, res) => {
         row.getCell(9).numFmt = 'hh:mm';  // Hora inicio
         row.getCell(10).numFmt = 'hh:mm'; // Hora fin
 
-        row.eachCell((cell, colNumber) => {
+        const isEven = (row.number % 2) === 0;
+        for (let col = 1; col <= headerLabels.length; col++) {
+          const cell = row.getCell(col);
+          if (col === 7) cell.value = eqGrande || null;
+          if (col === 11) cell.value = repMark || null;
+          if (col === 12) cell.value = garMark || null;
+          if (col === 13) cell.value = ultimo || null;
+          if (col === 14) cell.value = estado || null;
           cell.border = { top: borderThin, left: borderThin, bottom: borderThin, right: borderThin };
           const align = (() => {
-            if ([1,2,4,7,8,9,10,11,12,13,14].includes(colNumber)) return { horizontal: 'center', vertical: 'middle' };
-            if (colNumber === 16 || colNumber === 15) return { vertical: 'top', wrapText: true };
+            if ([1,2,4,7,8,9,10,11,12,13,14].includes(col)) return { horizontal: 'center', vertical: 'middle' };
+            if (col === 15 || col === 14) return { vertical: 'top', wrapText: true };
             return { vertical: 'middle', horizontal: 'left' };
           })();
           cell.alignment = align;
-        });
-        // Zebra fill for readability
-        if ((row.number % 2) === 0) {
-          row.eachCell((cell) => { cell.fill = zebraFill; });
+          if (isEven) cell.fill = zebraFill;
         }
       }
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -516,8 +519,7 @@ router.get("/export", async (req, res) => {
           col.w11 { width: 70pt; text-align:center; } /* Garantia */
           col.w12 { width: 150pt; } /* Ultimo Reparador */
           col.w13 { width: 160pt; } /* Estado */
-          col.w14 { width: 280pt; } /* Trabajo */
-          col.w15 { width: 220pt; } /* Observaciones */
+          col.w14 { width: 220pt; } /* Observaciones */
           th, td { border: 1px solid #9dc1f0; padding: 6px 8px; }
           th { background: #e8f1ff; color: #0f2e63; font-weight: 700; text-align: left; }
           tr:nth-child(even) td { background: #f7fbff; }

@@ -14,11 +14,17 @@
         { key: 'codigo', label: 'Codigo' },
         { key: 'descripcion', label: 'Nombre' },
         { key: 'categoria', label: 'Categoria' },
+        { key: 'tipo', label: 'Tipo' },
       ],
       form: [
         { name: 'codigo', label: 'Codigo', type: 'text', required: true },
         { name: 'descripcion', label: 'Nombre', type: 'text', required: true },
         { name: 'categoria_id', label: 'Categoria', type: 'select', required: false, endpoint: '/api/categoria', map: { value: 'id', label: 'descripcion' } },
+        { name: 'tipo', label: 'Tipo', type: 'select', required: false, options: [
+          { value: '', label: '(No asignado)' },
+          { value: 'chico', label: 'Chico' },
+          { value: 'grande', label: 'Grande' },
+        ]},
       ],
     },
     grupo: {

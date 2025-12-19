@@ -1,19 +1,42 @@
 document.addEventListener("DOMContentLoaded", () => {
   const tbody = document.getElementById("tbody-familias");
   const form = document.getElementById("form-familia");
-  let editando = null; // guarda el id de la fila seleccionada
+  const categoriaSelect = document.getElementById("categoria_id");
+  const tipoSelect = document.getElementById("tipo");
+  let editando = null; // id de la fila en edicion
 
-  // 👉 Abrir modal
+  async function cargarCategorias() {
+    if (!categoriaSelect) return;
+    try {
+      const res = await fetch("/api/categoria", { credentials: "include" });
+      if (!res.ok) throw new Error(`Error categorias ${res.status}`);
+      const lista = await res.json();
+      categoriaSelect.innerHTML = '<option value="">(Sin categoria)</option>';
+      (Array.isArray(lista) ? lista : []).forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = `${c.codigo} - ${c.descripcion}`;
+        categoriaSelect.appendChild(opt);
+      });
+    } catch (err) {
+      console.error("Error cargando categorias:", err);
+      categoriaSelect.innerHTML = '<option value="">(Sin categoria)</option>';
+    }
+  }
+
   function abrirModal(titulo, datos = null) {
     document.getElementById("modal-titulo").textContent = titulo;
     document.getElementById("modal-familia").classList.add("mostrar");
-
     if (datos) {
       form.codigo.value = datos.codigo;
       form.descripcion.value = datos.descripcion;
-      editando = datos.id; // usamos id, no codigo
+      if (categoriaSelect) categoriaSelect.value = datos.categoria_id || "";
+      if (tipoSelect) tipoSelect.value = datos.tipo || "";
+      editando = datos.id;
     } else {
       form.reset();
+      if (categoriaSelect) categoriaSelect.value = "";
+      if (tipoSelect) tipoSelect.value = "";
       editando = null;
     }
   }
@@ -21,46 +44,42 @@ document.addEventListener("DOMContentLoaded", () => {
   function cerrarModal() {
     document.getElementById("modal-familia").classList.remove("mostrar");
     form.reset();
+    if (categoriaSelect) categoriaSelect.value = "";
+    if (tipoSelect) tipoSelect.value = "";
     editando = null;
   }
-
   window.cerrarModal = cerrarModal;
 
-  // 👉 Cargar familias
   async function cargarFamilias() {
     try {
       const res = await fetch("/api/familias", { credentials: "include" });
-      if (!res.ok) {
-        throw new Error(`Error al cargar familias: ${res.status}`);
-      }
-
+      if (!res.ok) throw new Error(`Error al cargar familias: ${res.status}`);
       const data = await res.json();
       if (!Array.isArray(data)) {
-        console.error("❌ Respuesta inesperada:", data);
+        console.error("Respuesta inesperada:", data);
         return;
       }
 
       tbody.innerHTML = "";
-
       data.forEach(f => {
         const tr = document.createElement("tr");
-        tr.dataset.id = f.id; // guardamos id en la fila
+        tr.dataset.id = f.id;
         tr.innerHTML = `
           <td>${f.codigo}</td>
           <td>${f.descripcion}</td>
-          <td>
-            <button class="editar">✏️</button>
-            <button class="eliminar">🗑️</button>
+          <td>${f.categoria || "-"}</td>
+          <td>${f.tipo ? f.tipo.toUpperCase() : "-"}</td>
+          <td class="acciones">
+            <button class="editar" title="Editar"><i class="fas fa-edit"></i></button>
+            <button class="eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
           </td>
         `;
-        // seleccionar fila
+
         tr.onclick = () => {
-          document.querySelectorAll("#tbody-familias tr")
-            .forEach(row => row.classList.remove("seleccionado"));
+          document.querySelectorAll("#tbody-familias tr").forEach(row => row.classList.remove("seleccionado"));
           tr.classList.add("seleccionado");
         };
 
-        // botones inline
         tr.querySelector(".editar").onclick = e => {
           e.stopPropagation();
           abrirModal("Modificar Familia", f);
@@ -68,37 +87,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
         tr.querySelector(".eliminar").onclick = async e => {
           e.stopPropagation();
-          if (confirm("¿Eliminar familia?")) {
-            const resp = await fetch(`/api/familias/${f.id}`, {
-              method: "DELETE",
-              credentials: "include"
-            });
-            if (resp.ok) {
-              cargarFamilias();
-            } else {
-              alert("Error al eliminar familia");
-            }
+          if (!confirm("Eliminar familia?")) return;
+          const resp = await fetch(`/api/familias/${f.id}`, { method: "DELETE", credentials: "include" });
+          if (resp.ok) {
+            cargarFamilias();
+          } else {
+            alert("Error al eliminar familia");
           }
         };
 
         tbody.appendChild(tr);
       });
 
+      if (!data.length) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#888;">Sin datos</td></tr>`;
+      }
     } catch (err) {
-      console.error("❌ Error en cargarFamilias:", err);
+      console.error("Error en cargarFamilias:", err);
     }
   }
 
-  // 👉 Botón agregar
   const btnAgregar = document.querySelector(".icon-button-erp.agregar");
-  if (btnAgregar) {
-    btnAgregar.onclick = () => abrirModal("Nueva Familia");
-  }
+  if (btnAgregar) btnAgregar.onclick = () => abrirModal("Nueva Familia");
 
-  // 👉 Guardar (crear o editar)
   form.onsubmit = async e => {
     e.preventDefault();
     const datos = Object.fromEntries(new FormData(form).entries());
+    if (categoriaSelect) datos.categoria_id = categoriaSelect.value || "";
+    if (tipoSelect) datos.tipo = tipoSelect.value || "";
     const url = editando ? `/api/familias/${editando}` : "/api/familias";
     const method = editando ? "PUT" : "POST";
 
@@ -117,12 +133,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // 👉 Inicial
-  cargarFamilias();
+  cargarCategorias().then(cargarFamilias);
 
-  // 👉 Botón cerrar modal
   const btnCerrar = document.getElementById("cerrar-modal-familia");
-  if (btnCerrar) {
-    btnCerrar.onclick = cerrarModal;
-  }
+  if (btnCerrar) btnCerrar.onclick = cerrarModal;
 });

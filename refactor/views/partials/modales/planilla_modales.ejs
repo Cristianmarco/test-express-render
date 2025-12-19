@@ -1,5 +1,10 @@
 <!-- MODAL PLANILLA DIARIA -->
 <div id="modal-planilla" class="modal-refactor">
+  <style>
+    #modal-planilla .tabla-erp td { vertical-align: middle; }
+    #modal-planilla .tabla-erp td.garantia-si { color: #b00020; font-weight: 600; }
+    #modal-planilla .tabla-erp td.garantia-no { color: #2e7d32; font-weight: 600; }
+  </style>
   <div class="modal-contenido-refactor modal-erp-producto modal-agregar-producto-grande">
     <span class="cerrar" onclick="cerrarModalPlanilla()">&times;</span>
     <h2 class="modal-titulo-principal"><i class="fas fa-clipboard-list"></i> Reparaciones del <span id="fecha-planilla"></span></h2>
@@ -35,6 +40,13 @@
       <button id="btn-exportar-planilla" class="icon-button-erp exportar-min" title="Exportar planilla diaria">
         <i class="fas fa-file-excel"></i>
       </button>
+      <div class="export-range-group" style="display:flex; gap:6px; align-items:center; margin-left:8px;">
+        <input type="date" id="planilla-rango-desde" title="Desde" style="padding:4px 6px; height:32px; border:1px solid #cdd6e1; border-radius:4px; font-size:12px;">
+        <input type="date" id="planilla-rango-hasta" title="Hasta" style="padding:4px 6px; height:32px; border:1px solid #cdd6e1; border-radius:4px; font-size:12px;">
+        <button id="btn-exportar-planilla-rango" class="icon-button-erp exportar-min" title="Exportar rango (multi-hoja)">
+          <i class="fas fa-clone"></i>
+        </button>
+      </div>
       <div class="panel-counter" title="Cantidad de equipos del día">
         <i class="fas fa-list-check"></i>
         <span style="opacity:.8">Equipos:</span>

@@ -247,6 +247,18 @@ async function abrirModalPlanilla(fechaTxt) {
       excelBtn.title = 'Exportar Excel (.xlsx)';
       excelBtn.onclick = () => window.open(`/api/reparaciones_planilla/export?fecha=${encodeURIComponent(iso)}&format=xlsx`, '_blank');
     }
+    const rangeBtn = document.getElementById('btn-exportar-planilla-rango');
+    if (rangeBtn) {
+      rangeBtn.title = 'Exportar rango (multi-hoja)';
+      rangeBtn.onclick = () => {
+        const dInput = document.getElementById('planilla-rango-desde');
+        const hInput = document.getElementById('planilla-rango-hasta');
+        const d = dInput?.value;
+        const h = hInput?.value;
+        if (!d || !h) { alert('Elegí fecha desde y hasta'); return; }
+        window.open(`/api/reparaciones_planilla/export-range?inicio=${encodeURIComponent(d)}&fin=${encodeURIComponent(h)}`, '_blank');
+      };
+    }
   } catch {}
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
 
@@ -268,7 +280,11 @@ async function abrirModalPlanilla(fechaTxt) {
       return;
     }
     const cEl = document.getElementById('planilla-count'); if (cEl) cEl.textContent = String(data.length);
-    tbody.innerHTML = data.map((rep, idx) => `
+    tbody.innerHTML = data.map((rep, idx) => {
+      const esGar = String(rep.garantia || '').toLowerCase() === 'si';
+      const garTxt = esGar ? 'Si' : 'No';
+      const garClass = esGar ? 'garantia-si' : 'garantia-no';
+      return `
       <tr data-id="${rep.id||''}"
           data-familia-id="${rep.familia_id||''}"
           data-tecnico-id="${rep.tecnico_id||''}"
@@ -281,7 +297,7 @@ async function abrirModalPlanilla(fechaTxt) {
         <td>${rep.coche_numero||'-'}</td>
         <td>${rep.equipo||'-'}</td>
         <td>${rep.tecnico||'-'}</td>
-        <td>${rep.garantia==='si'?'Si':'No'}</td>
+        <td class="${garClass}">${garTxt}</td>
         <td>${rep.nro_pedido_ref||'-'}</td>
         <td>${rep.observaciones||'-'}</td>
         <td style="display:none" class="col-hora-inicio">${rep.hora_inicio||''}</td>
@@ -297,7 +313,8 @@ async function abrirModalPlanilla(fechaTxt) {
         <td style="display:none" class="col-tecnico-id">${rep.tecnico_id||''}</td>
         <td style="display:none" class="col-cliente-id">${rep.cliente_id||''}</td>
         <td style="display:none" class="col-cliente-tipo">${rep.cliente_tipo||''}</td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   } catch (err) {
     console.error('planilla load error:', err);
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:10px; color:#c33">Error al conectar con el servidor.</td></tr>';
