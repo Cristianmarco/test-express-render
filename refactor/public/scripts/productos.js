@@ -2,6 +2,7 @@
 
 (function () {
   let productoSeleccionado = null;
+  let forceCreate = false;
   // caches para listas base
   const cache = { familias: [], categorias: [], grupos: [], marcas: [], proveedores: [] };
 
@@ -170,9 +171,32 @@
     if (permitidas.length === 1) selC.value = String(permitidas[0].id);
   }
 
+  function cargarProductoEnFormulario(prod) {
+    const form = qs("form-producto-refactor");
+    if (!form || !prod) return;
+    form.reset();
+    for (const [k, v] of Object.entries(prod)) {
+      const input = form.querySelector(`[name='${k}']`);
+      if (input) input.value = v || "";
+    }
+    // aplicar dependencias
+    poblarFamiliasFiltradas(qs('prod-grupo_id')?.value);
+    poblarCategoriasDesdeFamilias();
+    // familia/categoria principal si vienen en arreglo (M2M)
+    if (prod.familias && prod.familias.length) {
+      const famId = String(prod.familias[0].id);
+      const fSel = qs('prod-familia_id'); if (fSel) fSel.value = famId;
+      poblarCategoriasDesdeFamilias();
+    }
+    if (prod.categorias && prod.categorias.length) {
+      qs('prod-categoria_id').value = String(prod.categorias[0].id);
+    }
+  }
+
   function bindAcciones() {
     const btnAgregar = qs("btn-prod-agregar");
     if (btnAgregar) btnAgregar.onclick = async () => {
+      forceCreate = true;
       productoSeleccionado = null;
       const form = qs("form-producto-refactor");
       if (form) form.reset();
@@ -195,9 +219,29 @@
       qs("modal-agregar-producto").style.display = "flex";
     };
 
+    const btnCopiar = qs("btn-prod-copiar");
+    if (btnCopiar) btnCopiar.onclick = async () => {
+      if (!productoSeleccionado) return alert("Selecciona un producto");
+      forceCreate = true;
+      await Promise.all([
+        cargarOpcionesSelect("/api/familias", "prod-familia_id", "id", "descripcion", "codigo"),
+        cargarOpcionesSelect("/api/grupo", "prod-grupo_id", "id", "descripcion", "codigo"),
+        cargarOpcionesSelect("/api/marca", "prod-marca_id", "id", "descripcion", "codigo"),
+        cargarOpcionesSelect("/api/categoria", "prod-categoria_id", "id", "descripcion", "codigo"),
+        cargarOpcionesSelect("/api/proveedores", "prod-proveedor_id", "id", "nombre", "codigo"),
+      ]);
+      cargarProductoEnFormulario(productoSeleccionado);
+      const gSel = qs('prod-grupo_id');
+      if (gSel && !gSel._bound) { gSel._bound = true; gSel.addEventListener('change', () => { poblarFamiliasFiltradas(gSel.value); poblarCategoriasDesdeFamilias(); }); }
+      const fSel = qs('prod-familia_id');
+      if (fSel && !fSel._bound) { fSel._bound = true; fSel.addEventListener('change', poblarCategoriasDesdeFamilias); }
+      qs("modal-agregar-producto").style.display = "flex";
+    };
+
     const btnModificar = qs("btn-prod-modificar");
     if (btnModificar) btnModificar.onclick = async () => {
       if (!productoSeleccionado) return alert("Selecciona un producto");
+      forceCreate = false;
       await Promise.all([
         cargarOpcionesSelect("/api/familias", "prod-familia_id", "id", "descripcion", "codigo"),
         cargarOpcionesSelect("/api/grupo", "prod-grupo_id", "id", "descripcion", "codigo"),
@@ -271,7 +315,7 @@
       // familia única
       const famVal = qs('prod-familia_id')?.value || '';
       datos.familia_id = famVal || null;
-      const editMode = !!(productoSeleccionado && productoSeleccionado.id);
+      const editMode = !forceCreate && !!(productoSeleccionado && productoSeleccionado.id);
       const url = editMode ? `/api/productos/${productoSeleccionado.id}` : "/api/productos";
       const method = editMode ? "PUT" : "POST";
       try {
@@ -284,6 +328,7 @@
         if (!resp.ok) throw new Error(data.error || "Error guardando producto");
         qs("modal-agregar-producto").style.display = "none";
         formProd.reset();
+        forceCreate = false;
         await cargarProductos(qs("buscar-producto")?.value || "");
       } catch (e) {
         console.error(e);

@@ -40,6 +40,36 @@ async function ensurePlanillaGarantiaColumns(dbClient) {
   await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_desarme TEXT");
 }
 
+function extractRepuestosFromTrabajo(trabajo) {
+  const items = [];
+  if (!trabajo) return items;
+  const lines = String(trabajo).split(/\r?\n/);
+  for (const line of lines) {
+    const plainLine = line.trim();
+    const matches = Array.from(line.matchAll(/\(([^)]+)\)/g));
+    if (matches.length) {
+      for (const match of matches) {
+        const codigo = (match[1] || "").trim();
+        if (!codigo) continue;
+        let descripcion = "";
+        const after = line.slice(match.index + match[0].length).trim();
+        if (after) descripcion = after.replace(/^[-:]+/, "").trim();
+        items.push({ codigo, descripcion });
+      }
+      continue;
+    }
+
+    if (!plainLine) continue;
+    const cleaned = plainLine.replace(/^repuestos?\s*[:\-]\s*/i, "");
+    const partes = cleaned.split(/\s*(?:,|;|\+|\||\/|\sy\s)\s*/i).map(p => p.trim()).filter(Boolean);
+    for (const desc of partes) {
+      if (!desc) continue;
+      items.push({ codigo: "", descripcion: desc });
+    }
+  }
+  return items;
+}
+
 // ============================
 // GET historial por ID de reparación
 // ============================
@@ -173,6 +203,98 @@ router.get("/por_pedido", async (req, res) => {
 // ============================
 // ✅ NUEVA RUTA: Días con reparaciones en un rango
 // ============================
+// ============================
+// Repuestos por nro de pedido y rango de fechas
+// ============================
+router.get("/repuestos", async (req, res) => {
+  const nro = (req.query.nro || "").trim();
+  const desde = (req.query.desde || "").trim();
+  const hasta = (req.query.hasta || "").trim();
+  if (!nro) {
+    return res.status(400).json({ error: "Falta nro de pedido" });
+  }
+  try {
+    await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
+    const pattern = `%${nro}%`;
+    let sql = `
+      SELECT
+        r.id,
+        r.id_reparacion,
+        r.fecha::date AS fecha,
+        r.hora_inicio,
+        r.hora_fin,
+        r.trabajo,
+        r.nro_pedido_ref,
+        f.descripcion AS equipo,
+        t.nombre AS tecnico
+      FROM equipos_reparaciones r
+      LEFT JOIN familia f ON r.familia_id = f.id
+      LEFT JOIN tecnicos t ON r.tecnico_id = t.id
+      WHERE COALESCE(r.nro_pedido_ref, '') ILIKE $1
+    `;
+    const params = [pattern];
+    if (desde && hasta) {
+      sql += " AND DATE(r.fecha) BETWEEN $2 AND $3";
+      params.push(desde, hasta);
+    }
+    sql += " ORDER BY r.fecha ASC, r.hora_inicio ASC, r.id ASC";
+    const { rows } = await pool.query(sql, params);
+    return res.json(rows);
+  } catch (err) {
+    console.error("Error GET /reparaciones_planilla/repuestos:", err);
+    return res.status(500).json({ error: "Error al obtener reparaciones" });
+  }
+});
+
+// ============================
+// Listado de repuestos por nro de pedido y rango
+// ============================
+router.get("/repuestos/listado", async (req, res) => {
+  const nro = (req.query.nro || "").trim();
+  const desde = (req.query.desde || "").trim();
+  const hasta = (req.query.hasta || "").trim();
+  if (!nro) {
+    return res.status(400).json({ error: "Falta nro de pedido" });
+  }
+  try {
+    await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
+    const pattern = `%${nro}%`;
+    let sql = `
+      SELECT r.trabajo
+      FROM equipos_reparaciones r
+      WHERE COALESCE(r.nro_pedido_ref, '') ILIKE $1
+    `;
+    const params = [pattern];
+    if (desde && hasta) {
+      sql += " AND DATE(r.fecha) BETWEEN $2 AND $3";
+      params.push(desde, hasta);
+    }
+    const { rows } = await pool.query(sql, params);
+    const map = new Map();
+    for (const row of rows) {
+      const items = extractRepuestosFromTrabajo(row.trabajo);
+      for (const item of items) {
+        const codigo = item.codigo || "";
+        const descripcion = item.descripcion || "";
+        const key = `${codigo}||${descripcion}`;
+        const prev = map.get(key) || { codigo, descripcion, cantidad: 0 };
+        prev.cantidad += 1;
+        map.set(key, prev);
+      }
+    }
+    const listado = Array.from(map.values()).map(r => ({
+      codigo: r.codigo || "-",
+      descripcion: r.descripcion || "-",
+      cantidad: r.cantidad
+    }));
+    listado.sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), "es", { numeric: true, sensitivity: "base" }));
+    return res.json(listado);
+  } catch (err) {
+    console.error("Error GET /reparaciones_planilla/repuestos/listado:", err);
+    return res.status(500).json({ error: "Error al obtener repuestos" });
+  }
+});
+
 router.get("/rango", async (req, res) => {
   try {
     await ensurePlanillaGarantiaColumns(pool);

@@ -4,10 +4,25 @@
     #modal-planilla .tabla-erp td { vertical-align: middle; }
     #modal-planilla .tabla-erp td.garantia-si { color: #b00020; font-weight: 600; }
     #modal-planilla .tabla-erp td.garantia-no { color: #2e7d32; font-weight: 600; }
+    #modal-planilla .modal-planilla-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    #modal-planilla .modal-planilla-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    #modal-planilla .modal-planilla-actions label { font-size: 0.85rem; font-weight: 600; color: #1a5a90; }
+    #modal-planilla .campo-orden-planilla { padding: 6px 10px; border: 1px solid #c5d8ef; border-radius: 6px; font-size: 13px; }
   </style>
   <div class="modal-contenido-refactor modal-erp-producto modal-agregar-producto-grande">
     <span class="cerrar" onclick="cerrarModalPlanilla()">&times;</span>
-    <h2 class="modal-titulo-principal"><i class="fas fa-clipboard-list"></i> Reparaciones del <span id="fecha-planilla"></span></h2>
+    <div class="modal-planilla-header">
+      <h2 class="modal-titulo-principal"><i class="fas fa-clipboard-list"></i> Reparaciones del <span id="fecha-planilla"></span></h2>
+      <div class="modal-planilla-actions">
+        <label for="orden-planilla">Orden</label>
+        <select id="orden-planilla" class="campo-orden-planilla">
+          <option value="ingreso">Ingreso</option>
+          <option value="tecnico">Tecnico (hora inicio)</option>
+          <option value="id_reparacion">ID reparacion</option>
+          <option value="nro_pedido">Nro pedido</option>
+        </select>
+      </div>
+    </div>
 
     <div class="erp-table-card">
       <table class="tabla-erp">
@@ -52,6 +67,81 @@
         <span style="opacity:.8">Equipos:</span>
         <span id="planilla-count">0</span>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REPUESTOS POR PEDIDO -->
+<div id="modal-repuestos-planilla" class="modal-refactor" style="display:none;">
+  <style>
+    #modal-repuestos-planilla .form-repuestos-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; }
+    #modal-repuestos-planilla .form-repuestos-grid label { font-size: 0.85rem; font-weight: 600; color: #1a5a90; }
+    #modal-repuestos-planilla .form-repuestos-grid input { padding: 6px 10px; border: 1px solid #c5d8ef; border-radius: 6px; font-size: 13px; }
+    #modal-repuestos-planilla .repuestos-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+    #modal-repuestos-planilla .repuestos-table { margin-top: 12px; }
+    #modal-repuestos-planilla .repuestos-table thead th { white-space: nowrap; }
+    #modal-repuestos-planilla .modal-contenido-refactor { overflow-y: auto; max-height: 90vh; }
+    #modal-repuestos-planilla .erp-table-card { flex: 0 0 auto; min-height: 140px; }
+  </style>
+  <div class="modal-contenido-refactor modal-erp-producto modal-agregar-producto-grande" style="max-width:860px;">
+    <span class="cerrar" onclick="cerrarModalRepuestosPlanilla()">&times;</span>
+    <h2 class="modal-titulo-principal"><i class="fas fa-cubes"></i> Repuestos por Pedido</h2>
+
+    <div class="form-repuestos-grid">
+      <div>
+        <label for="repuestos-nro-pedido">Nro de Pedido</label>
+        <input type="text" id="repuestos-nro-pedido" placeholder="Ingrese nro de pedido" />
+      </div>
+      <div>
+        <label for="repuestos-desde">Desde Fecha</label>
+        <input type="date" id="repuestos-desde" />
+      </div>
+      <div>
+        <label for="repuestos-hasta">Hasta Fecha</label>
+        <input type="date" id="repuestos-hasta" />
+      </div>
+    </div>
+
+    <div class="repuestos-actions" style="justify-content: space-between; width: 100%;">
+      <button id="btn-repuestos-filtrar" class="btn-secundario" type="button" onclick="repuestosPlanillaFiltrar()"><i class="fas fa-filter"></i> Ok</button>
+      <div class="panel-counter" style="margin-left:auto;" title="Cantidad de equipos filtrados">
+        <i class="fas fa-list-check"></i>
+        <span style="opacity:.8">Equipos:</span>
+        <span id="repuestos-count">0</span>
+      </div>
+    </div>
+
+    <div class="erp-table-card repuestos-table">
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>ID Reparacion</th>
+            <th>Equipo</th>
+            <th>Tecnico</th>
+            <th>Nro Pedido</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-repuestos-reparaciones"></tbody>
+      </table>
+    </div>
+
+    <div class="repuestos-actions">
+      <button id="btn-repuestos-listado" class="btn-secundario" type="button" onclick="repuestosPlanillaListado()"><i class="fas fa-list"></i> Listado</button>
+      <button id="btn-repuestos-imprimir" class="btn-secundario" type="button" onclick="repuestosPlanillaImprimir()"><i class="fas fa-print"></i> Imprimir</button>
+    </div>
+
+    <div class="erp-table-card repuestos-table">
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th>Codigo</th>
+            <th>Descripcion</th>
+            <th>Cantidad</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-repuestos-listado"></tbody>
+      </table>
     </div>
   </div>
 </div>

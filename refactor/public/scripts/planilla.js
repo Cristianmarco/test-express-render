@@ -79,6 +79,9 @@ const GARANTIA_TEMPLATES = {
 
 let currentDate = new Date();
 let historialTableMode = 'historial';
+let planillaOrden = 'ingreso';
+let planillaData = [];
+let repuestosFiltro = null;
 
 function setHistorialTableMode(mode) {
   historialTableMode = mode === 'seleccion' ? 'seleccion' : 'historial';
@@ -228,6 +231,340 @@ async function renderCalendar(date) {
 }
 
 // ---------- Planilla (modal) ----------
+function fmtFechaCorta(valor) {
+  const iso = String(valor || '').split('T')[0];
+  const parts = iso.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return iso || '-';
+}
+
+function renderReparacionesRepuestos(list) {
+  const tbody = document.getElementById('tbody-repuestos-reparaciones');
+  const countEl = document.getElementById('repuestos-count');
+  if (!tbody) return;
+  if (!Array.isArray(list) || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:10px; color:#666">Sin reparaciones.</td></tr>';
+    if (countEl) countEl.textContent = '0';
+    return;
+  }
+  if (countEl) countEl.textContent = String(list.length);
+  tbody.innerHTML = list.map(r => `
+    <tr>
+      <td>${fmtFechaCorta(r.fecha)}</td>
+      <td>${r.id_reparacion || '-'}</td>
+      <td>${r.equipo || '-'}</td>
+      <td>${r.tecnico || '-'}</td>
+      <td>${r.nro_pedido_ref || '-'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderListadoRepuestos(list) {
+  const tbody = document.getElementById('tbody-repuestos-listado');
+  if (!tbody) return;
+  if (!Array.isArray(list) || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:10px; color:#666">Sin repuestos.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(r => `
+    <tr>
+      <td>${r.codigo || '-'}</td>
+      <td>${r.descripcion || '-'}</td>
+      <td>${r.cantidad || 0}</td>
+    </tr>
+  `).join('');
+}
+
+function parseInputDate(valor) {
+  const v = String(valor || '').trim();
+  if (!v) return '';
+  if (v.includes('/')) {
+    const parts = v.split('/');
+    if (parts.length === 3) {
+      const d = parts[0].padStart(2, '0');
+      const m = parts[1].padStart(2, '0');
+      const y = parts[2];
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return v;
+}
+
+function getRepuestosFiltroInputs() {
+  const inputNro = document.getElementById('repuestos-nro-pedido');
+  const inputDesde = document.getElementById('repuestos-desde');
+  const inputHasta = document.getElementById('repuestos-hasta');
+  const nro = (inputNro && inputNro.value || '').trim();
+  const desde = parseInputDate(inputDesde && inputDesde.value);
+  const hasta = parseInputDate(inputHasta && inputHasta.value);
+  return { nro, desde, hasta };
+}
+
+async function repuestosPlanillaFiltrar() {
+  const { nro, desde, hasta } = getRepuestosFiltroInputs();
+  const tbodyRep = document.getElementById('tbody-repuestos-reparaciones');
+  const tbodyList = document.getElementById('tbody-repuestos-listado');
+  if (!nro) {
+    alert('Complete Nro de Pedido.');
+    return;
+  }
+  console.log('Repuestos filtro:', { nro, desde, hasta });
+  if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
+  if (tbodyList) tbodyList.innerHTML = '';
+  repuestosFiltro = { nro, desde, hasta };
+  try {
+    let qs = `nro=${encodeURIComponent(nro)}`;
+    if (desde) qs += `&desde=${encodeURIComponent(desde)}`;
+    if (hasta) qs += `&hasta=${encodeURIComponent(hasta)}`;
+    const res = await fetch(`/api/reparaciones_planilla/repuestos?${qs}`, { credentials: 'include' });
+    console.log('Repuestos response:', res.status);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error');
+    console.log('Repuestos data:', data);
+    renderReparacionesRepuestos(data);
+  } catch (err) {
+    console.error('Error repuestos por pedido:', err);
+    if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:10px; color:#c33">Error al cargar.</td></tr>';
+  }
+}
+
+async function repuestosPlanillaListado() {
+  const tbodyList = document.getElementById('tbody-repuestos-listado');
+  if (!repuestosFiltro) {
+    alert('Primero filtre con Ok.');
+    return;
+  }
+  console.log('Repuestos listado filtro:', repuestosFiltro);
+  if (tbodyList) tbodyList.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
+  try {
+    let qs = `nro=${encodeURIComponent(repuestosFiltro.nro)}`;
+    if (repuestosFiltro.desde) qs += `&desde=${encodeURIComponent(repuestosFiltro.desde)}`;
+    if (repuestosFiltro.hasta) qs += `&hasta=${encodeURIComponent(repuestosFiltro.hasta)}`;
+    const res = await fetch(`/api/reparaciones_planilla/repuestos/listado?${qs}`, { credentials: 'include' });
+    console.log('Listado response:', res.status);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error');
+    console.log('Listado data:', data);
+    renderListadoRepuestos(data);
+  } catch (err) {
+    console.error('Error listado repuestos:', err);
+    if (tbodyList) tbodyList.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:10px; color:#c33">Error al cargar.</td></tr>';
+  }
+}
+
+function abrirModalRepuestosPlanilla() {
+  const modal = document.getElementById('modal-repuestos-planilla');
+  limpiarModalRepuestosPlanilla();
+  if (modal) modal.style.display = 'flex';
+}
+
+function cerrarModalRepuestosPlanilla() {
+  const modal = document.getElementById('modal-repuestos-planilla');
+  limpiarModalRepuestosPlanilla();
+  if (modal) modal.style.display = 'none';
+}
+
+function limpiarModalRepuestosPlanilla() {
+  const tbodyRep = document.getElementById('tbody-repuestos-reparaciones');
+  const tbodyList = document.getElementById('tbody-repuestos-listado');
+  const inputNro = document.getElementById('repuestos-nro-pedido');
+  const inputDesde = document.getElementById('repuestos-desde');
+  const inputHasta = document.getElementById('repuestos-hasta');
+  const countEl = document.getElementById('repuestos-count');
+  repuestosFiltro = null;
+  if (tbodyRep) tbodyRep.innerHTML = '';
+  if (tbodyList) tbodyList.innerHTML = '';
+  if (inputNro) inputNro.value = '';
+  if (inputDesde) inputDesde.value = '';
+  if (inputHasta) inputHasta.value = '';
+  if (countEl) countEl.textContent = '0';
+}
+
+function repuestosPlanillaImprimir() {
+  const tbody = document.getElementById('tbody-repuestos-listado');
+  if (!tbody || !tbody.children.length) {
+    alert('No hay repuestos para imprimir.');
+    return;
+  }
+  const nro = repuestosFiltro && repuestosFiltro.nro ? repuestosFiltro.nro : '';
+  const desde = repuestosFiltro && repuestosFiltro.desde ? repuestosFiltro.desde : '';
+  const hasta = repuestosFiltro && repuestosFiltro.hasta ? repuestosFiltro.hasta : '';
+  const title = `Listado de repuestos${nro ? ' - Pedido ' + nro : ''}`;
+  const subtitle = [desde && `Desde: ${desde}`, hasta && `Hasta: ${hasta}`].filter(Boolean).join(' | ');
+  const html = `
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+          h1 { font-size: 18px; margin: 0 0 6px 0; }
+          h2 { font-size: 12px; font-weight: normal; margin: 0 0 14px 0; color: #555; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; text-align: left; }
+          th { background: #f3f4f6; }
+        </style>
+      </head>
+      <body>
+        <h1>${title}</h1>
+        ${subtitle ? `<h2>${subtitle}</h2>` : ''}
+        <table>
+          <thead>
+            <tr>
+              <th>Codigo</th>
+              <th>Descripcion</th>
+              <th>Cantidad</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tbody.innerHTML}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `;
+  const win = window.open('', '_blank');
+  if (!win) return alert('El navegador bloqueó la ventana de impresión.');
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
+window.abrirModalRepuestosPlanilla = abrirModalRepuestosPlanilla;
+window.repuestosPlanillaFiltrar = repuestosPlanillaFiltrar;
+window.repuestosPlanillaListado = repuestosPlanillaListado;
+window.cerrarModalRepuestosPlanilla = cerrarModalRepuestosPlanilla;
+window.repuestosPlanillaImprimir = repuestosPlanillaImprimir;
+
+function bindRepuestosModal() {
+  const btn = document.getElementById('btn-planilla-repuestos');
+  const modal = document.getElementById('modal-repuestos-planilla');
+  if (!btn || !modal || btn._bound) return;
+  btn._bound = true;
+
+  btn.addEventListener('click', abrirModalRepuestosPlanilla);
+}
+
+function getPlanillaOrden() {
+  const select = document.getElementById('orden-planilla');
+  if (select) return select.value;
+  return planillaOrden || 'ingreso';
+}
+
+function normalizeTexto(valor) {
+  return (valor == null ? '' : String(valor)).trim().toLowerCase();
+}
+
+function timeToMinutes(valor) {
+  if (!valor) return Number.POSITIVE_INFINITY;
+  const parts = String(valor).split(':');
+  const hh = parseInt(parts[0], 10);
+  const mm = parseInt(parts[1], 10);
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return Number.POSITIVE_INFINITY;
+  return (hh * 60) + mm;
+}
+
+function ordenarPlanilla(data, criterio) {
+  const lista = Array.isArray(data) ? data.slice() : [];
+  if (criterio === 'ingreso') return lista;
+
+  if (criterio === 'tecnico') {
+    lista.sort((a, b) => {
+      const ta = normalizeTexto(a.tecnico);
+      const tb = normalizeTexto(b.tecnico);
+      const cmpTecnico = ta.localeCompare(tb, 'es', { sensitivity: 'base' });
+      if (cmpTecnico !== 0) return cmpTecnico;
+      const cmpHora = timeToMinutes(a.hora_inicio) - timeToMinutes(b.hora_inicio);
+      if (cmpHora !== 0) return cmpHora;
+      return String(a.id_reparacion || '').localeCompare(String(b.id_reparacion || ''), 'es', { numeric: true, sensitivity: 'base' });
+    });
+    return lista;
+  }
+
+  if (criterio === 'id_reparacion') {
+    lista.sort((a, b) => String(a.id_reparacion || '').localeCompare(String(b.id_reparacion || ''), 'es', { numeric: true, sensitivity: 'base' }));
+    return lista;
+  }
+
+  if (criterio === 'nro_pedido') {
+    lista.sort((a, b) => {
+      const pa = String(a.nro_pedido_ref || a.nro_pedido || '');
+      const pb = String(b.nro_pedido_ref || b.nro_pedido || '');
+      const aEmpty = !pa;
+      const bEmpty = !pb;
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;
+      if (bEmpty) return -1;
+      return pa.localeCompare(pb, 'es', { numeric: true, sensitivity: 'base' });
+    });
+    return lista;
+  }
+
+  return lista;
+}
+
+function renderPlanillaTable(data) {
+  const tbody = document.getElementById('tbody-reparaciones');
+  if (!tbody) return;
+  const orden = getPlanillaOrden();
+  const lista = ordenarPlanilla(data, orden);
+  const cEl = document.getElementById('planilla-count');
+  if (cEl) cEl.textContent = String(Array.isArray(data) ? data.length : 0);
+
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:10px; color:#666">Sin reparaciones para esta fecha.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = lista.map((rep, idx) => {
+    const esGar = String(rep.garantia || '').toLowerCase() === 'si';
+    const garTxt = esGar ? 'Si' : 'No';
+    const garClass = esGar ? 'garantia-si' : 'garantia-no';
+    return `
+      <tr data-id="${rep.id || ''}"
+          data-familia-id="${rep.familia_id || ''}"
+          data-tecnico-id="${rep.tecnico_id || ''}"
+          data-cliente-id="${rep.cliente_id || ''}"
+          data-cliente-tipo="${rep.cliente_tipo || ''}"
+          data-nro-pedido-ref="${rep.nro_pedido_ref || ''}">
+        <td>${idx + 1}</td>
+        <td>${rep.cliente || '-'}</td>
+        <td>${rep.id_reparacion || '-'}</td>
+        <td>${rep.coche_numero || '-'}</td>
+        <td>${rep.equipo || '-'}</td>
+        <td>${rep.tecnico || '-'}</td>
+        <td class="${garClass}">${garTxt}</td>
+        <td>${rep.nro_pedido_ref || '-'}</td>
+        <td>${rep.observaciones || '-'}</td>
+        <td style="display:none" class="col-hora-inicio">${rep.hora_inicio || ''}</td>
+        <td style="display:none" class="col-hora-fin">${rep.hora_fin || ''}</td>
+        <td style="display:none" class="col-trabajo">${rep.trabajo || ''}</td>
+        <td style="display:none" class="col-id-dota">${rep.id_dota || ''}</td>
+        <td style="display:none" class="col-ultimo-reparador-nombre">${rep.ultimo_reparador_nombre || ''}</td>
+        <td style="display:none" class="col-ultimo-reparador-id">${rep.ultimo_reparador || ''}</td>
+        <td style="display:none" class="col-resolucion">${rep.resolucion || ''}</td>
+        <td style="display:none" class="col-gar-prueba">${rep.garantia_prueba_banco || ''}</td>
+        <td style="display:none" class="col-gar-desarme">${rep.garantia_desarme || ''}</td>
+        <td style="display:none" class="col-familia-id">${rep.familia_id || ''}</td>
+        <td style="display:none" class="col-tecnico-id">${rep.tecnico_id || ''}</td>
+        <td style="display:none" class="col-cliente-id">${rep.cliente_id || ''}</td>
+        <td style="display:none" class="col-cliente-tipo">${rep.cliente_tipo || ''}</td>
+      </tr>`;
+  }).join('');
+}
+
+function bindOrdenPlanilla() {
+  const ordenSelect = document.getElementById('orden-planilla');
+  if (!ordenSelect || ordenSelect._bound) return;
+  ordenSelect._bound = true;
+  ordenSelect.value = planillaOrden || 'ingreso';
+  ordenSelect.addEventListener('change', () => {
+    planillaOrden = ordenSelect.value;
+    renderPlanillaTable(planillaData);
+  });
+}
+
 async function abrirModalPlanilla(fechaTxt) {
   const modal = document.getElementById('modal-planilla');
   const spanFecha = document.getElementById('fecha-planilla');
@@ -274,47 +611,8 @@ async function abrirModalPlanilla(fechaTxt) {
     const res = await fetch(`/api/reparaciones_planilla?fecha=${fechaISO}&_=${Date.now()}` , { credentials:'include', cache: 'no-store' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error');
-    if (!Array.isArray(data) || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:10px; color:#666">Sin reparaciones para esta fecha.</td></tr>';
-      const cEl = document.getElementById('planilla-count'); if (cEl) cEl.textContent = '0';
-      return;
-    }
-    const cEl = document.getElementById('planilla-count'); if (cEl) cEl.textContent = String(data.length);
-    tbody.innerHTML = data.map((rep, idx) => {
-      const esGar = String(rep.garantia || '').toLowerCase() === 'si';
-      const garTxt = esGar ? 'Si' : 'No';
-      const garClass = esGar ? 'garantia-si' : 'garantia-no';
-      return `
-      <tr data-id="${rep.id||''}"
-          data-familia-id="${rep.familia_id||''}"
-          data-tecnico-id="${rep.tecnico_id||''}"
-          data-cliente-id="${rep.cliente_id||''}"
-          data-cliente-tipo="${rep.cliente_tipo||''}"
-          data-nro-pedido-ref="${rep.nro_pedido_ref||''}">
-        <td>${idx + 1}</td>
-        <td>${rep.cliente||'-'}</td>
-        <td>${rep.id_reparacion||'-'}</td>
-        <td>${rep.coche_numero||'-'}</td>
-        <td>${rep.equipo||'-'}</td>
-        <td>${rep.tecnico||'-'}</td>
-        <td class="${garClass}">${garTxt}</td>
-        <td>${rep.nro_pedido_ref||'-'}</td>
-        <td>${rep.observaciones||'-'}</td>
-        <td style="display:none" class="col-hora-inicio">${rep.hora_inicio||''}</td>
-        <td style="display:none" class="col-hora-fin">${rep.hora_fin||''}</td>
-        <td style="display:none" class="col-trabajo">${rep.trabajo||''}</td>
-        <td style="display:none" class="col-id-dota">${rep.id_dota||''}</td>
-        <td style="display:none" class="col-ultimo-reparador-nombre">${rep.ultimo_reparador_nombre||''}</td>
-        <td style="display:none" class="col-ultimo-reparador-id">${rep.ultimo_reparador||''}</td>
-        <td style="display:none" class="col-resolucion">${rep.resolucion||''}</td>
-        <td style="display:none" class="col-gar-prueba">${rep.garantia_prueba_banco||''}</td>
-        <td style="display:none" class="col-gar-desarme">${rep.garantia_desarme||''}</td>
-        <td style="display:none" class="col-familia-id">${rep.familia_id||''}</td>
-        <td style="display:none" class="col-tecnico-id">${rep.tecnico_id||''}</td>
-        <td style="display:none" class="col-cliente-id">${rep.cliente_id||''}</td>
-        <td style="display:none" class="col-cliente-tipo">${rep.cliente_tipo||''}</td>
-      </tr>`;
-    }).join('');
+    planillaData = Array.isArray(data) ? data : [];
+    renderPlanillaTable(planillaData);
   } catch (err) {
     console.error('planilla load error:', err);
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:10px; color:#c33">Error al conectar con el servidor.</td></tr>';
@@ -1310,6 +1608,8 @@ function initPlanilla(){
   bindMonthNavigation();
   renderCalendar(currentDate);
   bindPlanillaActions();
+  bindOrdenPlanilla();
+  bindRepuestosModal();
   bindProductoSelectorSimple();
   prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
   bindCodigoRepuestoEnter();
