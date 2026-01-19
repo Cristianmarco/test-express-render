@@ -4,6 +4,7 @@ let licSeleccionada = null; // selected licitacion number
 let licFamilias = []; // cache familias for datalist
 let vigSeleccionada = null; // id seleccionada en R.Vigentes
 let garSeleccionada = null; // item seleccionado en garantias
+let vigRecalcBusy = false;
 const garSeleccionMultiple = new Set(); // ids marcados para eliminación múltiple
 let garSeleccionAnchorIndex = null; // último índice usado para selección por shift
 
@@ -303,6 +304,7 @@ function initLicitacionesView() {
   setupLicitacionesTabs();
   bindLicitacionesDeselect();
   bindVigentesDeselect();
+  bindVigentesRecalcular();
 }
 
 if (document.querySelector('[data-view="licitaciones"]')) {
@@ -695,6 +697,7 @@ function setupLicitacionesTabs(){
     const panelLic = document.getElementById('lic-panel');
     const panelGar = document.getElementById('gar-panel');
     const btnVigClear = document.getElementById('btn-vig-clear');
+    const btnVigRecalc = document.getElementById('btn-vig-recalcular');
     if (tabsBar && tabLicEl && tabVigEl) {
       host._tabsInit = true;
       const activate = (which) => {
@@ -706,6 +709,7 @@ function setupLicitacionesTabs(){
         if (tabGarEl) tabGarEl.style.display = which==='gar' ? 'block' : 'none';
         if (panelLic) panelLic.style.display = which==='gar' ? 'none' : 'flex';
         if (panelGar) panelGar.style.display = which==='gar' ? 'flex' : 'none';
+        if (btnVigRecalc) btnVigRecalc.style.display = which==='vig' ? 'inline-flex' : 'none';
         if (btnVigClear) btnVigClear.style.display = which==='vig' ? 'inline-flex' : 'none';
         if(which==='vig') cargarVigentes();
         if(which==='gar') cargarGarantias();
@@ -852,6 +856,46 @@ function bindVigentesDeselect(){
       if (!insideTab) { clearVigenteSelection(); }
     }catch(_){}
   }, true);
+}
+
+
+function bindVigentesRecalcular(){
+  const btn = document.getElementById('btn-vig-recalcular');
+  if (!btn || btn._bound) return;
+  btn._bound = true;
+  btn.addEventListener('click', async ()=>{
+    const tb = document.getElementById('tbody-vigentes');
+    let nro = '';
+    if (vigSeleccionada && tb) {
+      const row = tb.querySelector('tr[data-id="' + vigSeleccionada + '"]');
+      if (row && row.dataset.nro) nro = String(row.dataset.nro || '').trim();
+    }
+    const msg = nro
+      ? ('Recalcular pendientes del pedido ' + nro + '?')
+      : 'Recalcular pendientes de todas las licitaciones?';
+    if (!confirm(msg)) return;
+    if (vigRecalcBusy) return;
+    vigRecalcBusy = true;
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/reparaciones_dota/recalcular', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ nro_pedido: nro || null })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo recalcular');
+      alert('Pendientes recalculados (' + (data.updated || 0) + ').');
+      cargarVigentes();
+    } catch (err) {
+      console.error('recalcular pendientes', err);
+      alert(err.message || 'No se pudo recalcular');
+    } finally {
+      vigRecalcBusy = false;
+      btn.disabled = false;
+    }
+  });
 }
 
 // -------- Garantias --------

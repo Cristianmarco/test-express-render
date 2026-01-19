@@ -28,6 +28,59 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST: recalcular pendientes segun reparaciones ya registradas en planilla
+router.post('/recalcular', async (req, res, next) => {
+  try {
+    await db.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
+    const nro = (req.body && (req.body.nro_pedido || req.body.nro || '')) || '';
+    const nroTrim = String(nro).trim();
+    const params = [];
+    const filtro = nroTrim ? 'WHERE btrim(r.nro_pedido) = btrim($1)' : '';
+    const filtroReparaciones = nroTrim ? 'AND btrim(nro_pedido_ref) = btrim($1)' : '';
+    if (nroTrim) params.push(nroTrim);
+
+    const sql = `
+      WITH reparaciones AS (
+        SELECT btrim(nro_pedido_ref) AS nro_pedido, COUNT(*)::int AS usados
+        FROM equipos_reparaciones
+        WHERE COALESCE(btrim(nro_pedido_ref), '') <> ''
+        ${filtroReparaciones}
+        GROUP BY btrim(nro_pedido_ref)
+      ),
+      base AS (
+        SELECT
+          r.id,
+          r.nro_pedido,
+          COALESCE(r.cantidad, 0) AS cantidad,
+          COALESCE(rep.usados, 0) AS usados,
+          SUM(COALESCE(r.cantidad, 0)) OVER (PARTITION BY r.nro_pedido ORDER BY r.id) AS acum,
+          SUM(COALESCE(r.cantidad, 0)) OVER (PARTITION BY r.nro_pedido ORDER BY r.id
+            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev_acum
+        FROM reparaciones_dota r
+        LEFT JOIN reparaciones rep ON btrim(r.nro_pedido) = rep.nro_pedido
+        ${filtro}
+      ),
+      calc AS (
+        SELECT
+          id,
+          GREATEST(
+            cantidad - LEAST(GREATEST(usados - COALESCE(prev_acum, 0), 0), cantidad),
+            0
+          ) AS new_pendientes
+        FROM base
+      )
+      UPDATE reparaciones_dota r
+      SET pendientes = c.new_pendientes
+      FROM calc c
+      WHERE r.id = c.id
+      RETURNING r.id
+    `;
+
+    const result = await db.query(sql, params);
+    res.json({ updated: result.rowCount });
+  } catch (err) { next(err); }
+});
+
 // PATCH: actualizar solo pendientes
 router.patch('/:id', async (req, res, next) => {
   const { pendientes } = req.body;

@@ -1042,7 +1042,12 @@ async function prepararSelectFamilias(){
     lista.forEach(f=>{
       const opt = document.createElement('option');
       opt.value = f.id;
-      opt.textContent = f.descripcion || f.nombre || f.codigo || ('Equipo '+f.id);
+      const code = f.codigo != null ? String(f.codigo).trim() : '';
+      const desc = (f.descripcion || f.nombre || '').toString().trim();
+      if (code && desc) opt.textContent = code + ' - ' + desc;
+      else if (code) opt.textContent = code;
+      else if (desc) opt.textContent = desc;
+      else opt.textContent = 'Equipo ' + f.id;
       selFam.appendChild(opt);
     });
   }catch{

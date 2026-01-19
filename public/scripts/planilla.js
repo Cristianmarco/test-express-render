@@ -394,7 +394,14 @@ async function cargarOpcionesSelect(url, selectId, campoValor, campoTexto, valor
     data.forEach(item => {
       const opt = document.createElement("option");
       opt.value = item[campoValor];
-      opt.textContent = item[campoTexto];
+      let label = item[campoTexto];
+      if (selectId === 'familia_id') {
+        const code = item.codigo != null ? String(item.codigo).trim() : '';
+        const desc = label != null ? String(label).trim() : '';
+        if (code && desc) label = code + ' - ' + desc;
+        else if (code) label = code;
+      }
+      opt.textContent = label;
       if (valorSeleccionado && valorSeleccionado == item[campoValor]) {
         opt.selected = true;
       }

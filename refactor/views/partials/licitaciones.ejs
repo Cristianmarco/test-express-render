@@ -11,7 +11,8 @@
       <button class="btn-secundario" data-tab="lic">Licitaciones</button>
       <button class="btn-secundario" data-tab="vig">R.Vigentes</button>
       <button class="btn-secundario" data-tab="gar">Garantias</button>
-      <button id="btn-vig-clear" class="btn-secundario" style="margin-left:auto; display:none;">Limpiar seleccion</button>
+      <button id="btn-vig-recalcular" class="btn-secundario" style="margin-left:auto; display:none;">Recalcular pendientes</button>
+      <button id="btn-vig-clear" class="btn-secundario" style="display:none;">Limpiar seleccion</button>
     </div>
 
     <div id="lic-tab" class="lic-tab-pane" style="display:block;">
@@ -338,7 +339,8 @@
 (function(){
   var bar = document.getElementById('lic-tabs');
   var btnClear = document.getElementById('btn-vig-clear');
-  function toggleClear(show){ if(btnClear) btnClear.style.display = show? 'inline-flex':'none'; }
+  var btnRecalc = document.getElementById('btn-vig-recalcular');
+  function toggleClear(show){ if(btnClear) btnClear.style.display = show? 'inline-flex':'none'; if(btnRecalc) btnRecalc.style.display = show? 'inline-flex':'none'; }
   function clearVig(){ try{ var tb=document.getElementById('tbody-vigentes'); if(tb){ tb.querySelectorAll('tr.selected').forEach(function(r){ r.classList.remove('selected'); }); } if(window) window.vigSeleccionada=null; }catch(_){} }
   if(bar && !bar._clearBound){
     bar._clearBound = true;
