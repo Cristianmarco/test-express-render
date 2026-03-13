@@ -123,6 +123,9 @@
     const rows = (data.items||[]).map(r => `<tr><td>${r.tecnico}</td><td>${r.total}</td><td>${r.dias_trabajados}</td><td>${Number(r.promedio_diario).toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="4">Sin datos</td></tr>';
     cont.innerHTML = `
       <h3 style="margin-top:0;color:#2176bd;">Promedio diario de equipos por técnico</h3>
+      <p style="margin:0 0 10px 0; color:#4b5563; font-size:12px;">
+        Filtro aplicado: solo reparaciones con Nro Pedido (licitacion). Garantias incluidas solo con estado "Aceptada (Falla de repuestos)" o "Rechazada (Facturada)".
+      </p>
       <table class="tabla-erp">
         <thead><tr><th>Técnico</th><th>Total equipos</th><th>Días trabajados</th><th>Promedio diario</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -136,11 +139,13 @@
     const res = await fetch(`/api/reportes/planilla/garantias-por-resolucion-reparador?inicio=${encodeURIComponent(di)}&fin=${encodeURIComponent(df)}`, { credentials:'include' });
     const data = await res.json();
     if (!res.ok){ cont.textContent = data.error || 'Error al cargar.'; return; }
-    const t = data.total || { total: 0, aceptada: 0, rechazada: 0, funciona_ok: 0 };
+    const t = data.total || { total: 0, aceptada: 0, aceptada_repuestos: 0, aceptada_tecnica: 0, rechazada: 0, funciona_ok: 0 };
     const hdr = `
       <div style="display:flex; gap:12px; flex-wrap:wrap; margin:0 0 10px 0;">
         <div class="rep-badge" style="background:#1f6fd4;">Total: ${t.total}</div>
-        <div class="rep-badge" style="background:#1a9956;">Aceptadas: ${t.aceptada}</div>
+        <div class="rep-badge" style="background:#1a9956;">Aceptadas (total): ${t.aceptada}</div>
+        <div class="rep-badge" style="background:#0f766e;">Aceptada (Falla repuestos): ${t.aceptada_repuestos}</div>
+        <div class="rep-badge" style="background:#0d9488;">Aceptada (Falla tecnica): ${t.aceptada_tecnica}</div>
         <div class="rep-badge" style="background:#c0392b;">Rechazadas: ${t.rechazada}</div>
         <div class="rep-badge" style="background:#8e44ad;">Funciona OK: ${t.funciona_ok}</div>
       </div>`;
@@ -149,14 +154,16 @@
         <td>${r.tecnico}</td>
         <td>${r.total}</td>
         <td>${r.aceptada}</td>
+        <td>${r.aceptada_repuestos}</td>
+        <td>${r.aceptada_tecnica}</td>
         <td>${r.rechazada}</td>
         <td>${r.funciona_ok}</td>
-      </tr>`).join('') || '<tr><td colspan="5">Sin datos</td></tr>';
+      </tr>`).join('') || '<tr><td colspan="7">Sin datos</td></tr>';
     cont.innerHTML = `
       <h3 style="margin-top:0;color:#2176bd;">Garantías por resolución / último reparador</h3>
       ${hdr}
       <table class="tabla-erp">
-        <thead><tr><th>Técnico (último reparador)</th><th>Total</th><th>Aceptadas</th><th>Rechazadas</th><th>Funciona OK</th></tr></thead>
+        <thead><tr><th>Técnico (último reparador)</th><th>Total</th><th>Aceptadas</th><th>Acep. repuestos</th><th>Acep. tecnica</th><th>Rechazadas</th><th>Funciona OK</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
   }

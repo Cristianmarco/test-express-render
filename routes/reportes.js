@@ -64,20 +64,30 @@ router.get('/planilla/promedios/equipos-por-tecnico', async (req, res, next) => 
   const fin = normDate(req.query.fin);
   if(!inicio || !fin) return res.status(400).json({ error: 'Faltan parametros inicio/fin' });
   try {
+    const filtroLicitacionYGarantia = `
+      COALESCE(NULLIF(TRIM(r.nro_pedido_ref::text), ''), '') <> ''
+      AND (
+        NOT ${garantiaCase('r')}
+        OR LOWER(COALESCE(r.resolucion, '')) IN ('aceptada_repuestos', 'rechazada')
+      )
+    `;
     const q = `
-      WITH base AS (
+      WITH filtradas AS (
         SELECT r.tecnico_id,
                DATE(r.fecha) AS dia
           FROM equipos_reparaciones r
          WHERE DATE(r.fecha) BETWEEN $1 AND $2
+           AND ${filtroLicitacionYGarantia}
+      ), base AS (
+        SELECT tecnico_id, dia
+          FROM filtradas
       ), dias AS (
         SELECT tecnico_id, COUNT(DISTINCT dia) AS dias_trabajados
           FROM base
          GROUP BY tecnico_id
       ), tot AS (
         SELECT tecnico_id, COUNT(*) AS total
-          FROM equipos_reparaciones r
-         WHERE DATE(r.fecha) BETWEEN $1 AND $2
+          FROM base
          GROUP BY tecnico_id
       )
       SELECT COALESCE(t.nombre,'(Sin tecnico)') AS tecnico,
@@ -109,7 +119,9 @@ router.get('/planilla/garantias-por-resolucion-reparador', async (req, res, next
 
     const totSql = `
       SELECT COUNT(*)::int AS total,
-             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada' THEN 1 ELSE 0 END)::int AS aceptada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,'')) IN ('aceptada','aceptada_repuestos','aceptada_tecnica') THEN 1 ELSE 0 END)::int AS aceptada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_repuestos' THEN 1 ELSE 0 END)::int AS aceptada_repuestos,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_tecnica' THEN 1 ELSE 0 END)::int AS aceptada_tecnica,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='rechazada' THEN 1 ELSE 0 END)::int AS rechazada,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='funciona_ok' THEN 1 ELSE 0 END)::int AS funciona_ok
         FROM equipos_reparaciones r
@@ -118,7 +130,9 @@ router.get('/planilla/garantias-por-resolucion-reparador', async (req, res, next
     const byTecSql = `
       SELECT COALESCE(t.nombre,'(Sin tecnico)') AS tecnico,
              COUNT(*)::int AS total,
-             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada' THEN 1 ELSE 0 END)::int AS aceptada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,'')) IN ('aceptada','aceptada_repuestos','aceptada_tecnica') THEN 1 ELSE 0 END)::int AS aceptada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_repuestos' THEN 1 ELSE 0 END)::int AS aceptada_repuestos,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_tecnica' THEN 1 ELSE 0 END)::int AS aceptada_tecnica,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='rechazada' THEN 1 ELSE 0 END)::int AS rechazada,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='funciona_ok' THEN 1 ELSE 0 END)::int AS funciona_ok
         FROM equipos_reparaciones r
@@ -132,7 +146,7 @@ router.get('/planilla/garantias-por-resolucion-reparador', async (req, res, next
     const tecnicos = await db.query(byTecSql, params);
     res.json({
       rango: { inicio, fin },
-      total: total.rows[0] || { total: 0, aceptada: 0, rechazada: 0, funciona_ok: 0 },
+      total: total.rows[0] || { total: 0, aceptada: 0, aceptada_repuestos: 0, aceptada_tecnica: 0, rechazada: 0, funciona_ok: 0 },
       porTecnico: tecnicos.rows
     });
   } catch (e) { next(e); }

@@ -74,9 +74,10 @@
 <!-- MODAL REPUESTOS POR PEDIDO -->
 <div id="modal-repuestos-planilla" class="modal-refactor" style="display:none;">
   <style>
-    #modal-repuestos-planilla .form-repuestos-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; }
+    #modal-repuestos-planilla .form-repuestos-grid { display: grid; grid-template-columns: 1.1fr 1.1fr 1fr 1fr; gap: 10px; }
     #modal-repuestos-planilla .form-repuestos-grid label { font-size: 0.85rem; font-weight: 600; color: #1a5a90; }
-    #modal-repuestos-planilla .form-repuestos-grid input { padding: 6px 10px; border: 1px solid #c5d8ef; border-radius: 6px; font-size: 13px; }
+    #modal-repuestos-planilla .form-repuestos-grid input,
+    #modal-repuestos-planilla .form-repuestos-grid select { padding: 6px 10px; border: 1px solid #c5d8ef; border-radius: 6px; font-size: 13px; }
     #modal-repuestos-planilla .repuestos-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
     #modal-repuestos-planilla .repuestos-table { margin-top: 12px; }
     #modal-repuestos-planilla .repuestos-table thead th { white-space: nowrap; }
@@ -90,7 +91,13 @@
     <div class="form-repuestos-grid">
       <div>
         <label for="repuestos-nro-pedido">Nro de Pedido</label>
-        <input type="text" id="repuestos-nro-pedido" placeholder="Ingrese nro de pedido" />
+        <input type="text" id="repuestos-nro-pedido" placeholder="Opcional" />
+      </div>
+      <div>
+        <label for="repuestos-familia">Modelo/Familia</label>
+        <select id="repuestos-familia">
+          <option value="">Todos</option>
+        </select>
       </div>
       <div>
         <label for="repuestos-desde">Desde Fecha</label>
@@ -106,8 +113,11 @@
       <button id="btn-repuestos-filtrar" class="btn-secundario" type="button" onclick="repuestosPlanillaFiltrar()"><i class="fas fa-filter"></i> Ok</button>
       <div class="panel-counter" style="margin-left:auto;" title="Cantidad de equipos filtrados">
         <i class="fas fa-list-check"></i>
-        <span style="opacity:.8">Equipos:</span>
+        <span style="opacity:.8">Encontrados:</span>
         <span id="repuestos-count">0</span>
+        <span style="opacity:.6">|</span>
+        <span style="opacity:.8">Seleccionados:</span>
+        <span id="repuestos-count-selected">0</span>
       </div>
     </div>
 
@@ -115,6 +125,7 @@
       <table class="tabla-erp">
         <thead>
           <tr>
+            <th><input type="checkbox" id="repuestos-check-all" title="Seleccionar todos" /></th>
             <th>Fecha</th>
             <th>ID Reparacion</th>
             <th>Equipo</th>
@@ -261,7 +272,8 @@
             <label for="resolucion">Resolucion</label>
             <select name="resolucion" id="resolucion">
               <option value="">Seleccione</option>
-              <option value="aceptada">Aceptada</option>
+              <option value="aceptada_repuestos">Aceptada (Falla de repuestos)</option>
+              <option value="aceptada_tecnica">Aceptada (Falla tecnica)</option>
               <option value="rechazada">Rechazada (Facturada)</option>
               <option value="funciona_ok">Funciona OK (Devolucion)</option>
             </select>
@@ -283,6 +295,8 @@
             <select id="garantia_template">
               <option value="">Sin plantilla</option>
               <option value="funciona_ok">Funciona OK</option>
+              <option value="auxiliar">Auxiliar</option>
+              <option value="nunca_vino">Nunca vino</option>
             </select>
           </div>
         </div>
@@ -404,6 +418,11 @@
         <h3><i class="fas fa-comment-alt"></i> Observaciones</h3>
         <div id="detalle-observaciones" class="detalle-texto"></div>
       </section>
+    </div>
+    <div class="repuestos-actions" style="justify-content:flex-end;">
+      <button id="btn-detalle-imprimir" class="btn-secundario" type="button" onclick="imprimirDetallePlanilla()">
+        <i class="fas fa-print"></i> Imprimir
+      </button>
     </div>
   </div>
 </div>

@@ -208,14 +208,14 @@ router.get("/por_pedido", async (req, res) => {
 // ============================
 router.get("/repuestos", async (req, res) => {
   const nro = (req.query.nro || "").trim();
+  const familia = (req.query.familia || "").trim();
   const desde = (req.query.desde || "").trim();
   const hasta = (req.query.hasta || "").trim();
-  if (!nro) {
-    return res.status(400).json({ error: "Falta nro de pedido" });
+  if (!nro && !familia) {
+    return res.status(400).json({ error: "Ingrese nro de pedido o modelo/familia" });
   }
   try {
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
-    const pattern = `%${nro}%`;
     let sql = `
       SELECT
         r.id,
@@ -230,12 +230,24 @@ router.get("/repuestos", async (req, res) => {
       FROM equipos_reparaciones r
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
-      WHERE COALESCE(r.nro_pedido_ref, '') ILIKE $1
+      WHERE 1=1
     `;
-    const params = [pattern];
+    const params = [];
+    if (nro) {
+      params.push(`%${nro}%`);
+      sql += ` AND COALESCE(r.nro_pedido_ref, '') ILIKE $${params.length}`;
+    }
+    if (familia) {
+      params.push(`%${familia}%`);
+      sql += ` AND (
+        COALESCE(f.descripcion, '') ILIKE $${params.length}
+        OR COALESCE(f.codigo, '') ILIKE $${params.length}
+      )`;
+    }
     if (desde && hasta) {
-      sql += " AND DATE(r.fecha) BETWEEN $2 AND $3";
-      params.push(desde, hasta);
+      params.push(desde);
+      params.push(hasta);
+      sql += ` AND DATE(r.fecha) BETWEEN $${params.length - 1} AND $${params.length}`;
     }
     sql += " ORDER BY r.fecha ASC, r.hora_inicio ASC, r.id ASC";
     const { rows } = await pool.query(sql, params);
@@ -251,23 +263,44 @@ router.get("/repuestos", async (req, res) => {
 // ============================
 router.get("/repuestos/listado", async (req, res) => {
   const nro = (req.query.nro || "").trim();
+  const familia = (req.query.familia || "").trim();
+  const idsRaw = (req.query.ids || "").trim();
   const desde = (req.query.desde || "").trim();
   const hasta = (req.query.hasta || "").trim();
-  if (!nro) {
-    return res.status(400).json({ error: "Falta nro de pedido" });
+  const ids = idsRaw
+    ? idsRaw.split(",").map(v => Number(v.trim())).filter(v => Number.isInteger(v) && v > 0)
+    : [];
+  if (!nro && !familia && ids.length === 0) {
+    return res.status(400).json({ error: "Ingrese nro de pedido, modelo/familia o seleccione equipos" });
   }
   try {
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
-    const pattern = `%${nro}%`;
     let sql = `
       SELECT r.trabajo
       FROM equipos_reparaciones r
-      WHERE COALESCE(r.nro_pedido_ref, '') ILIKE $1
+      LEFT JOIN familia f ON r.familia_id = f.id
+      WHERE 1=1
     `;
-    const params = [pattern];
+    const params = [];
+    if (nro) {
+      params.push(`%${nro}%`);
+      sql += ` AND COALESCE(r.nro_pedido_ref, '') ILIKE $${params.length}`;
+    }
+    if (familia) {
+      params.push(`%${familia}%`);
+      sql += ` AND (
+        COALESCE(f.descripcion, '') ILIKE $${params.length}
+        OR COALESCE(f.codigo, '') ILIKE $${params.length}
+      )`;
+    }
+    if (ids.length > 0) {
+      params.push(ids);
+      sql += ` AND r.id = ANY($${params.length}::int[])`;
+    }
     if (desde && hasta) {
-      sql += " AND DATE(r.fecha) BETWEEN $2 AND $3";
-      params.push(desde, hasta);
+      params.push(desde);
+      params.push(hasta);
+      sql += ` AND DATE(r.fecha) BETWEEN $${params.length - 1} AND $${params.length}`;
     }
     const { rows } = await pool.query(sql, params);
     const map = new Map();

@@ -50,6 +50,16 @@ const GARANTIA_TEMPLATES = {
     banco: 'EN EL BANCO DE PRUEBA NO FUNCIONA (EN CORTO).',
     desarme: 'EN EL DESARME SE OBSERVA FALLA DE BOBINA (EN CORTO).\n\nSE CAMBIA BOBINA Y SOLENOIDE.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
   },
+  auxiliar: {
+    label: 'Auxiliar',
+    banco: 'EN EL BANCO DE PRUEBA NO FUNCIONA (CORTADO).',
+    desarme: 'EN EL DESARME SE OBSERVA FALLA DE AUXILIAR (EN CORTO).\nSE CAMBIA AUXILIAR.\nSE ENTREGA FUNCIONANDO CORRECTAMENTE.'
+  },
+  nunca_vino: {
+    label: 'Nunca vino',
+    banco: 'EQUIPO SIN GRABADO, NUNCA FUE REPARADO EN AMORIM.\nEQUIPO CON REPUESTOS ORIGINALES, NO ES GARANTIA.\nEN EL BANCO DE PRUEBA NO CARGA.',
+    desarme: 'EN EL DESARME SE OBSERVA ROTOR EN CORTO, REGULADOR Y PLAQUETA QUEMADAS.\nSE CAMBIA ROTOR Y RULEMANES.\nSE REPARA Y SE HACE FACTURA CORRESPONDIENTE.'
+  },
   arranque_ok: {
     label: 'Funciona OK Arranques',
     banco: 'EN EL BANCO DE PRUEBA FUNCIONA OK, CON VELOCIDAD Y FUERZA DENTRO DE PARAMETROS NORMALES.',
@@ -82,6 +92,7 @@ let historialTableMode = 'historial';
 let planillaOrden = 'ingreso';
 let planillaData = [];
 let repuestosFiltro = null;
+let repuestosSeleccionIds = new Set();
 
 function setHistorialTableMode(mode) {
   historialTableMode = mode === 'seleccion' ? 'seleccion' : 'historial';
@@ -238,18 +249,28 @@ function fmtFechaCorta(valor) {
   return iso || '-';
 }
 
+function actualizarContadoresRepuestos(total) {
+  const countEl = document.getElementById('repuestos-count');
+  const selEl = document.getElementById('repuestos-count-selected');
+  if (countEl && typeof total === 'number') countEl.textContent = String(total);
+  if (selEl) selEl.textContent = String(repuestosSeleccionIds.size);
+}
+
 function renderReparacionesRepuestos(list) {
   const tbody = document.getElementById('tbody-repuestos-reparaciones');
-  const countEl = document.getElementById('repuestos-count');
+  const checkAll = document.getElementById('repuestos-check-all');
   if (!tbody) return;
+  repuestosSeleccionIds = new Set();
+  if (checkAll) checkAll.checked = false;
   if (!Array.isArray(list) || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:10px; color:#666">Sin reparaciones.</td></tr>';
-    if (countEl) countEl.textContent = '0';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:10px; color:#666">Sin reparaciones.</td></tr>';
+    actualizarContadoresRepuestos(0);
     return;
   }
-  if (countEl) countEl.textContent = String(list.length);
+  actualizarContadoresRepuestos(list.length);
   tbody.innerHTML = list.map(r => `
     <tr>
+      <td><input type="checkbox" class="repuestos-check" data-id="${r.id || ''}" /></td>
       <td>${fmtFechaCorta(r.fecha)}</td>
       <td>${r.id_reparacion || '-'}</td>
       <td>${r.equipo || '-'}</td>
@@ -292,28 +313,33 @@ function parseInputDate(valor) {
 
 function getRepuestosFiltroInputs() {
   const inputNro = document.getElementById('repuestos-nro-pedido');
+  const inputFamilia = document.getElementById('repuestos-familia');
   const inputDesde = document.getElementById('repuestos-desde');
   const inputHasta = document.getElementById('repuestos-hasta');
   const nro = (inputNro && inputNro.value || '').trim();
+  const familia = (inputFamilia && inputFamilia.value || '').trim();
   const desde = parseInputDate(inputDesde && inputDesde.value);
   const hasta = parseInputDate(inputHasta && inputHasta.value);
-  return { nro, desde, hasta };
+  return { nro, familia, desde, hasta };
 }
 
 async function repuestosPlanillaFiltrar() {
-  const { nro, desde, hasta } = getRepuestosFiltroInputs();
+  const { nro, familia, desde, hasta } = getRepuestosFiltroInputs();
   const tbodyRep = document.getElementById('tbody-repuestos-reparaciones');
   const tbodyList = document.getElementById('tbody-repuestos-listado');
-  if (!nro) {
-    alert('Complete Nro de Pedido.');
+  if (!nro && !familia) {
+    alert('Complete Nro de Pedido o Modelo/Familia.');
     return;
   }
-  console.log('Repuestos filtro:', { nro, desde, hasta });
-  if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
+  console.log('Repuestos filtro:', { nro, familia, desde, hasta });
+  if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
   if (tbodyList) tbodyList.innerHTML = '';
-  repuestosFiltro = { nro, desde, hasta };
+  repuestosFiltro = { nro, familia, desde, hasta };
   try {
-    let qs = `nro=${encodeURIComponent(nro)}`;
+    const qp = [];
+    if (nro) qp.push(`nro=${encodeURIComponent(nro)}`);
+    if (familia) qp.push(`familia=${encodeURIComponent(familia)}`);
+    let qs = qp.join('&');
     if (desde) qs += `&desde=${encodeURIComponent(desde)}`;
     if (hasta) qs += `&hasta=${encodeURIComponent(hasta)}`;
     const res = await fetch(`/api/reparaciones_planilla/repuestos?${qs}`, { credentials: 'include' });
@@ -324,7 +350,7 @@ async function repuestosPlanillaFiltrar() {
     renderReparacionesRepuestos(data);
   } catch (err) {
     console.error('Error repuestos por pedido:', err);
-    if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:10px; color:#c33">Error al cargar.</td></tr>';
+    if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:10px; color:#c33">Error al cargar.</td></tr>';
   }
 }
 
@@ -337,7 +363,11 @@ async function repuestosPlanillaListado() {
   console.log('Repuestos listado filtro:', repuestosFiltro);
   if (tbodyList) tbodyList.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
   try {
-    let qs = `nro=${encodeURIComponent(repuestosFiltro.nro)}`;
+    const qp = [];
+    if (repuestosFiltro.nro) qp.push(`nro=${encodeURIComponent(repuestosFiltro.nro)}`);
+    if (repuestosFiltro.familia) qp.push(`familia=${encodeURIComponent(repuestosFiltro.familia)}`);
+    if (repuestosSeleccionIds.size > 0) qp.push(`ids=${encodeURIComponent(Array.from(repuestosSeleccionIds).join(','))}`);
+    let qs = qp.join('&');
     if (repuestosFiltro.desde) qs += `&desde=${encodeURIComponent(repuestosFiltro.desde)}`;
     if (repuestosFiltro.hasta) qs += `&hasta=${encodeURIComponent(repuestosFiltro.hasta)}`;
     const res = await fetch(`/api/reparaciones_planilla/repuestos/listado?${qs}`, { credentials: 'include' });
@@ -355,6 +385,7 @@ async function repuestosPlanillaListado() {
 function abrirModalRepuestosPlanilla() {
   const modal = document.getElementById('modal-repuestos-planilla');
   limpiarModalRepuestosPlanilla();
+  cargarFamiliasRepuestos();
   if (modal) modal.style.display = 'flex';
 }
 
@@ -367,17 +398,21 @@ function cerrarModalRepuestosPlanilla() {
 function limpiarModalRepuestosPlanilla() {
   const tbodyRep = document.getElementById('tbody-repuestos-reparaciones');
   const tbodyList = document.getElementById('tbody-repuestos-listado');
+  const checkAll = document.getElementById('repuestos-check-all');
   const inputNro = document.getElementById('repuestos-nro-pedido');
+  const inputFamilia = document.getElementById('repuestos-familia');
   const inputDesde = document.getElementById('repuestos-desde');
   const inputHasta = document.getElementById('repuestos-hasta');
-  const countEl = document.getElementById('repuestos-count');
   repuestosFiltro = null;
+  repuestosSeleccionIds = new Set();
   if (tbodyRep) tbodyRep.innerHTML = '';
   if (tbodyList) tbodyList.innerHTML = '';
+  if (checkAll) checkAll.checked = false;
   if (inputNro) inputNro.value = '';
+  if (inputFamilia) inputFamilia.value = '';
   if (inputDesde) inputDesde.value = '';
   if (inputHasta) inputHasta.value = '';
-  if (countEl) countEl.textContent = '0';
+  actualizarContadoresRepuestos(0);
 }
 
 function repuestosPlanillaImprimir() {
@@ -387,9 +422,10 @@ function repuestosPlanillaImprimir() {
     return;
   }
   const nro = repuestosFiltro && repuestosFiltro.nro ? repuestosFiltro.nro : '';
+  const familia = repuestosFiltro && repuestosFiltro.familia ? repuestosFiltro.familia : '';
   const desde = repuestosFiltro && repuestosFiltro.desde ? repuestosFiltro.desde : '';
   const hasta = repuestosFiltro && repuestosFiltro.hasta ? repuestosFiltro.hasta : '';
-  const title = `Listado de repuestos${nro ? ' - Pedido ' + nro : ''}`;
+  const title = `Listado de repuestos${nro ? ' - Pedido ' + nro : ''}${familia ? ' - Modelo ' + familia : ''}`;
   const subtitle = [desde && `Desde: ${desde}`, hasta && `Hasta: ${hasta}`].filter(Boolean).join(' | ');
   const html = `
     <html>
@@ -431,19 +467,149 @@ function repuestosPlanillaImprimir() {
   win.print();
 }
 
+function imprimirDetallePlanilla() {
+  const getTxt = (id) => {
+    const el = document.getElementById(id);
+    return (el && el.textContent ? el.textContent : '-').trim() || '-';
+  };
+  const esc = (v) => String(v == null ? '' : v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const data = {
+    cliente: getTxt('detalle-cliente'),
+    id_reparacion: getTxt('detalle-id-reparacion'),
+    coche: getTxt('detalle-coche'),
+    equipo: getTxt('detalle-equipo'),
+    tecnico: getTxt('detalle-tecnico'),
+    hora_inicio: getTxt('detalle-hora-inicio'),
+    hora_fin: getTxt('detalle-hora-fin'),
+    nro_pedido: getTxt('detalle-nro-pedido'),
+    garantia: getTxt('detalle-garantia'),
+    id_dota: getTxt('detalle-id-dota'),
+    ultimo_reparador: getTxt('detalle-ultimo-reparador'),
+    estado: getTxt('detalle-estado'),
+    trabajo: getTxt('detalle-trabajo'),
+    observaciones: getTxt('detalle-observaciones')
+  };
+
+  const html = `
+    <html>
+      <head>
+        <title>Detalle reparacion ${esc(data.id_reparacion)}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+          h1 { font-size: 18px; margin: 0 0 12px 0; }
+          h2 { font-size: 14px; margin: 14px 0 8px 0; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+          .item b { display: inline-block; min-width: 130px; }
+          .txt { border: 1px solid #ddd; border-radius: 6px; padding: 8px; white-space: pre-wrap; min-height: 48px; }
+        </style>
+      </head>
+      <body>
+        <h1>Detalle de reparacion</h1>
+        <div class="grid">
+          <div class="item"><b>Cliente:</b> ${esc(data.cliente)}</div>
+          <div class="item"><b>ID Reparacion:</b> ${esc(data.id_reparacion)}</div>
+          <div class="item"><b>Nro Coche:</b> ${esc(data.coche)}</div>
+          <div class="item"><b>Equipo:</b> ${esc(data.equipo)}</div>
+          <div class="item"><b>Tecnico:</b> ${esc(data.tecnico)}</div>
+          <div class="item"><b>Nro Pedido:</b> ${esc(data.nro_pedido)}</div>
+          <div class="item"><b>Hora inicio:</b> ${esc(data.hora_inicio)}</div>
+          <div class="item"><b>Hora fin:</b> ${esc(data.hora_fin)}</div>
+          <div class="item"><b>Garantia:</b> ${esc(data.garantia)}</div>
+          <div class="item"><b>ID DOTA:</b> ${esc(data.id_dota)}</div>
+          <div class="item"><b>Ultimo reparador:</b> ${esc(data.ultimo_reparador)}</div>
+          <div class="item"><b>Estado:</b> ${esc(data.estado)}</div>
+        </div>
+        <h2>Trabajo y repuestos</h2>
+        <div class="txt">${esc(data.trabajo)}</div>
+        <h2>Observaciones</h2>
+        <div class="txt">${esc(data.observaciones)}</div>
+      </body>
+    </html>
+  `;
+
+  const win = window.open('', '_blank');
+  if (!win) return alert('El navegador bloqueo la ventana de impresion.');
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
 window.abrirModalRepuestosPlanilla = abrirModalRepuestosPlanilla;
 window.repuestosPlanillaFiltrar = repuestosPlanillaFiltrar;
 window.repuestosPlanillaListado = repuestosPlanillaListado;
 window.cerrarModalRepuestosPlanilla = cerrarModalRepuestosPlanilla;
 window.repuestosPlanillaImprimir = repuestosPlanillaImprimir;
+window.imprimirDetallePlanilla = imprimirDetallePlanilla;
+
+async function cargarFamiliasRepuestos() {
+  const sel = document.getElementById('repuestos-familia');
+  if (!sel) return;
+  const prev = sel.value || '';
+  sel.innerHTML = '<option value="">Todos</option>';
+  try {
+    const res = await fetch('/api/familias', { credentials: 'include' });
+    const data = await res.json();
+    const lista = Array.isArray(data) ? data : [];
+    lista.forEach(f => {
+      const opt = document.createElement('option');
+      const codigo = (f.codigo || '').toString().trim();
+      const desc = (f.descripcion || f.nombre || '').toString().trim();
+      opt.value = desc || codigo || '';
+      opt.textContent = (codigo && desc) ? `${codigo} - ${desc}` : (desc || codigo || '-');
+      sel.appendChild(opt);
+    });
+    if (prev) sel.value = prev;
+  } catch (err) {
+    console.warn('No se pudo cargar familias para filtro de repuestos', err);
+  }
+}
 
 function bindRepuestosModal() {
   const btn = document.getElementById('btn-planilla-repuestos');
   const modal = document.getElementById('modal-repuestos-planilla');
+  const tbody = document.getElementById('tbody-repuestos-reparaciones');
+  const checkAll = document.getElementById('repuestos-check-all');
   if (!btn || !modal || btn._bound) return;
   btn._bound = true;
 
   btn.addEventListener('click', abrirModalRepuestosPlanilla);
+  if (tbody && !tbody._boundChecks) {
+    tbody._boundChecks = true;
+    tbody.addEventListener('change', (e) => {
+      const chk = e.target.closest('.repuestos-check');
+      if (!chk) return;
+      const id = Number(chk.dataset.id);
+      if (!Number.isInteger(id) || id <= 0) return;
+      if (chk.checked) repuestosSeleccionIds.add(id);
+      else repuestosSeleccionIds.delete(id);
+      if (checkAll) {
+        const totalChecks = tbody.querySelectorAll('.repuestos-check').length;
+        const checked = tbody.querySelectorAll('.repuestos-check:checked').length;
+        checkAll.checked = totalChecks > 0 && totalChecks === checked;
+      }
+      actualizarContadoresRepuestos();
+    });
+  }
+  if (checkAll && !checkAll._boundAll) {
+    checkAll._boundAll = true;
+    checkAll.addEventListener('change', () => {
+      if (!tbody) return;
+      const checks = Array.from(tbody.querySelectorAll('.repuestos-check'));
+      repuestosSeleccionIds = new Set();
+      checks.forEach(chk => {
+        chk.checked = checkAll.checked;
+        const id = Number(chk.dataset.id);
+        if (checkAll.checked && Number.isInteger(id) && id > 0) repuestosSeleccionIds.add(id);
+      });
+      actualizarContadoresRepuestos();
+    });
+  }
 }
 
 function getPlanillaOrden() {
