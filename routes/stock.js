@@ -2,6 +2,12 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const {
+  ensureDomainAuditTable,
+  insertDomainAudit
+} = require("../utils/domain-audit");
+
+const AUDIT_DOMAIN_STOCK = "movimientos_stock";
 
 // ============================
 // GET stock por producto
@@ -34,12 +40,13 @@ router.post("/movimiento", async (req, res) => {
     return res.status(400).json({ error: "Datos inválidos para movimiento de stock" });
   }
 
-  await pool.query("BEGIN");
+  const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     const sign = (tipo && tipo.toUpperCase() === "ENTRADA") ? 1 : -1;
 
     // Actualizar stock
-    await pool.query(
+    await client.query(
       `INSERT INTO stock (producto_id, deposito_id, cantidad)
        VALUES ($1,$2,$3)
        ON CONFLICT (producto_id, deposito_id)
@@ -48,35 +55,44 @@ router.post("/movimiento", async (req, res) => {
     );
 
     // Registrar movimiento
-    await pool.query(
+    const movResult = await client.query(
       `INSERT INTO movimientos_stock 
         (producto_id, deposito_id, tipo, cantidad, observacion, reparacion_id) 
-       VALUES ($1,$2,$3,$4,$5,$6)`,
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING *`,
       [producto_id, deposito_id, tipo.toUpperCase(), cantidadNum, observacion, reparacion_id || null]
     );
+    const movimiento = movResult.rows[0];
 
     // Traer stock actualizado
-    const updated = await pool.query(
+    const updated = await client.query(
       `SELECT cantidad FROM stock WHERE producto_id=$1 AND deposito_id=$2`,
       [producto_id, deposito_id]
     );
 
-    await pool.query("COMMIT");
+    await insertDomainAudit(client, req, AUDIT_DOMAIN_STOCK, movimiento.id, "create", {
+      snapshot: movimiento,
+      stock_resultante: updated.rows[0]?.cantidad ?? null
+    });
+
+    await client.query("COMMIT");
     res.json({ success: true, stock: updated.rows[0] });
   } catch (err) {
-    await pool.query("ROLLBACK");
+    try { await client.query("ROLLBACK"); } catch (_) {}
     console.error("❌ Error POST /stock/movimiento:", err);
     res.status(500).json({ error: "Error en movimiento de stock" });
+  } finally {
+    client.release();
   }
 });
 
-module.exports = router;
 // ============================
 // GET movimientos por producto
 // ============================
 router.get("/movimientos/:productoId", async (req, res) => {
   const { productoId } = req.params;
   try {
+    await ensureDomainAuditTable(pool);
     const result = await pool.query(
       `SELECT 
          m.id,
@@ -88,12 +104,15 @@ router.get("/movimientos/:productoId", async (req, res) => {
          TO_CHAR(COALESCE(m.created_at, NOW()), 'DD/MM/YYYY') AS fecha,
          TO_CHAR(COALESCE(m.created_at, NOW()), 'HH24:MI') AS hora,
          m.reparacion_id AS id_reparacion,
-         d.nombre AS deposito
+         d.nombre AS deposito,
+         a.actor_email
        FROM movimientos_stock m
        LEFT JOIN depositos d ON d.id = m.deposito_id
+       LEFT JOIN domain_audit_log a
+         ON a.domain = $2 AND a.entity_key = m.id::text
        WHERE m.producto_id = $1
        ORDER BY COALESCE(m.created_at, now()) DESC, m.id DESC`,
-      [productoId]
+      [productoId, AUDIT_DOMAIN_STOCK]
     );
     res.json(result.rows);
   } catch (err) {

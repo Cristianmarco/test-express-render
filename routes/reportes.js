@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const {
+  garantiaAceptadaSql,
+  garantiaOperativaPromedioSql
+} = require('../utils/garantia-resoluciones');
 
 function normDate(s){ return String(s||'').slice(0,10); }
 const garantiaCase = alias => `LOWER(COALESCE(${alias ? alias + '.' : ''}garantia::text,'')) IN ('si','true','t','1')`;
@@ -64,13 +68,7 @@ router.get('/planilla/promedios/equipos-por-tecnico', async (req, res, next) => 
   const fin = normDate(req.query.fin);
   if(!inicio || !fin) return res.status(400).json({ error: 'Faltan parametros inicio/fin' });
   try {
-    const filtroLicitacionYGarantia = `
-      COALESCE(NULLIF(TRIM(r.nro_pedido_ref::text), ''), '') <> ''
-      AND (
-        NOT ${garantiaCase('r')}
-        OR LOWER(COALESCE(r.resolucion, '')) IN ('aceptada_repuestos', 'rechazada')
-      )
-    `;
+    const filtroLicitacionYGarantia = garantiaOperativaPromedioSql('r.garantia', 'r.resolucion', 'r.nro_pedido_ref');
     const q = `
       WITH filtradas AS (
         SELECT r.tecnico_id,
@@ -119,7 +117,7 @@ router.get('/planilla/garantias-por-resolucion-reparador', async (req, res, next
 
     const totSql = `
       SELECT COUNT(*)::int AS total,
-             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,'')) IN ('aceptada','aceptada_repuestos','aceptada_tecnica') THEN 1 ELSE 0 END)::int AS aceptada,
+             SUM(CASE WHEN ${garantiaAceptadaSql('r.resolucion')} THEN 1 ELSE 0 END)::int AS aceptada,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_repuestos' THEN 1 ELSE 0 END)::int AS aceptada_repuestos,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_tecnica' THEN 1 ELSE 0 END)::int AS aceptada_tecnica,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='rechazada' THEN 1 ELSE 0 END)::int AS rechazada,
@@ -130,7 +128,7 @@ router.get('/planilla/garantias-por-resolucion-reparador', async (req, res, next
     const byTecSql = `
       SELECT COALESCE(t.nombre,'(Sin tecnico)') AS tecnico,
              COUNT(*)::int AS total,
-             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,'')) IN ('aceptada','aceptada_repuestos','aceptada_tecnica') THEN 1 ELSE 0 END)::int AS aceptada,
+             SUM(CASE WHEN ${garantiaAceptadaSql('r.resolucion')} THEN 1 ELSE 0 END)::int AS aceptada,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_repuestos' THEN 1 ELSE 0 END)::int AS aceptada_repuestos,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_tecnica' THEN 1 ELSE 0 END)::int AS aceptada_tecnica,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='rechazada' THEN 1 ELSE 0 END)::int AS rechazada,

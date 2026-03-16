@@ -4,7 +4,14 @@ const router = express.Router();
 
 
 const pool = require('../db');
+const {
+  GARANTIA_RESOLUCIONES,
+  normalizeGarantiaResolucion
+} = require('../utils/garantia-resoluciones');
+const { insertDomainAudit } = require('../utils/domain-audit');
 let ExcelJS; // lazy require to avoid local dev errors if not installed
+
+const AUDIT_DOMAIN_STOCK = 'movimientos_stock';
 
 const GARANTIA_ARCHIVE_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS licitacion_garantias_archive (
@@ -31,6 +38,19 @@ const GARANTIA_ARCHIVE_TABLE_SQL = `
   );
 `;
 
+const PLANILLA_AUDIT_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS planilla_reparaciones_audit (
+    id SERIAL PRIMARY KEY,
+    reparacion_row_id INTEGER,
+    id_reparacion TEXT,
+    accion TEXT NOT NULL,
+    actor_user_id INTEGER,
+    actor_email TEXT,
+    detalle JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`;
+
 async function ensureGarantiasArchiveTable(dbClient) {
   await dbClient.query(GARANTIA_ARCHIVE_TABLE_SQL);
 }
@@ -38,6 +58,276 @@ async function ensureGarantiasArchiveTable(dbClient) {
 async function ensurePlanillaGarantiaColumns(dbClient) {
   await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_prueba_banco TEXT");
   await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_desarme TEXT");
+}
+
+async function ensurePlanillaAuditTable(dbClient) {
+  await dbClient.query(PLANILLA_AUDIT_TABLE_SQL);
+}
+
+function normalizeOptionalText(value) {
+  const text = String(value ?? '').trim();
+  return text || null;
+}
+
+function normalizeOptionalInteger(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function sanitizeGarantiaPayload(payload) {
+  const garantia = String(payload.garantia || '').trim().toLowerCase() === 'si' ? 'si' : 'no';
+  const cleaned = {
+    garantia,
+    id_dota: normalizeOptionalText(payload.id_dota),
+    ultimo_reparador: normalizeOptionalInteger(payload.ultimo_reparador),
+    resolucion: normalizeGarantiaResolucion(payload.resolucion) || null,
+    garantia_prueba_banco: normalizeOptionalText(payload.garantia_prueba_banco),
+    garantia_desarme: normalizeOptionalText(payload.garantia_desarme)
+  };
+
+  if (cleaned.garantia !== 'si') {
+    cleaned.id_dota = null;
+    cleaned.ultimo_reparador = null;
+    cleaned.resolucion = null;
+    cleaned.garantia_prueba_banco = null;
+    cleaned.garantia_desarme = null;
+    return cleaned;
+  }
+
+  if (!cleaned.id_dota) {
+    return { error: 'La garantia requiere ID DOTA.' };
+  }
+  if (!cleaned.ultimo_reparador) {
+    return { error: 'La garantia requiere ultimo reparador.' };
+  }
+  if (!cleaned.resolucion) {
+    return { error: 'La garantia requiere resolucion.' };
+  }
+  if (!GARANTIA_RESOLUCIONES[cleaned.resolucion]) {
+    return { error: 'La resolucion de garantia no es valida.' };
+  }
+
+  return cleaned;
+}
+
+function normalizePedidoRef(value) {
+  const text = String(value ?? '').trim();
+  return text || null;
+}
+
+async function validateLicitacionPayload(dbClient, payload, options = {}) {
+  const nro_pedido_ref = normalizePedidoRef(payload.nro_pedido_ref || payload.nro_pedido);
+  if (!nro_pedido_ref) {
+    return { nro_pedido_ref: null };
+  }
+
+  const currentId = Number(options.currentRepairId);
+  const repairId = Number.isInteger(currentId) && currentId > 0 ? currentId : null;
+  const vigenteResult = await dbClient.query(
+    `SELECT
+       COUNT(*)::int AS lineas,
+       COALESCE(SUM(cantidad), 0)::int AS total_cantidad
+     FROM reparaciones_dota
+     WHERE btrim(COALESCE(nro_pedido, '')) = btrim($1)`,
+    [nro_pedido_ref]
+  );
+  const vigente = vigenteResult.rows[0];
+  if (!vigente || Number(vigente.lineas) <= 0) {
+    return { error: 'El nro de pedido no existe en R.Vigentes.' };
+  }
+
+  const vinculadasResult = await dbClient.query(
+    `SELECT COUNT(*)::int AS vinculadas
+     FROM equipos_reparaciones
+     WHERE btrim(COALESCE(nro_pedido_ref, '')) = btrim($1)
+       AND ($2::int IS NULL OR id <> $2)`,
+    [nro_pedido_ref, repairId]
+  );
+  const vinculadas = Number(vinculadasResult.rows[0]?.vinculadas || 0);
+  const totalCantidad = Number(vigente.total_cantidad || 0);
+  if (vinculadas >= totalCantidad) {
+    return { error: 'El nro de pedido ya no tiene reparaciones disponibles para vincular.' };
+  }
+
+  return { nro_pedido_ref };
+}
+
+async function recalculatePedidoPendientes(dbClient, nroPedido) {
+  const nroTrim = normalizePedidoRef(nroPedido);
+  if (!nroTrim) return;
+
+  await dbClient.query(
+    `
+      WITH reparaciones AS (
+        SELECT btrim(nro_pedido_ref) AS nro_pedido, COUNT(*)::int AS usados
+        FROM equipos_reparaciones
+        WHERE COALESCE(btrim(nro_pedido_ref), '') <> ''
+          AND btrim(nro_pedido_ref) = btrim($1)
+        GROUP BY btrim(nro_pedido_ref)
+      ),
+      base AS (
+        SELECT
+          r.id,
+          r.nro_pedido,
+          COALESCE(r.cantidad, 0) AS cantidad,
+          COALESCE(rep.usados, 0) AS usados,
+          SUM(COALESCE(r.cantidad, 0)) OVER (PARTITION BY r.nro_pedido ORDER BY r.id) AS acum,
+          SUM(COALESCE(r.cantidad, 0)) OVER (
+            PARTITION BY r.nro_pedido
+            ORDER BY r.id
+            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+          ) AS prev_acum
+        FROM reparaciones_dota r
+        LEFT JOIN reparaciones rep ON btrim(r.nro_pedido) = rep.nro_pedido
+        WHERE btrim(COALESCE(r.nro_pedido, '')) = btrim($1)
+      ),
+      calc AS (
+        SELECT
+          id,
+          GREATEST(
+            cantidad - LEAST(GREATEST(usados - COALESCE(prev_acum, 0), 0), cantidad),
+            0
+          ) AS new_pendientes
+        FROM base
+      )
+      UPDATE reparaciones_dota r
+      SET pendientes = c.new_pendientes
+      FROM calc c
+      WHERE r.id = c.id
+    `,
+    [nroTrim]
+  );
+}
+
+async function validateDuplicatePayload(dbClient, payload, options = {}) {
+  const currentId = Number(options.currentRepairId);
+  const repairId = Number.isInteger(currentId) && currentId > 0 ? currentId : null;
+  const idReparacion = normalizeOptionalText(payload.id_reparacion);
+  const fecha = normalizeOptionalText(payload.fecha);
+  const idDota = normalizeOptionalText(payload.id_dota);
+  const garantia = String(payload.garantia || '').trim().toLowerCase() === 'si' ? 'si' : 'no';
+
+  if (idReparacion && fecha) {
+    const sameDayResult = await dbClient.query(
+      `SELECT id
+       FROM equipos_reparaciones
+       WHERE btrim(COALESCE(id_reparacion::text, '')) = btrim($1)
+         AND DATE(fecha) = DATE($2)
+         AND ($3::int IS NULL OR id <> $3)
+       LIMIT 1`,
+      [idReparacion, fecha, repairId]
+    );
+    if (sameDayResult.rowCount) {
+      return { error: 'Ya existe una reparación cargada con ese ID en la fecha indicada.' };
+    }
+  }
+
+  if (garantia === 'si' && idDota) {
+    const garantiaResult = await dbClient.query(
+      `SELECT id
+       FROM equipos_reparaciones
+       WHERE btrim(COALESCE(id_dota::text, '')) = btrim($1)
+         AND LOWER(COALESCE(garantia::text, '')) IN ('si', 'true', 't', '1')
+         AND ($2::int IS NULL OR id <> $2)
+       LIMIT 1`,
+      [idDota, repairId]
+    );
+    if (garantiaResult.rowCount) {
+      return { error: 'El ID DOTA ya está vinculado a otra reparación en garantía.' };
+    }
+  }
+
+  return {
+    id_reparacion: idReparacion,
+    fecha,
+    id_dota: idDota
+  };
+}
+
+function getAuditActor(req) {
+  const user = req.session?.user || {};
+  return {
+    userId: Number.isInteger(Number(user.id)) ? Number(user.id) : null,
+    email: user.email || null
+  };
+}
+
+function pickAuditSnapshot(row) {
+  if (!row) return null;
+  return {
+    id: row.id ?? null,
+    id_reparacion: row.id_reparacion ?? null,
+    fecha: row.fecha ?? null,
+    cliente_id: row.cliente_id ?? null,
+    cliente_tipo: row.cliente_tipo ?? null,
+    tecnico_id: row.tecnico_id ?? null,
+    coche_numero: row.coche_numero ?? null,
+    familia_id: row.familia_id ?? null,
+    hora_inicio: row.hora_inicio ?? null,
+    hora_fin: row.hora_fin ?? null,
+    trabajo: row.trabajo ?? null,
+    observaciones: row.observaciones ?? null,
+    garantia: row.garantia ?? null,
+    id_dota: row.id_dota ?? null,
+    ultimo_reparador: row.ultimo_reparador ?? null,
+    resolucion: row.resolucion ?? null,
+    nro_pedido_ref: row.nro_pedido_ref ?? null,
+    garantia_prueba_banco: row.garantia_prueba_banco ?? null,
+    garantia_desarme: row.garantia_desarme ?? null
+  };
+}
+
+function buildAuditChanges(beforeRow, afterRow) {
+  const before = pickAuditSnapshot(beforeRow) || {};
+  const after = pickAuditSnapshot(afterRow) || {};
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+  const changes = {};
+  for (const key of keys) {
+    const oldValue = before[key] ?? null;
+    const newValue = after[key] ?? null;
+    if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+      changes[key] = { before: oldValue, after: newValue };
+    }
+  }
+  return changes;
+}
+
+async function insertPlanillaAudit(dbClient, req, action, row, detail) {
+  await ensurePlanillaAuditTable(dbClient);
+  const actor = getAuditActor(req);
+  await dbClient.query(
+    `INSERT INTO planilla_reparaciones_audit
+      (reparacion_row_id, id_reparacion, accion, actor_user_id, actor_email, detalle)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+    [
+      row?.id ?? null,
+      row?.id_reparacion != null ? String(row.id_reparacion) : null,
+      action,
+      actor.userId,
+      actor.email,
+      JSON.stringify(detail || {})
+    ]
+  );
+}
+
+async function safeInsertPlanillaAudit(dbClient, req, action, row, detail) {
+  try {
+    await insertPlanillaAudit(dbClient, req, action, row, detail);
+  } catch (err) {
+    console.error("Error registrando auditoria de planilla:", err);
+  }
+}
+
+async function safeInsertStockAudit(dbClient, req, movementRow, detail = {}) {
+  try {
+    await insertDomainAudit(dbClient, req, AUDIT_DOMAIN_STOCK, movementRow?.id, 'create', {
+      snapshot: movementRow,
+      ...detail
+    });
+  } catch (err) {
+    console.error("Error registrando auditoria de stock desde planilla:", err);
+  }
 }
 
 function extractRepuestosFromTrabajo(trabajo) {
@@ -115,6 +405,32 @@ router.get("/historial/:id_reparacion", async (req, res) => {
   } catch (err) {
     console.error("❌ Error GET /reparaciones_planilla/historial:", err);
     res.status(500).json({ error: "Error al obtener historial" });
+  }
+});
+
+router.get("/auditoria/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    await ensurePlanillaAuditTable(pool);
+    const result = await pool.query(
+      `SELECT
+         id,
+         reparacion_row_id,
+         id_reparacion,
+         accion,
+         actor_user_id,
+         actor_email,
+         detalle,
+         created_at
+       FROM planilla_reparaciones_audit
+       WHERE reparacion_row_id = $1 OR btrim(COALESCE(id_reparacion, '')) = btrim($2)
+       ORDER BY created_at DESC, id DESC`,
+      [Number(id) || null, String(id || '').trim()]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("❌ Error GET /reparaciones_planilla/auditoria:", err);
+    res.status(500).json({ error: "Error al obtener auditoria" });
   }
 });
 
@@ -993,14 +1309,41 @@ router.post("/", async (req, res) => {
       garantia_desarme
     } = req.body;
 
-    id_reparacion = id_reparacion || null;
+    const garantiaData = sanitizeGarantiaPayload({
+      garantia,
+      id_dota,
+      ultimo_reparador,
+      resolucion,
+      garantia_prueba_banco,
+      garantia_desarme
+    });
+    if (garantiaData.error) {
+      return res.status(400).json({ error: garantiaData.error });
+    }
+    const licitacionData = await validateLicitacionPayload(client, { nro_pedido_ref });
+    if (licitacionData.error) {
+      return res.status(400).json({ error: licitacionData.error });
+    }
+    const duplicateData = await validateDuplicatePayload(client, {
+      id_reparacion,
+      fecha,
+      garantia: garantiaData.garantia,
+      id_dota: garantiaData.id_dota
+    });
+    if (duplicateData.error) {
+      return res.status(400).json({ error: duplicateData.error });
+    }
+
+    id_reparacion = duplicateData.id_reparacion;
     cliente_id = cliente_id || null;
     cliente_tipo = cliente_tipo || "dota";
     tecnico_id = tecnico_id || null;
-    id_dota = id_dota || null;
-    ultimo_reparador = ultimo_reparador || null;
-    resolucion = resolucion || null;
-    garantia = garantia === "si" ? "si" : "no";
+    id_dota = garantiaData.id_dota;
+    ultimo_reparador = garantiaData.ultimo_reparador;
+    resolucion = garantiaData.resolucion;
+    garantia_prueba_banco = garantiaData.garantia_prueba_banco;
+    garantia_desarme = garantiaData.garantia_desarme;
+    garantia = garantiaData.garantia;
 
     await client.query("BEGIN");
     // Asegura columna para enlazar nro de pedido si no existe
@@ -1012,7 +1355,7 @@ router.post("/", async (req, res) => {
         (id_reparacion, cliente_id, cliente_tipo, tecnico_id, trabajo, observaciones, fecha, garantia,
          id_dota, ultimo_reparador, resolucion, coche_numero, familia_id, hora_inicio, hora_fin, nro_pedido_ref, garantia_prueba_banco, garantia_desarme)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-      RETURNING id;
+      RETURNING *;
     `,
       [
         id_reparacion,
@@ -1030,13 +1373,14 @@ router.post("/", async (req, res) => {
         req.body.familia_id || null,
         req.body.hora_inicio || null,
         req.body.hora_fin || null,
-        nro_pedido_ref || null,
-        garantia_prueba_banco || null,
-        garantia_desarme || null
+        licitacionData.nro_pedido_ref,
+        garantia_prueba_banco,
+        garantia_desarme
       ]
     );
 
-    const reparacionId = result.rows[0].id;
+    const reparacionRow = result.rows[0];
+    const reparacionId = reparacionRow.id;
 
     // Si esta reparación tiene ID DOTA, eliminar la garantía correspondiente (id_cliente)
     if (id_dota != null && id_dota !== '') {
@@ -1115,32 +1459,22 @@ router.post("/", async (req, res) => {
         [productoId, depositoId]
       );
 
-      await client.query(
+      const movResult = await client.query(
         `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, fecha, observacion)
-         VALUES ($1, $2, 'SALIDA', 1, NOW(), $3)`,
+         VALUES ($1, $2, 'SALIDA', 1, NOW(), $3)
+         RETURNING *`,
         [productoId, depositoId, `Usado en reparación ID ${reparacionId}`]
       );
+      await safeInsertStockAudit(client, req, movResult.rows[0], {
+        origen: 'planilla_reparacion',
+        reparacion_id: reparacionId
+      });
     }
 
-    // Descontar pendientes de R.Vigentes si se indicó un nro de pedido de licitaciones
-    try {
-      const nroRef = (req.body && (req.body.nro_pedido_ref || req.body.nro_pedido)) || null;
-      if (nroRef) {
-        await client.query(`
-          WITH t AS (
-            SELECT id, GREATEST(pendientes - 1, 0) AS newp
-            FROM reparaciones_dota
-            WHERE nro_pedido = $1 AND pendientes > 0
-            ORDER BY id ASC
-            LIMIT 1
-          )
-          UPDATE reparaciones_dota r
-          SET pendientes = t.newp
-          FROM t
-          WHERE r.id = t.id
-        `, [nroRef]);
-      }
-    } catch (_) {}
+    await recalculatePedidoPendientes(client, licitacionData.nro_pedido_ref);
+    await safeInsertPlanillaAudit(client, req, 'create', reparacionRow, {
+      snapshot: pickAuditSnapshot(reparacionRow)
+    });
 
     await client.query("COMMIT");
     res.json({ ok: true, id: reparacionId });
@@ -1158,8 +1492,9 @@ router.post("/", async (req, res) => {
 // PUT - Actualizar reparación existente
 // ============================
 router.put("/:id", async (req, res) => {
+  const client = await pool.connect();
   try {
-    await ensurePlanillaGarantiaColumns(pool);
+    await ensurePlanillaGarantiaColumns(client);
     const {
       cliente_tipo,
       cliente_id,
@@ -1177,10 +1512,54 @@ router.put("/:id", async (req, res) => {
       resolucion,
       nro_pedido_ref
     } = req.body;
+    const garantiaData = sanitizeGarantiaPayload({
+      garantia,
+      id_dota,
+      ultimo_reparador,
+      resolucion,
+      garantia_prueba_banco: req.body.garantia_prueba_banco,
+      garantia_desarme: req.body.garantia_desarme
+    });
+    if (garantiaData.error) {
+      return res.status(400).json({ error: garantiaData.error });
+    }
+
+    const actualResult = await client.query(
+      `SELECT * FROM equipos_reparaciones WHERE id=$1`,
+      [req.params.id]
+    );
+    if (!actualResult.rowCount) {
+      return res.status(404).json({ error: "ReparaciÃ³n no encontrada" });
+    }
+
+    const reparacionAnterior = actualResult.rows[0];
+    const anteriorNroPedidoRef = normalizePedidoRef(reparacionAnterior.nro_pedido_ref);
+    const licitacionData = await validateLicitacionPayload(
+      client,
+      { nro_pedido_ref },
+      { currentRepairId: req.params.id }
+    );
+    if (licitacionData.error) {
+      return res.status(400).json({ error: licitacionData.error });
+    }
+    const duplicateData = await validateDuplicatePayload(
+      client,
+      {
+        id_reparacion,
+        fecha: req.body.fecha || reparacionAnterior.fecha,
+        garantia: garantiaData.garantia,
+        id_dota: garantiaData.id_dota
+      },
+      { currentRepairId: req.params.id }
+    );
+    if (duplicateData.error) {
+      return res.status(400).json({ error: duplicateData.error });
+    }
 
     // Asegura columna
-    await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
-    const result = await pool.query(
+    await client.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
+    await client.query("BEGIN");
+    const result = await client.query(
       `UPDATE equipos_reparaciones
        SET cliente_tipo=$1, cliente_id=$2, id_reparacion=$3, coche_numero=$4,
            familia_id=$5, tecnico_id=$6, hora_inicio=$7, hora_fin=$8, trabajo=$9,
@@ -1191,32 +1570,46 @@ router.put("/:id", async (req, res) => {
       [
         cliente_tipo,
         cliente_id || null,
-        id_reparacion,
+        duplicateData.id_reparacion,
         coche_numero || null,
         familia_id,
         tecnico_id,
         hora_inicio || null,
         hora_fin || null,
         trabajo,
-        garantia,
+        garantiaData.garantia,
         observaciones || null,
-        id_dota || null,
-        ultimo_reparador || null,
-        resolucion || null,
-        nro_pedido_ref || null,
-        req.body.garantia_prueba_banco || null,
-        req.body.garantia_desarme || null,
+        garantiaData.id_dota,
+        garantiaData.ultimo_reparador,
+        garantiaData.resolucion,
+        licitacionData.nro_pedido_ref,
+        garantiaData.garantia_prueba_banco,
+        garantiaData.garantia_desarme,
         req.params.id
       ]
     );
 
-    if (result.rows.length === 0)
+    if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ error: "Reparación no encontrada" });
+    }
 
+    await recalculatePedidoPendientes(client, anteriorNroPedidoRef);
+    if (anteriorNroPedidoRef !== licitacionData.nro_pedido_ref) {
+      await recalculatePedidoPendientes(client, licitacionData.nro_pedido_ref);
+    }
+    await safeInsertPlanillaAudit(client, req, 'update', result.rows[0], {
+      changes: buildAuditChanges(reparacionAnterior, result.rows[0])
+    });
+
+    await client.query("COMMIT");
     res.json(result.rows[0]);
   } catch (err) {
+    try { await client.query("ROLLBACK"); } catch (_) {}
     console.error("❌ Error actualizando reparación:", err);
     res.status(500).json({ error: "Error al actualizar reparación" });
+  } finally {
+    client.release();
   }
 });
 
@@ -1226,45 +1619,30 @@ router.put("/:id", async (req, res) => {
 // ============================
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
+  const client = await pool.connect();
 
   try {
-    const result = await pool.query(
+    await client.query("BEGIN");
+    const result = await client.query(
       `DELETE FROM equipos_reparaciones WHERE id=$1 RETURNING *`,
       [id]
     );
 
     if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ error: "Reparación no encontrada" });
     }
     const deletedRow = result.rows[0];
+    await recalculatePedidoPendientes(client, deletedRow.nro_pedido_ref);
 
     try {
-      const nroRef = (req.query && (req.query.nro_pedido_ref || req.query.nro_pedido)) || null;
-      if (nroRef) {
-        await pool.query(`
-          WITH t AS (
-            SELECT id, pendientes + 1 AS newp
-            FROM reparaciones_dota
-            WHERE nro_pedido = $1
-            ORDER BY id ASC
-            LIMIT 1
-          )
-          UPDATE reparaciones_dota r
-          SET pendientes = t.newp
-          FROM t
-          WHERE r.id = t.id
-        `, [nroRef]);
-      }
-    } catch (_) {}
-
-    try {
-      await ensureGarantiasArchiveTable(pool);
-      let archived = await pool.query(
+      await ensureGarantiasArchiveTable(client);
+      let archived = await client.query(
         `SELECT * FROM licitacion_garantias_archive WHERE reparacion_id=$1`,
         [deletedRow.id]
       );
       if (!archived.rowCount && deletedRow.id_dota) {
-        archived = await pool.query(
+        archived = await client.query(
           `SELECT * FROM licitacion_garantias_archive WHERE btrim(id_cliente)=btrim($1) ORDER BY archived_at DESC`,
           [String(deletedRow.id_dota).trim()]
         );
@@ -1276,7 +1654,7 @@ router.delete("/:id", async (req, res) => {
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
         `;
         for (const row of archived.rows) {
-          await pool.query(insertGarantia, [
+          await client.query(insertGarantia, [
             row.id_cliente,
             row.ingreso,
             row.cabecera,
@@ -1295,9 +1673,9 @@ router.delete("/:id", async (req, res) => {
             row.resolucion
           ]);
         }
-        await pool.query('DELETE FROM licitacion_garantias_archive WHERE reparacion_id=$1', [deletedRow.id]);
+        await client.query('DELETE FROM licitacion_garantias_archive WHERE reparacion_id=$1', [deletedRow.id]);
       } else if (deletedRow.id_dota) {
-        await pool.query(
+        await client.query(
           `INSERT INTO licitacion_garantias (id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
            VALUES ($1, NULL, NULL, NULL, NULL, NULL, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)`,
           [String(deletedRow.id_dota).trim()]
@@ -1307,11 +1685,19 @@ router.delete("/:id", async (req, res) => {
       console.error("Error restaurando garantia tras eliminar reparación:", archiveErr);
     }
 
+    await safeInsertPlanillaAudit(client, req, 'delete', deletedRow, {
+      snapshot: pickAuditSnapshot(deletedRow)
+    });
 
+
+    await client.query("COMMIT");
     res.json({ success: true });
   } catch (err) {
+    try { await client.query("ROLLBACK"); } catch (_) {}
     console.error("❌ Error DELETE /reparaciones_planilla:", err);
     res.status(500).json({ error: "Error al eliminar reparación" });
+  } finally {
+    client.release();
   }
 });
 

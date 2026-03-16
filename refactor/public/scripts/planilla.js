@@ -94,6 +94,19 @@ let planillaData = [];
 let repuestosFiltro = null;
 let repuestosSeleccionIds = new Set();
 
+function formatResolucionLabel(value) {
+  const key = String(value || '').trim().toLowerCase();
+  if (!key) return '-';
+  const labels = {
+    aceptada: 'Aceptada',
+    aceptada_repuestos: 'Aceptada (Falla de repuestos)',
+    aceptada_tecnica: 'Aceptada (Falla tecnica)',
+    rechazada: 'Rechazada (Facturada)',
+    funciona_ok: 'Funciona OK (Devolucion)'
+  };
+  return labels[key] || String(value);
+}
+
 function setHistorialTableMode(mode) {
   historialTableMode = mode === 'seleccion' ? 'seleccion' : 'historial';
   const head = document.getElementById('historial-head-row');
@@ -132,7 +145,7 @@ function setHistorialInfo(info) {
   if (extra) extra.style.display = show ? 'flex' : 'none';
   assign('historial-id-dota', info.id_dota);
   assign('historial-ultimo-reparador', info.ultimo_reparador);
-  assign('historial-resolucion', info.resolucion);
+  assign('historial-resolucion', formatResolucionLabel(info.resolucion));
 }
 
 function renderHistorialPlaceholder(message, color = '#666') {
@@ -538,6 +551,77 @@ function imprimirDetallePlanilla() {
   win.document.close();
   win.focus();
   win.print();
+}
+
+function formatAuditDate(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('es-AR');
+}
+
+function formatAuditAction(value) {
+  const key = String(value || '').trim().toLowerCase();
+  if (key === 'create') return 'Alta';
+  if (key === 'update') return 'Edicion';
+  if (key === 'delete') return 'Eliminacion';
+  return value || '-';
+}
+
+function formatAuditValue(value) {
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function renderDetalleAuditoriaRefactor(items) {
+  const box = document.getElementById('detalle-auditoria');
+  if (!box) return;
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    box.innerHTML = 'Sin movimientos.';
+    return;
+  }
+  const html = list.map((item) => {
+    const detalle = item.detalle || {};
+    const cambios = detalle.changes && typeof detalle.changes === 'object' ? detalle.changes : null;
+    const snapshot = detalle.snapshot && typeof detalle.snapshot === 'object' ? detalle.snapshot : null;
+    const resumen = cambios
+      ? Object.entries(cambios).map(([campo, diff]) =>
+          `<li><b>${campo}</b>: ${formatAuditValue(diff.before)} -> ${formatAuditValue(diff.after)}</li>`
+        ).join('')
+      : snapshot
+        ? Object.entries(snapshot).slice(0, 6).map(([campo, valor]) =>
+            `<li><b>${campo}</b>: ${formatAuditValue(valor)}</li>`
+          ).join('')
+        : '<li>Sin detalle.</li>';
+    return `
+      <div style="border-bottom:1px solid #d9e3ef; padding:8px 0;">
+        <div><b>${formatAuditAction(item.accion)}</b> · ${formatAuditDate(item.created_at)}</div>
+        <div>Usuario: ${formatAuditValue(item.actor_email)}</div>
+        <ul style="margin:6px 0 0 18px; padding:0;">${resumen}</ul>
+      </div>
+    `;
+  }).join('');
+  box.innerHTML = html;
+}
+
+async function cargarAuditoriaDetalleRefactor(reparacion) {
+  const box = document.getElementById('detalle-auditoria');
+  if (!box) return;
+  const id = reparacion && (reparacion.id || reparacion.id_reparacion);
+  if (!id) {
+    box.innerHTML = 'Sin movimientos.';
+    return;
+  }
+  box.innerHTML = 'Cargando auditoria...';
+  try {
+    const res = await fetch(`/api/reparaciones_planilla/auditoria/${encodeURIComponent(id)}`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cargar auditoria');
+    renderDetalleAuditoriaRefactor(data);
+  } catch (err) {
+    box.innerHTML = 'No se pudo cargar la auditoria.';
+  }
 }
 
 window.abrirModalRepuestosPlanilla = abrirModalRepuestosPlanilla;
@@ -965,10 +1049,11 @@ function bindPlanillaActions() {
       'detalle-observaciones': seleccion.observaciones||'-',
       'detalle-id-dota': seleccion.id_dota||'-',
       'detalle-ultimo-reparador': seleccion.ultimo_reparador_nombre||seleccion.ultimo_reparador||'-',
-      'detalle-estado': seleccion.resolucion||'-',
+      'detalle-estado': formatResolucionLabel(seleccion.resolucion),
       'detalle-nro-pedido': seleccion.nro_pedido_ref||'-'
     };
     Object.entries(map).forEach(([id,val])=>{ const el=document.getElementById(id); if(el) el.textContent=val; });
+    cargarAuditoriaDetalleRefactor(seleccion);
     const modal = document.getElementById('modal-detalle'); if (modal) modal.style.display='flex';
   };
 
@@ -1129,7 +1214,7 @@ function bindPlanillaActions() {
         if (fechaSpan && fechaSpan.textContent) abrirModalPlanilla(fechaSpan.textContent);
       } catch (err) {
         console.error('Error guardando reparacion (refactor):', err);
-        alert('No se pudo guardar la reparacion.');
+        alert(err && err.message ? err.message : 'No se pudo guardar la reparacion.');
       }
     });
   }

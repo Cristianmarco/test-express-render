@@ -45,14 +45,14 @@
     const tbody = el('tbody-movimientos');
     if(!modal || !tbody) return;
     modal.style.display = 'flex';
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#888; padding:10px;"><i class='fas fa-spinner fa-spin'></i> Cargando movimientos...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#888; padding:10px;"><i class='fas fa-spinner fa-spin'></i> Cargando movimientos...</td></tr>`;
     try{
       const res = await fetch(`/api/stock/movimientos/${encodeURIComponent(prodSel.id)}`);
       const data = await res.json();
       if(!res.ok) throw new Error('Error movimientos');
       const lista = Array.isArray(data) ? data : [];
       if(lista.length === 0){
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#666; padding:10px;">Sin movimientos</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#666; padding:10px;">Sin movimientos</td></tr>`;
         return;
       }
       tbody.innerHTML = lista.map(m => `
@@ -62,12 +62,13 @@
           <td>${m.deposito || '-'}</td>
           <td>${m.cantidad ?? '-'}</td>
           <td>${m.id_reparacion || '-'}</td>
+          <td>${m.actor_email || '-'}</td>
           <td>${m.observacion || '-'}</td>
         </tr>
       `).join('');
     }catch(e){
       console.error(e);
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#c33; padding:10px;">Error al cargar movimientos</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#c33; padding:10px;">Error al cargar movimientos</td></tr>`;
     }
   }
 

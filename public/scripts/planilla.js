@@ -283,7 +283,7 @@ function abrirModalDetalle() {
     document.getElementById("detalle-id-dota").textContent = r.id_dota || "-";
     document.getElementById("detalle-ultimo-reparador").textContent = r.ultimo_reparador_nombre || "-";
     document.getElementById("detalle-resolucion").textContent =
-      r.resolucion ? r.resolucion.replace("_", " ").toUpperCase() : "-";
+      formatResolucionLabel(r.resolucion);
     // Fallback: si faltan campos, intentar completarlos desde historial
     if (!r.id_dota || !r.ultimo_reparador_nombre || !r.resolucion) {
       const idRep = r.id_reparacion || r.id;
@@ -296,7 +296,7 @@ function abrirModalDetalle() {
                 const f = arr[0];
                 document.getElementById("detalle-id-dota").textContent = f.id_dota || document.getElementById("detalle-id-dota").textContent;
                 document.getElementById("detalle-ultimo-reparador").textContent = f.ultimo_reparador_nombre || document.getElementById("detalle-ultimo-reparador").textContent;
-                document.getElementById("detalle-resolucion").textContent = f.resolucion ? String(f.resolucion).replace('_',' ').toUpperCase() : document.getElementById("detalle-resolucion").textContent;
+                document.getElementById("detalle-resolucion").textContent = f.resolucion ? formatResolucionLabel(f.resolucion) : document.getElementById("detalle-resolucion").textContent;
               }
             }).catch(()=>{});
         } catch {}
@@ -306,11 +306,95 @@ function abrirModalDetalle() {
     extra.style.display = "none";
   }
 
+  cargarAuditoriaDetalleClasica(r);
   document.getElementById("modal-detalle").classList.add("mostrar");
 }
 
 function cerrarModalDetalle() {
   document.getElementById("modal-detalle").classList.remove("mostrar");
+}
+
+function formatResolucionLabel(valor) {
+  const key = String(valor || "").trim().toLowerCase();
+  if (!key) return "-";
+  const labels = {
+    aceptada: "Aceptada",
+    aceptada_repuestos: "Aceptada (Falla de repuestos)",
+    aceptada_tecnica: "Aceptada (Falla tecnica)",
+    rechazada: "Rechazada (Facturada)",
+    funciona_ok: "Funciona OK (Devolucion)"
+  };
+  return labels[key] || String(valor);
+}
+
+function formatAuditDate(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("es-AR");
+}
+
+function formatAuditAction(value) {
+  const key = String(value || "").trim().toLowerCase();
+  if (key === "create") return "Alta";
+  if (key === "update") return "Edicion";
+  if (key === "delete") return "Eliminacion";
+  return value || "-";
+}
+
+function formatAuditValue(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function renderDetalleAuditoriaClasica(items) {
+  const box = document.getElementById("detalle-auditoria");
+  if (!box) return;
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    box.innerHTML = "Sin movimientos.";
+    return;
+  }
+  box.innerHTML = list.map((item) => {
+    const detalle = item.detalle || {};
+    const cambios = detalle.changes && typeof detalle.changes === "object" ? detalle.changes : null;
+    const snapshot = detalle.snapshot && typeof detalle.snapshot === "object" ? detalle.snapshot : null;
+    const resumen = cambios
+      ? Object.entries(cambios).map(([campo, diff]) =>
+          `<li><b>${campo}</b>: ${formatAuditValue(diff.before)} -> ${formatAuditValue(diff.after)}</li>`
+        ).join("")
+      : snapshot
+        ? Object.entries(snapshot).slice(0, 6).map(([campo, valor]) =>
+            `<li><b>${campo}</b>: ${formatAuditValue(valor)}</li>`
+          ).join("")
+        : "<li>Sin detalle.</li>";
+    return `
+      <div style="border-bottom:1px solid #ddd; padding:8px 0;">
+        <div><b>${formatAuditAction(item.accion)}</b> - ${formatAuditDate(item.created_at)}</div>
+        <div>Usuario: ${formatAuditValue(item.actor_email)}</div>
+        <ul style="margin:6px 0 0 18px; padding:0;">${resumen}</ul>
+      </div>
+    `;
+  }).join("");
+}
+
+async function cargarAuditoriaDetalleClasica(reparacion) {
+  const box = document.getElementById("detalle-auditoria");
+  if (!box) return;
+  const id = reparacion && (reparacion.id || reparacion.id_reparacion);
+  if (!id) {
+    box.innerHTML = "Sin movimientos.";
+    return;
+  }
+  box.innerHTML = "Cargando auditoria...";
+  try {
+    const res = await fetch(`/api/reparaciones_planilla/auditoria/${encodeURIComponent(id)}`, { credentials: "include" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Error al cargar auditoria");
+    renderDetalleAuditoriaClasica(data);
+  } catch (_) {
+    box.innerHTML = "No se pudo cargar la auditoria.";
+  }
 }
 
 // ============================
@@ -471,7 +555,10 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify(datos),
       });
 
-      if (!res.ok) throw new Error("Error al guardar reparaciÃƒÂ³n");
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || "Error al guardar reparacion");
+      }
 
       const reparacionGuardada = await res.json();
       console.log("Ã¢Å“â€¦ Respuesta del servidor:", reparacionGuardada);
@@ -483,7 +570,7 @@ document.addEventListener("DOMContentLoaded", () => {
       window.modoEdicion = false;
     } catch (err) {
       console.error("Ã¢ÂÅ’ Error en el guardado:", err);
-      mostrarToast("Error al guardar reparaciÃƒÂ³n");
+      mostrarToast(err && err.message ? err.message : "Error al guardar reparacion");
     }
   };
 
@@ -640,9 +727,7 @@ function abrirModalHistorial(datosEquipo, historial) {
     document.getElementById("historial-id-dota").textContent = datosEquipo.id_dota || "-";
     document.getElementById("historial-ultimo-reparador").textContent = datosEquipo.ultimo_reparador_nombre || "-";
     document.getElementById("historial-resolucion").textContent =
-      datosEquipo.resolucion
-        ? datosEquipo.resolucion.replace("_", " ").toUpperCase()
-        : "-";
+      formatResolucionLabel(datosEquipo.resolucion);
   } else {
     bloqueGarantia.style.display = "none";
   }
@@ -979,7 +1064,7 @@ function bindHistorialSearch() {
         extra.style.display = showExtra ? 'flex' : 'none';
         document.getElementById("historial-id-dota")?.replaceChildren(document.createTextNode(safeText(first?.id_dota)));
         document.getElementById("historial-ultimo-reparador")?.replaceChildren(document.createTextNode(safeText(first?.ultimo_reparador_nombre)));
-        document.getElementById("historial-resolucion")?.replaceChildren(document.createTextNode(safeText(first?.resolucion)));
+        document.getElementById("historial-resolucion")?.replaceChildren(document.createTextNode(formatResolucionLabel(first?.resolucion)));
       }
 
       const fmt = (v) => (v == null || v === "") ? "-" : v;

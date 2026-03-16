@@ -109,6 +109,7 @@ async function verDetalleLicitacion(nro) {
   const fEl = document.getElementById('lic-det-fecha');
   const cEl = document.getElementById('lic-det-cierre');
   const oEl = document.getElementById('lic-det-observacion');
+  const aEl = document.getElementById('lic-det-auditoria');
   if (!modal || !tBody) return;
   modal.style.display = 'flex';
   try {
@@ -125,6 +126,7 @@ async function verDetalleLicitacion(nro) {
     if (fEl) fEl.textContent = fmt(data.fecha);
     if (cEl) cEl.textContent = fmt(data.fecha_cierre);
     if (oEl) oEl.textContent = data.observacion || '-';
+    if (aEl) aEl.innerHTML = 'Cargando auditoria...';
     let items = Array.isArray(data.items) ? data.items : [];
     if (!items.length) {
       try {
@@ -179,9 +181,76 @@ async function verDetalleLicitacion(nro) {
         }
       } catch {}
     }
+    cargarAuditoriaLicitacion(nro);
   } catch (err) {
     console.error('Error detalle licitacion:', err);
     tBody.innerHTML = "<tr><td colspan='5' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+    if (aEl) aEl.innerHTML = 'No se pudo cargar la auditoria.';
+  }
+}
+
+function formatLicitAuditDate(value){
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('es-AR');
+}
+
+function formatLicitAuditAction(value){
+  const key = String(value || '').trim().toLowerCase();
+  if (key === 'create') return 'Alta';
+  if (key === 'update') return 'Edicion';
+  if (key === 'delete') return 'Eliminacion';
+  return value || '-';
+}
+
+function formatLicitAuditValue(value){
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function renderAuditoriaLicitacion(items){
+  const box = document.getElementById('lic-det-auditoria');
+  if (!box) return;
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    box.innerHTML = 'Sin movimientos.';
+    return;
+  }
+  box.innerHTML = list.map((item) => {
+    const detail = item.detail || {};
+    const changes = detail.changes && typeof detail.changes === 'object' ? detail.changes : null;
+    const snapshot = detail.snapshot && typeof detail.snapshot === 'object' ? detail.snapshot : null;
+    const resumen = changes
+      ? Object.entries(changes).map(([campo, diff]) => `<li><b>${campo}</b>: ${formatLicitAuditValue(diff.before)} -> ${formatLicitAuditValue(diff.after)}</li>`).join('')
+      : snapshot
+        ? Object.entries(snapshot).map(([campo, valor]) => `<li><b>${campo}</b>: ${formatLicitAuditValue(valor)}</li>`).join('')
+        : '<li>Sin detalle.</li>';
+    return `
+      <div style="border-bottom:1px solid #d9e3ef; padding:8px 0;">
+        <div><b>${formatLicitAuditAction(item.action)}</b> · ${formatLicitAuditDate(item.created_at)}</div>
+        <div>Usuario: ${formatLicitAuditValue(item.actor_email)}</div>
+        <ul style="margin:6px 0 0 18px; padding:0;">${resumen}</ul>
+      </div>
+    `;
+  }).join('');
+}
+
+async function cargarAuditoriaLicitacion(nro){
+  const box = document.getElementById('lic-det-auditoria');
+  if (!box) return;
+  if (!nro) {
+    box.innerHTML = 'Sin movimientos.';
+    return;
+  }
+  box.innerHTML = 'Cargando auditoria...';
+  try{
+    const res = await fetch(`/api/licitaciones/auditoria/${encodeURIComponent(nro)}`, { credentials:'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cargar auditoria');
+    renderAuditoriaLicitacion(data);
+  }catch(err){
+    box.innerHTML = 'No se pudo cargar la auditoria.';
   }
 }
 
@@ -806,7 +875,144 @@ async function cargarVigentes(){
         tr.classList.add('selected');
       });
     }
+    if (!tb._dblBound){
+      tb._dblBound = true;
+      tb.addEventListener('dblclick', (e)=>{
+        const tr = e.target.closest('tr'); if(!tr) return;
+        abrirModalDetalleVigente({
+          id: tr.dataset.id || '',
+          nro_pedido: tr.dataset.nro || '',
+          codigo: tr.dataset.codigo || '',
+          descripcion: tr.dataset.descripcion || '',
+          cantidad: tr.dataset.cantidad || '',
+          destino: tr.dataset.destino || '',
+          razon_social: tr.dataset.razon || '',
+          pendientes: tr.dataset.pendientes || ''
+        });
+      });
+    }
   }catch(err){ console.error('vigentes load', err); tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>"; }
+}
+
+function ensureVigenteDetalleModal(){
+  let modal = document.getElementById('modal-vigente-detalle');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'modal-vigente-detalle';
+  modal.className = 'modal-refactor';
+  modal.style.display = 'none';
+  modal.innerHTML = `
+    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:760px;">
+      <span class="cerrar" onclick="cerrarModalDetalleVigente()">&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-tools"></i> Detalle R.Vigente</h2>
+      <div class="detalle-grid" style="display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:12px;">
+        <div><label>Nro Pedido</label><span id="vig-det-nro">-</span></div>
+        <div><label>Codigo</label><span id="vig-det-codigo">-</span></div>
+        <div><label>Descripcion</label><span id="vig-det-descripcion">-</span></div>
+        <div><label>Cantidad</label><span id="vig-det-cantidad">-</span></div>
+        <div><label>Destino</label><span id="vig-det-destino">-</span></div>
+        <div><label>Razon Social</label><span id="vig-det-razon">-</span></div>
+        <div><label>Pendientes</label><span id="vig-det-pendientes">-</span></div>
+        <div><label>ID Registro</label><span id="vig-det-id">-</span></div>
+      </div>
+      <section class="detalle-card detalle-textos">
+        <h3><i class="fas fa-history"></i> Auditoria</h3>
+        <div id="vig-det-auditoria" class="detalle-texto">Sin movimientos.</div>
+      </section>
+    </div>`;
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function cerrarModalDetalleVigente(){
+  const modal = document.getElementById('modal-vigente-detalle');
+  if (modal) modal.style.display = 'none';
+}
+window.cerrarModalDetalleVigente = cerrarModalDetalleVigente;
+
+function formatVigAuditDate(value){
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('es-AR');
+}
+
+function formatVigAuditAction(value){
+  const key = String(value || '').trim().toLowerCase();
+  if (key === 'create') return 'Alta';
+  if (key === 'update') return 'Edicion';
+  if (key === 'delete') return 'Eliminacion';
+  return value || '-';
+}
+
+function formatVigAuditValue(value){
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function renderVigenteAuditoria(items){
+  const box = document.getElementById('vig-det-auditoria');
+  if (!box) return;
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    box.innerHTML = 'Sin movimientos.';
+    return;
+  }
+  box.innerHTML = list.map((item) => {
+    const detail = item.detail || {};
+    const changes = detail.changes && typeof detail.changes === 'object' ? detail.changes : null;
+    const snapshot = detail.snapshot && typeof detail.snapshot === 'object' ? detail.snapshot : null;
+    const resumen = changes
+      ? Object.entries(changes).map(([campo, diff]) => `<li><b>${campo}</b>: ${formatVigAuditValue(diff.before)} -> ${formatVigAuditValue(diff.after)}</li>`).join('')
+      : snapshot
+        ? Object.entries(snapshot).map(([campo, valor]) => `<li><b>${campo}</b>: ${formatVigAuditValue(valor)}</li>`).join('')
+        : '<li>Sin detalle.</li>';
+    return `
+      <div style="border-bottom:1px solid #d9e3ef; padding:8px 0;">
+        <div><b>${formatVigAuditAction(item.action)}</b> · ${formatVigAuditDate(item.created_at)}</div>
+        <div>Usuario: ${formatVigAuditValue(item.actor_email)}</div>
+        <ul style="margin:6px 0 0 18px; padding:0;">${resumen}</ul>
+      </div>
+    `;
+  }).join('');
+}
+
+async function cargarVigenteAuditoria(id){
+  const box = document.getElementById('vig-det-auditoria');
+  if (!box) return;
+  if (!id) {
+    box.innerHTML = 'Sin movimientos.';
+    return;
+  }
+  box.innerHTML = 'Cargando auditoria...';
+  try{
+    const res = await fetch(`/api/reparaciones_dota/auditoria/${encodeURIComponent(id)}`, { credentials:'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cargar auditoria');
+    renderVigenteAuditoria(data);
+  }catch(err){
+    box.innerHTML = 'No se pudo cargar la auditoria.';
+  }
+}
+
+function abrirModalDetalleVigente(data){
+  const modal = ensureVigenteDetalleModal();
+  const map = {
+    'vig-det-nro': data.nro_pedido || '-',
+    'vig-det-codigo': data.codigo || '-',
+    'vig-det-descripcion': data.descripcion || '-',
+    'vig-det-cantidad': data.cantidad || '-',
+    'vig-det-destino': data.destino || '-',
+    'vig-det-razon': data.razon_social || '-',
+    'vig-det-pendientes': data.pendientes || '-',
+    'vig-det-id': data.id || '-'
+  };
+  Object.entries(map).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  });
+  cargarVigenteAuditoria(data.id);
+  modal.style.display = 'flex';
 }
 
 // -------- Deseleccion para R.Vigentes --------

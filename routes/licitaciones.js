@@ -3,6 +3,13 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db'); // <-- tu pool de postgres
 const ExcelJS = require('exceljs');
+const {
+  ensureDomainAuditTable,
+  buildAuditChanges,
+  insertDomainAudit
+} = require('../utils/domain-audit');
+
+const AUDIT_DOMAIN_LICITACIONES = 'licitaciones';
 
 let garantiasTableReady = false;
 async function ensureGarantiasTable() {
@@ -182,6 +189,26 @@ function removeDiacritics(str = '') {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+async function getLicitacionSnapshot(dbClient, nroLicitacion) {
+  const cab = await dbClient.query(
+    `SELECT nro_licitacion, fecha, fecha_cierre, observacion, cliente_codigo
+     FROM licitaciones
+     WHERE nro_licitacion = $1`,
+    [nroLicitacion]
+  );
+  const items = await dbClient.query(
+    `SELECT codigo, descripcion, cantidad, estado
+     FROM licitacion_items
+     WHERE nro_licitacion = $1
+     ORDER BY codigo, descripcion`,
+    [nroLicitacion]
+  );
+  return {
+    cabecera: cab.rows[0] || null,
+    items: items.rows
+  };
+}
+
 // POST: Guardar una licitación con ítems
 router.post('/', async (req, res, next) => {
   const { nro_licitacion, fecha, fecha_cierre, observacion, cliente_codigo, items } = req.body;
@@ -199,6 +226,11 @@ router.post('/', async (req, res, next) => {
       'SELECT 1 FROM licitaciones WHERE nro_licitacion = $1',
       [nro_licitacion]
     );
+
+    const action = check.rows.length ? 'update' : 'create';
+    const beforeSnapshot = check.rows.length
+      ? await getLicitacionSnapshot(client, nro_licitacion)
+      : null;
 
     if (check.rows.length) {
       // Ya existe: actualizo cabecera y borro ítems viejos
@@ -227,6 +259,11 @@ router.post('/', async (req, res, next) => {
         [nro_licitacion, item.codigo, item.descripcion, item.cantidad, item.estado]
       );
     }
+
+    const afterSnapshot = await getLicitacionSnapshot(client, nro_licitacion);
+    await insertDomainAudit(client, req, AUDIT_DOMAIN_LICITACIONES, nro_licitacion, action, action === 'create'
+      ? { snapshot: afterSnapshot }
+      : { changes: buildAuditChanges(beforeSnapshot, afterSnapshot) });
 
     await client.query('COMMIT');
     res.status(201).json({ mensaje: 'Licitación guardada', nro_licitacion });
@@ -484,6 +521,22 @@ router.post('/garantias/import-file', async (req, res, next) => {
   }
 });
 
+router.get('/auditoria/:nro_licitacion', async (req, res, next) => {
+  try {
+    await ensureDomainAuditTable(db);
+    const result = await db.query(
+      `SELECT id, domain, entity_key, action, actor_user_id, actor_email, detail, created_at
+       FROM domain_audit_log
+       WHERE domain = $1 AND entity_key = $2
+       ORDER BY created_at DESC, id DESC`,
+      [AUDIT_DOMAIN_LICITACIONES, String(req.params.nro_licitacion)]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 // GET detalle de licitación
 router.get('/:nro_licitacion', async (req, res, next) => {
@@ -528,6 +581,11 @@ router.delete('/:nro_licitacion', async (req, res, next) => {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
+    const beforeSnapshot = await getLicitacionSnapshot(client, nro);
+    if (!beforeSnapshot.cabecera) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Licitación no encontrada' });
+    }
     // Eliminar primero los ítems dependientes (por FK ON DELETE CASCADE es opcional)
     await client.query(
       'DELETE FROM licitacion_items WHERE nro_licitacion = $1',
@@ -538,10 +596,10 @@ router.delete('/:nro_licitacion', async (req, res, next) => {
       'DELETE FROM licitaciones WHERE nro_licitacion = $1 RETURNING *',
       [nro]
     );
+    await insertDomainAudit(client, req, AUDIT_DOMAIN_LICITACIONES, nro, 'delete', {
+      snapshot: beforeSnapshot
+    });
     await client.query('COMMIT');
-    if (delResult.rowCount === 0) {
-      return res.status(404).json({ error: 'Licitación no encontrada' });
-    }
     res.json({ mensaje: 'Licitación eliminada', nro_licitacion: nro });
   } catch (e) {
     await client.query('ROLLBACK');
@@ -563,6 +621,11 @@ router.put('/:nro_licitacion', async (req, res, next) => {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
+    const beforeSnapshot = await getLicitacionSnapshot(client, nro);
+    if (!beforeSnapshot.cabecera) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Licitación no encontrada' });
+    }
     // Modificar cabecera
     await client.query(
       `UPDATE licitaciones
@@ -583,6 +646,10 @@ router.put('/:nro_licitacion', async (req, res, next) => {
         [nro, item.codigo, item.descripcion, item.cantidad, item.estado]
       );
     }
+    const afterSnapshot = await getLicitacionSnapshot(client, nro);
+    await insertDomainAudit(client, req, AUDIT_DOMAIN_LICITACIONES, nro, 'update', {
+      changes: buildAuditChanges(beforeSnapshot, afterSnapshot)
+    });
     await client.query('COMMIT');
     res.json({ mensaje: 'Licitación modificada', nro_licitacion: nro });
   } catch (err) {
