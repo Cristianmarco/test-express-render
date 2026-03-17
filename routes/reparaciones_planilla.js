@@ -127,7 +127,8 @@ async function validateLicitacionPayload(dbClient, payload, options = {}) {
   const vigenteResult = await dbClient.query(
     `SELECT
        COUNT(*)::int AS lineas,
-       COALESCE(SUM(cantidad), 0)::int AS total_cantidad
+       COALESCE(SUM(cantidad), 0)::int AS total_cantidad,
+       COALESCE(SUM(pendientes), 0)::int AS total_pendientes
      FROM reparaciones_dota
      WHERE btrim(COALESCE(nro_pedido, '')) = btrim($1)`,
     [nro_pedido_ref]
@@ -137,16 +138,21 @@ async function validateLicitacionPayload(dbClient, payload, options = {}) {
     return { error: 'El nro de pedido no existe en R.Vigentes.' };
   }
 
-  const vinculadasResult = await dbClient.query(
-    `SELECT COUNT(*)::int AS vinculadas
-     FROM equipos_reparaciones
-     WHERE btrim(COALESCE(nro_pedido_ref, '')) = btrim($1)
-       AND ($2::int IS NULL OR id <> $2)`,
-    [nro_pedido_ref, repairId]
-  );
-  const vinculadas = Number(vinculadasResult.rows[0]?.vinculadas || 0);
-  const totalCantidad = Number(vigente.total_cantidad || 0);
-  if (vinculadas >= totalCantidad) {
+  const totalPendientes = Number(vigente.total_pendientes || 0);
+  if (totalPendientes <= 0) {
+    if (repairId) {
+      const currentResult = await dbClient.query(
+        `SELECT 1
+         FROM equipos_reparaciones
+         WHERE id = $1
+           AND btrim(COALESCE(nro_pedido_ref, '')) = btrim($2)
+         LIMIT 1`,
+        [repairId, nro_pedido_ref]
+      );
+      if (currentResult.rowCount) {
+        return { nro_pedido_ref };
+      }
+    }
     return { error: 'El nro de pedido ya no tiene reparaciones disponibles para vincular.' };
   }
 
