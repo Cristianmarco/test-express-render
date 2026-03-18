@@ -1326,7 +1326,9 @@ router.post("/", async (req, res) => {
     if (garantiaData.error) {
       return res.status(400).json({ error: garantiaData.error });
     }
-    const licitacionData = await validateLicitacionPayload(client, { nro_pedido_ref });
+    const licitacionData = await validateLicitacionPayload(client, {
+      nro_pedido_ref: garantiaData.garantia === 'si' ? null : nro_pedido_ref
+    });
     if (licitacionData.error) {
       return res.status(400).json({ error: licitacionData.error });
     }
@@ -1542,7 +1544,7 @@ router.put("/:id", async (req, res) => {
     const anteriorNroPedidoRef = normalizePedidoRef(reparacionAnterior.nro_pedido_ref);
     const licitacionData = await validateLicitacionPayload(
       client,
-      { nro_pedido_ref },
+      { nro_pedido_ref: garantiaData.garantia === 'si' ? null : nro_pedido_ref },
       { currentRepairId: req.params.id }
     );
     if (licitacionData.error) {

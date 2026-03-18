@@ -3,6 +3,7 @@
   let listView, detailView, backBtn;
   let grid, searchInput, filtroCat, filtroEstado, countBadge, btnRecargar;
   let tabs, tabPanels, mediaList, mediaForm, repuestosBody, repuestoForm, productosDatalist, productoInput;
+  let plantillasBody, plantillaForm, plantillaCancelBtn;
   let mediaFileInput, mediaBrowseBtn, portadaFileInput, portadaBrowseBtn;
   let slidesWrap, dotsWrap, btnPrev, btnNext;
   let formFichaBasica, modalFicha, modalClose, btnEditarFicha;
@@ -13,7 +14,8 @@
     listado: [],
     detalle: null,
     productos: [],
-    slideIndex: 0
+    slideIndex: 0,
+    plantillaEditId: null
   };
 
   function init() {
@@ -38,6 +40,9 @@
     mediaForm = host.querySelector('#ficha-media-form');
     repuestosBody = host.querySelector('#ficha-repuestos-body');
     repuestoForm = host.querySelector('#ficha-repuesto-form');
+    plantillasBody = host.querySelector('#ficha-plantillas-body');
+    plantillaForm = host.querySelector('#ficha-plantilla-form');
+    plantillaCancelBtn = host.querySelector('#ficha-plantilla-cancelar');
     productosDatalist = host.querySelector('#ficha-productos');
     productoInput = host.querySelector('#ficha-producto-input');
     mediaFileInput = host.querySelector('#ficha-media-file');
@@ -73,6 +78,8 @@
     tabs.forEach(tab => tab.addEventListener('click', () => activarTab(tab.dataset.tab)));
     mediaForm && (mediaForm.onsubmit = agregarMedia);
     repuestoForm && (repuestoForm.onsubmit = agregarRepuesto);
+    plantillaForm && (plantillaForm.onsubmit = agregarPlantilla);
+    plantillaCancelBtn && (plantillaCancelBtn.onclick = resetPlantillaForm);
     btnEditarFicha && (btnEditarFicha.onclick = abrirModalFicha);
     modalClose && (modalClose.onclick = () => (modalFicha.style.display = 'none'));
     formFichaBasica && (formFichaBasica.onsubmit = guardarFichaBasica);
@@ -286,6 +293,15 @@
     el.innerHTML = parts.map(p => `<span class="pill">${escapeHtml(p)}</span>`).join(' ');
   }
 
+  function setBlockText(id, value) {
+    const el = host.querySelector(`#${id}`);
+    if (!el) return;
+    const text = String(value || '').trim();
+    el.innerHTML = text
+      ? text.split(/\n+/).map(line => `<div class="pill">${escapeHtml(line.trim())}</div>`).join('')
+      : '<span class="pill">-</span>';
+  }
+
   function escapeHtml(str) {
     return String(str)
       .replace(/&/g, '&amp;')
@@ -299,6 +315,7 @@
     const ficha = state.detalle?.ficha || {};
     const media = state.detalle?.media || [];
     const repuestos = state.detalle?.repuestos || [];
+    const plantillas = state.detalle?.plantillas || [];
 
     setText('#ficha-titulo', ficha.titulo || ficha.familia || 'Sin titulo');
     setText('#info-codigo', ficha.codigo_familia);
@@ -310,6 +327,10 @@
     setText('#ficha-observaciones', ficha.descripcion_corta || 'Sin observaciones');
     setList('info-id-list', ficha.id_original);
     setList('info-aplicaciones-list', ficha.aplicaciones);
+    setBlockText('info-banco-prueba', ficha.banco_prueba);
+    setBlockText('info-diagnostico-base', ficha.diagnostico_base);
+    setBlockText('info-procedimiento-base', ficha.procedimiento_base);
+    setBlockText('info-control-final', ficha.control_final);
 
     if (formFichaBasica) {
       formFichaBasica.elements['familia_id'].value = ficha.familia_id || '';
@@ -321,6 +342,10 @@
       formFichaBasica.elements['voltaje'].value = ficha.voltaje || '';
       formFichaBasica.elements['amperaje'].value = ficha.amperaje || '';
       formFichaBasica.elements['aplicaciones'].value = ficha.aplicaciones || '';
+      formFichaBasica.elements['banco_prueba'].value = ficha.banco_prueba || '';
+      formFichaBasica.elements['diagnostico_base'].value = ficha.diagnostico_base || '';
+      formFichaBasica.elements['procedimiento_base'].value = ficha.procedimiento_base || '';
+      formFichaBasica.elements['control_final'].value = ficha.control_final || '';
       formFichaBasica.elements['portada_url'].value = ficha.portada_url || '';
     }
 
@@ -328,6 +353,8 @@
     renderMedia(media);
     renderMediaConfig(media);
     renderRepuestos(repuestos);
+    renderPlantillas(plantillas);
+    resetPlantillaForm();
   }
 
   function renderSlides(media, ficha) {
@@ -579,6 +606,72 @@
     });
   }
 
+  function renderPlantillas(list) {
+    if (!plantillasBody) return;
+    plantillasBody.innerHTML = '';
+    if (!list.length) {
+      plantillasBody.innerHTML = `<tr><td colspan="6" style="text-align:center;" class="muted">Sin plantillas cargadas</td></tr>`;
+      return;
+    }
+    list.forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(item.nombre || '-')}</td>
+        <td>${escapeHtml(item.banco || '-')}</td>
+        <td>${escapeHtml(item.desarme || '-')}</td>
+        <td>${escapeHtml(item.trabajo || '-')}</td>
+        <td>${escapeHtml(item.observaciones || '-')}</td>
+        <td style="text-align:right;">
+          <div style="display:flex; gap:6px; justify-content:flex-end;">
+            <button class="btn-ghost btn-plantilla-edit" data-id="${item.id}" title="Editar"><i class="fas fa-pen"></i></button>
+            <button class="btn-ghost btn-plantilla-copy" data-id="${item.id}" title="Duplicar"><i class="fas fa-copy"></i></button>
+            <button class="btn-ghost btn-plantilla-del" data-id="${item.id}" title="Eliminar"><i class="fas fa-trash"></i></button>
+          </div>
+        </td>
+      `;
+      tr.querySelector('.btn-plantilla-edit').addEventListener('click', () => editarPlantilla(item.id));
+      tr.querySelector('.btn-plantilla-copy').addEventListener('click', () => duplicarPlantilla(item.id));
+      tr.querySelector('.btn-plantilla-del').addEventListener('click', () => eliminarPlantilla(item.id));
+      plantillasBody.appendChild(tr);
+    });
+  }
+
+  function resetPlantillaForm() {
+    if (!plantillaForm) return;
+    plantillaForm.reset();
+    state.plantillaEditId = null;
+    const submitBtn = plantillaForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-bolt"></i> Guardar plantilla';
+  }
+
+  function cargarPlantillaEnForm(item, duplicate) {
+    if (!plantillaForm || !item) return;
+    plantillaForm.elements['nombre'].value = duplicate ? `${item.nombre || 'Plantilla'} copia` : (item.nombre || '');
+    plantillaForm.elements['orden'].value = item.orden ?? '';
+    plantillaForm.elements['banco'].value = item.banco || '';
+    plantillaForm.elements['desarme'].value = item.desarme || '';
+    plantillaForm.elements['trabajo'].value = item.trabajo || '';
+    plantillaForm.elements['observaciones'].value = item.observaciones || '';
+    state.plantillaEditId = duplicate ? null : item.id;
+    const submitBtn = plantillaForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.innerHTML = duplicate
+      ? '<i class="fas fa-copy"></i> Guardar copia'
+      : '<i class="fas fa-save"></i> Actualizar plantilla';
+    try { plantillaForm.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {}
+  }
+
+  function editarPlantilla(id) {
+    const item = (state.detalle?.plantillas || []).find(p => Number(p.id) === Number(id));
+    if (!item) return;
+    cargarPlantillaEnForm(item, false);
+  }
+
+  function duplicarPlantilla(id) {
+    const item = (state.detalle?.plantillas || []).find(p => Number(p.id) === Number(id));
+    if (!item) return;
+    cargarPlantillaEnForm(item, true);
+  }
+
   async function eliminarRepuesto(id) {
     if (!state.detalle?.ficha?.familia_id) return;
     if (!confirm('Eliminar repuesto vinculado?')) return;
@@ -593,6 +686,50 @@
     } catch (err) {
       console.error(err);
       alert('No se pudo eliminar el repuesto');
+    }
+  }
+
+  async function agregarPlantilla(e) {
+    e.preventDefault();
+    if (!state.detalle?.ficha?.familia_id) return alert('Selecciona una ficha');
+    const payload = Object.fromEntries(new FormData(plantillaForm).entries());
+    try {
+      const editId = state.plantillaEditId;
+      const res = await fetch(
+        editId
+          ? `/api/fichas/${encodeURIComponent(state.detalle.ficha.familia_id)}/plantillas/${encodeURIComponent(editId)}`
+          : `/api/fichas/${encodeURIComponent(state.detalle.ficha.familia_id)}/plantillas`,
+        {
+        method: editId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo guardar la plantilla');
+      resetPlantillaForm();
+      await cargarDetalle(state.detalle.ficha.familia_id);
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar la plantilla');
+    }
+  }
+
+  async function eliminarPlantilla(id) {
+    if (!state.detalle?.ficha?.familia_id) return;
+    if (!confirm('Eliminar plantilla?')) return;
+    try {
+      const res = await fetch(`/api/fichas/${encodeURIComponent(state.detalle.ficha.familia_id)}/plantillas/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error || 'No se pudo eliminar');
+      if (Number(state.plantillaEditId) === Number(id)) resetPlantillaForm();
+      await cargarDetalle(state.detalle.ficha.familia_id);
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo eliminar la plantilla');
     }
   }
 

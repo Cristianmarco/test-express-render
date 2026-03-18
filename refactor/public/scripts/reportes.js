@@ -124,7 +124,7 @@
     cont.innerHTML = `
       <h3 style="margin-top:0;color:#2176bd;">Promedio diario de equipos por técnico</h3>
       <p style="margin:0 0 10px 0; color:#4b5563; font-size:12px;">
-        Filtro aplicado: solo reparaciones con Nro Pedido (licitacion). Garantias incluidas solo con estado "Aceptada (Falla de repuestos)" o "Rechazada (Facturada)".
+        Filtro aplicado: incluye licitacion y clientes externos. En garantias se cuentan "Aceptada", "Aceptada (Falla de repuestos)" y "Rechazada (Facturada)". Se excluyen devolucion y falla tecnica.
       </p>
       <table class="tabla-erp">
         <thead><tr><th>Técnico</th><th>Total equipos</th><th>Días trabajados</th><th>Promedio diario</th></tr></thead>

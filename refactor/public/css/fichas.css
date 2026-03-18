@@ -159,6 +159,8 @@
 .ficha-info-right { display:flex; flex-direction:column; gap:10px; align-items:stretch; }
 .info-multi { display:flex; flex-wrap:wrap; gap:6px; }
 .pill { display:inline-flex; align-items:center; padding:4px 8px; border-radius:12px; background:#eef2ff; color:#1f2937; font-weight:600; font-size:13px; }
+.info-block-text { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+.info-block-text .pill { border-radius:10px; white-space:normal; line-height:1.35; }
 .ficha-updated { font-size:12px; color:#6b7280; text-align:right; margin-top:4px; }
 .ficha-media-actions {
   display:flex;

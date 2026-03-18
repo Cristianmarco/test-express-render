@@ -93,6 +93,7 @@ let planillaOrden = 'ingreso';
 let planillaData = [];
 let repuestosFiltro = null;
 let repuestosSeleccionIds = new Set();
+let fichaTecnicaActual = null;
 
 function formatResolucionLabel(value) {
   const key = String(value || '').trim().toLowerCase();
@@ -105,6 +106,135 @@ function formatResolucionLabel(value) {
     funciona_ok: 'Funciona OK (Devolucion)'
   };
   return labels[key] || String(value);
+}
+
+function escapeHtmlPlanilla(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderFichaTecnicaTexto(value) {
+  const text = String(value || '').trim();
+  if (!text) return '-';
+  return text
+    .split(/\n+/)
+    .map(line => `<div>${escapeHtmlPlanilla(line.trim())}</div>`)
+    .join('');
+}
+
+function limpiarFichaTecnicaSugerida() {
+  fichaTecnicaActual = null;
+  const wrap = document.getElementById('ficha-tecnica-sugerida');
+  const set = (id, html) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  };
+  if (wrap) wrap.style.display = 'none';
+  set('ficha-tecnica-titulo', '-');
+  set('ficha-tecnica-banco', '-');
+  set('ficha-tecnica-diagnostico', '-');
+  set('ficha-tecnica-procedimiento', '-');
+  set('ficha-tecnica-control', '-');
+  refreshGarantiaTemplateOptions();
+}
+
+function renderFichaTecnicaSugerida(detalle) {
+  fichaTecnicaActual = detalle || null;
+  const wrap = document.getElementById('ficha-tecnica-sugerida');
+  if (!wrap || !detalle?.ficha) return limpiarFichaTecnicaSugerida();
+  const ficha = detalle.ficha;
+  const hasContenido = [ficha.banco_prueba, ficha.diagnostico_base, ficha.procedimiento_base, ficha.control_final]
+    .some(value => String(value || '').trim());
+  if (!hasContenido) {
+    limpiarFichaTecnicaSugerida();
+    return;
+  }
+  const titulo = [ficha.codigo_familia, ficha.titulo || ficha.familia].filter(Boolean).join(' - ') || 'Ficha tecnica';
+  const set = (id, html) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  };
+  wrap.style.display = 'block';
+  set('ficha-tecnica-titulo', escapeHtmlPlanilla(titulo));
+  set('ficha-tecnica-banco', renderFichaTecnicaTexto(ficha.banco_prueba));
+  set('ficha-tecnica-diagnostico', renderFichaTecnicaTexto(ficha.diagnostico_base));
+  set('ficha-tecnica-procedimiento', renderFichaTecnicaTexto(ficha.procedimiento_base));
+  set('ficha-tecnica-control', renderFichaTecnicaTexto(ficha.control_final));
+  refreshGarantiaTemplateOptions();
+}
+
+async function cargarFichaTecnicaFamilia(familiaId) {
+  if (!familiaId) {
+    limpiarFichaTecnicaSugerida();
+    return;
+  }
+  try {
+    const res = await fetch(`/api/fichas/${encodeURIComponent(familiaId)}`, { credentials: 'include' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'No se pudo cargar la ficha tecnica');
+    renderFichaTecnicaSugerida(data);
+  } catch (err) {
+    console.warn('No se pudo cargar ficha tecnica sugerida', err);
+    limpiarFichaTecnicaSugerida();
+  }
+}
+
+function aplicarFichaTecnicaAGarantia() {
+  const ficha = fichaTecnicaActual?.ficha;
+  if (!ficha) {
+    alert('No hay ficha tecnica cargada para este equipo.');
+    return;
+  }
+  const garantia = document.getElementById('garantia');
+  if (garantia && garantia.value !== 'si') {
+    garantia.value = 'si';
+    toggleGarantiaExtra();
+  }
+  const banco = document.getElementById('garantia_prueba_banco');
+  const desarme = document.getElementById('garantia_desarme');
+  const partesDesarme = [
+    ficha.diagnostico_base && `DIAGNOSTICO BASE:\n${String(ficha.diagnostico_base).trim()}`,
+    ficha.procedimiento_base && `PROCEDIMIENTO BASE:\n${String(ficha.procedimiento_base).trim()}`,
+    ficha.control_final && `CONTROL FINAL:\n${String(ficha.control_final).trim()}`
+  ].filter(Boolean);
+  if ((banco?.value || desarme?.value) && !confirm('Reemplazar el texto actual con la ficha tecnica del equipo?')) {
+    return;
+  }
+  if (banco) banco.value = String(ficha.banco_prueba || '').trim();
+  if (desarme) desarme.value = partesDesarme.join('\n\n');
+}
+
+function aplicarFichaTecnicaATrabajo() {
+  const ficha = fichaTecnicaActual?.ficha;
+  if (!ficha) {
+    alert('No hay ficha tecnica cargada para este equipo.');
+    return;
+  }
+  const trabajo = document.getElementById('trabajo');
+  const observaciones = document.querySelector("textarea[name='observaciones']");
+  const nuevoTrabajo = String(ficha.procedimiento_base || '').trim();
+  const partesObs = [
+    ficha.banco_prueba && `BANCO DE PRUEBA:\n${String(ficha.banco_prueba).trim()}`,
+    ficha.diagnostico_base && `DIAGNOSTICO BASE:\n${String(ficha.diagnostico_base).trim()}`,
+    ficha.control_final && `CONTROL FINAL:\n${String(ficha.control_final).trim()}`
+  ].filter(Boolean);
+  const nuevasObs = partesObs.join('\n\n');
+  if (!nuevoTrabajo && !nuevasObs) {
+    alert('La ficha tecnica no tiene texto base para aplicar.');
+    return;
+  }
+  if ((trabajo?.value || observaciones?.value) && !confirm('Reemplazar el texto actual con la ficha tecnica del equipo?')) {
+    return;
+  }
+  if (trabajo) {
+    trabajo.value = nuevoTrabajo;
+    trabajo.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  if (observaciones) observaciones.value = nuevasObs;
 }
 
 function setHistorialTableMode(mode) {
@@ -1069,6 +1199,7 @@ function bindPlanillaActions() {
     }
     if (form) {
       form.reset();
+      delete form.dataset.id;
       try {
         if (!document.getElementById('nro_pedido_ref')) {
           const wrap = document.createElement('div');
@@ -1086,10 +1217,12 @@ function bindPlanillaActions() {
       const selGar = document.getElementById('garantia'); if (selGar) selGar.value = 'no';
       const extra = document.getElementById('garantia-extra-fields'); if (extra) extra.style.display = 'none';
       const tpl = document.getElementById('garantia_template'); if (tpl) tpl.value = '';
+      limpiarFichaTecnicaSugerida();
     }
     prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
     bindClienteExternoToggle(true);
     bindGarantiaToggle(true);
+    bindFichaTecnicaControl();
   };
 
   if (btnReporte) btnReporte.onclick = () => {
@@ -1140,11 +1273,22 @@ function bindPlanillaActions() {
     const tec=document.getElementById('tecnico_id'); if(tec && seleccion.tecnico_id) tec.value=String(seleccion.tecnico_id);
     const ult=document.getElementById('ultimo_reparador'); if(ult && seleccion.ultimo_reparador) ult.value=String(seleccion.ultimo_reparador);
     setVal("select[name='resolucion']", seleccion.resolucion);
-    setVal("input[name='nro_pedido_ref']", (seleccion.nro_pedido_ref||''));
+    if (String(seleccion.garantia || '').toLowerCase().startsWith('s')) {
+      setVal("input[name='nro_pedido_ref']", '');
+    } else {
+      setVal("input[name='nro_pedido_ref']", (seleccion.nro_pedido_ref||''));
+    }
 
     // Familia: solo cargar y seleccionar
     await prepararSelectFamilias();
-    const fam = document.getElementById('familia_id'); if (fam && seleccion.familia_id) fam.value=String(seleccion.familia_id);
+    const fam = document.getElementById('familia_id');
+    if (fam && seleccion.familia_id) {
+      fam.value = String(seleccion.familia_id);
+      await cargarFichaTecnicaFamilia(fam.value);
+    } else {
+      limpiarFichaTecnicaSugerida();
+    }
+    bindFichaTecnicaControl();
   };
 
   if (btnEliminar) btnEliminar.onclick = async () => {
@@ -1304,6 +1448,10 @@ async function prepararSelectFamilias(){
   }catch{
     selFam.innerHTML = '<option value="">(sin datos)</option>';
   }
+  if (!selFam._fichaBound) {
+    selFam._fichaBound = true;
+    selFam.addEventListener('change', () => cargarFichaTecnicaFamilia(selFam.value));
+  }
 }
 
 // Populate tecnicos select
@@ -1317,8 +1465,16 @@ function toggleGarantiaExtra(){
   const sel = document.getElementById('garantia');
   const extra = document.getElementById('garantia-extra-fields');
   if(!sel || !extra) return;
-  extra.style.display = (sel.value === 'si') ? 'block' : 'none';
-  if (sel.value === 'si') {
+  const pedidoInput = document.getElementById('nro_pedido_ref');
+  const pedidoWrap = pedidoInput ? pedidoInput.closest('.form-grid') : null;
+  const esGarantia = sel.value === 'si';
+  extra.style.display = esGarantia ? 'block' : 'none';
+  if (pedidoInput) {
+    if (esGarantia) pedidoInput.value = '';
+    pedidoInput.disabled = esGarantia;
+  }
+  if (pedidoWrap) pedidoWrap.style.display = esGarantia ? 'none' : '';
+  if (esGarantia) {
     refreshGarantiaTemplateOptions();
     bindGarantiaTemplateControl();
   } else {
@@ -1355,23 +1511,60 @@ function refreshGarantiaTemplateOptions(){
     opt.textContent = tpl.label || key;
     select.appendChild(opt);
   });
+  const familyTemplates = Array.isArray(fichaTecnicaActual?.plantillas) ? fichaTecnicaActual.plantillas : [];
+  if (familyTemplates.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Plantillas de la familia';
+    familyTemplates.forEach((tpl) => {
+      const opt = document.createElement('option');
+      opt.value = `familia:${tpl.id}`;
+      opt.textContent = tpl.nombre || `Plantilla ${tpl.id}`;
+      group.appendChild(opt);
+    });
+    select.appendChild(group);
+  }
   if (current && GARANTIA_TEMPLATES[current]) select.value = current;
+  else if (current && String(current).startsWith('familia:') && familyTemplates.some(t => `familia:${t.id}` === current)) select.value = current;
 }
 
 function applyGarantiaTemplate(key){
   if (!key) return;
-  const tpl = GARANTIA_TEMPLATES[key];
   const select = document.getElementById('garantia_template');
-  if (!tpl || !select) return;
+  if (!select) return;
+  let tpl = GARANTIA_TEMPLATES[key];
+  let familyTemplate = null;
+  if (!tpl && String(key).startsWith('familia:')) {
+    const id = Number(String(key).split(':')[1]);
+    const found = (Array.isArray(fichaTecnicaActual?.plantillas) ? fichaTecnicaActual.plantillas : []).find(item => Number(item.id) === id);
+    if (found) {
+      familyTemplate = found;
+      tpl = {
+        banco: found.banco || '',
+        desarme: found.desarme || '',
+        trabajo: found.trabajo || '',
+        observaciones: found.observaciones || ''
+      };
+    }
+  }
+  if (!tpl) return;
   const banco = document.getElementById('garantia_prueba_banco');
   const desarme = document.getElementById('garantia_desarme');
-  if ((banco?.value || desarme?.value) && !confirm('Reemplazar el texto actual con la plantilla seleccionada?')){
+  const trabajo = document.getElementById('trabajo');
+  const observaciones = document.querySelector("textarea[name='observaciones']");
+  if ((banco?.value || desarme?.value || trabajo?.value || observaciones?.value) && !confirm('Reemplazar el texto actual con la plantilla seleccionada?')){
     select.value = '';
     return;
   }
   const ctx = getGarantiaTemplateContext();
   if (banco) banco.value = formatGarantiaTemplate(tpl.banco, ctx);
   if (desarme) desarme.value = formatGarantiaTemplate(tpl.desarme, ctx);
+  if (familyTemplate) {
+    if (trabajo) {
+      trabajo.value = formatGarantiaTemplate(tpl.trabajo, ctx);
+      trabajo.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (observaciones) observaciones.value = formatGarantiaTemplate(tpl.observaciones, ctx);
+  }
 }
 
 function bindGarantiaTemplateControl(){
@@ -1381,6 +1574,19 @@ function bindGarantiaTemplateControl(){
   if (select._bound) return;
   select._bound = true;
   select.addEventListener('change', () => applyGarantiaTemplate(select.value));
+}
+
+function bindFichaTecnicaControl() {
+  const btnTrabajo = document.getElementById('btn-aplicar-ficha-trabajo');
+  const btn = document.getElementById('btn-aplicar-ficha-tecnica');
+  if (btnTrabajo && !btnTrabajo._bound) {
+    btnTrabajo._bound = true;
+    btnTrabajo.addEventListener('click', aplicarFichaTecnicaATrabajo);
+  }
+  if (btn && !btn._bound) {
+    btn._bound = true;
+    btn.addEventListener('click', aplicarFichaTecnicaAGarantia);
+  }
 }
 
 // ----- Modal helpers (close) -----
@@ -1871,6 +2077,7 @@ function initPlanilla(){
   bindCodigoRepuestoEnter();
   bindTrabajoWatcher();
   bindTrabajoAutocomplete();
+  bindFichaTecnicaControl();
 }
 
 if (document.getElementById('calendarGrid')) {

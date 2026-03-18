@@ -676,11 +676,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (garantiaSelect && extraFields) {
     garantiaSelect.addEventListener("change", async (e) => {
+      const pedidoInput = document.getElementById("nro_pedido_ref");
+      const pedidoWrap = pedidoInput ? pedidoInput.closest(".form-grid") : null;
       if (e.target.value === "si") {
         extraFields.style.display = "block";
+        if (pedidoInput) {
+          pedidoInput.value = "";
+          pedidoInput.disabled = true;
+        }
+        if (pedidoWrap) pedidoWrap.style.display = "none";
         await cargarOpcionesSelect("/api/tecnicos", "ultimo_reparador", "id", "nombre");
       } else {
         extraFields.style.display = "none";
+        if (pedidoInput) pedidoInput.disabled = false;
+        if (pedidoWrap) pedidoWrap.style.display = "";
         document.getElementById("id_dota").value = "";
         document.getElementById("ultimo_reparador").innerHTML = "<option value=''>Seleccione</option>";
         document.getElementById("resolucion").value = "";

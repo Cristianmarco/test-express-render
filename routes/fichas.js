@@ -19,9 +19,17 @@ async function ensureTables() {
       voltaje TEXT,
       amperaje TEXT,
       aplicaciones TEXT,
+      banco_prueba TEXT,
+      diagnostico_base TEXT,
+      procedimiento_base TEXT,
+      control_final TEXT,
       updated_at TIMESTAMP DEFAULT NOW()
     );
   `);
+  await db.query(`ALTER TABLE familia_ficha ADD COLUMN IF NOT EXISTS banco_prueba TEXT;`);
+  await db.query(`ALTER TABLE familia_ficha ADD COLUMN IF NOT EXISTS diagnostico_base TEXT;`);
+  await db.query(`ALTER TABLE familia_ficha ADD COLUMN IF NOT EXISTS procedimiento_base TEXT;`);
+  await db.query(`ALTER TABLE familia_ficha ADD COLUMN IF NOT EXISTS control_final TEXT;`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS familia_ficha_media (
       id SERIAL PRIMARY KEY,
@@ -46,6 +54,20 @@ async function ensureTables() {
     );
   `);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_ficha_rep_familia ON familia_ficha_repuestos(familia_id);`);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS familia_ficha_plantillas (
+      id SERIAL PRIMARY KEY,
+      familia_id INTEGER REFERENCES familia(id) ON DELETE CASCADE,
+      nombre TEXT NOT NULL,
+      banco TEXT,
+      desarme TEXT,
+      trabajo TEXT,
+      observaciones TEXT,
+      orden INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_ficha_tpl_familia ON familia_ficha_plantillas(familia_id);`);
   ensured = true;
 }
 
@@ -114,7 +136,9 @@ router.get('/:familiaId', async (req, res, next) => {
       `SELECT f.id AS familia_id, f.descripcion AS familia,
               f.codigo AS codigo_familia,
               fi.marca, fi.categoria, fi.id_original, fi.titulo, fi.descripcion_corta,
-              fi.portada_url, fi.voltaje, fi.amperaje, fi.aplicaciones, fi.updated_at
+              fi.portada_url, fi.voltaje, fi.amperaje, fi.aplicaciones,
+              fi.banco_prueba, fi.diagnostico_base, fi.procedimiento_base, fi.control_final,
+              fi.updated_at
          FROM familia f
          LEFT JOIN familia_ficha fi ON fi.familia_id = f.id
         WHERE f.id = $1`,
@@ -140,10 +164,19 @@ router.get('/:familiaId', async (req, res, next) => {
       [familiaId]
     );
 
+    const plantillas = await db.query(
+      `SELECT id, nombre, banco, desarme, trabajo, observaciones, orden, created_at
+         FROM familia_ficha_plantillas
+        WHERE familia_id = $1
+        ORDER BY orden ASC, id ASC`,
+      [familiaId]
+    );
+
     res.json({
       ficha: ficha.rows[0],
       media: media.rows,
-      repuestos: repuestos.rows
+      repuestos: repuestos.rows,
+      plantillas: plantillas.rows
     });
   } catch (err) {
     next(err);
@@ -163,13 +196,21 @@ router.post('/:familiaId', async (req, res, next) => {
     portada_url,
     voltaje,
     amperaje,
-    aplicaciones
+    aplicaciones,
+    banco_prueba,
+    diagnostico_base,
+    procedimiento_base,
+    control_final
   } = req.body || {};
   try {
     const upsert = await db.query(
       `INSERT INTO familia_ficha
-        (familia_id, marca, categoria, id_original, titulo, descripcion_corta, portada_url, voltaje, amperaje, aplicaciones, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW())
+        (
+          familia_id, marca, categoria, id_original, titulo, descripcion_corta,
+          portada_url, voltaje, amperaje, aplicaciones,
+          banco_prueba, diagnostico_base, procedimiento_base, control_final, updated_at
+        )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, NOW())
        ON CONFLICT (familia_id) DO UPDATE SET
          marca=EXCLUDED.marca,
          categoria=EXCLUDED.categoria,
@@ -180,9 +221,17 @@ router.post('/:familiaId', async (req, res, next) => {
          voltaje=EXCLUDED.voltaje,
          amperaje=EXCLUDED.amperaje,
          aplicaciones=EXCLUDED.aplicaciones,
+         banco_prueba=EXCLUDED.banco_prueba,
+         diagnostico_base=EXCLUDED.diagnostico_base,
+         procedimiento_base=EXCLUDED.procedimiento_base,
+         control_final=EXCLUDED.control_final,
          updated_at=NOW()
        RETURNING *`,
-      [familiaId, marca, categoria, id_original, titulo, descripcion_corta, portada_url, voltaje, amperaje, aplicaciones]
+      [
+        familiaId, marca, categoria, id_original, titulo, descripcion_corta,
+        portada_url, voltaje, amperaje, aplicaciones,
+        banco_prueba, diagnostico_base, procedimiento_base, control_final
+      ]
     );
     res.json(upsert.rows[0]);
   } catch (err) {
@@ -250,6 +299,84 @@ router.delete('/:familiaId/repuestos/:id', async (req, res, next) => {
   try {
     const del = await db.query(
       `DELETE FROM familia_ficha_repuestos WHERE id=$1 AND familia_id=$2 RETURNING id`,
+      [id, familiaId]
+    );
+    if (!del.rowCount) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:familiaId/plantillas', async (req, res, next) => {
+  const familiaId = Number(req.params.familiaId);
+  if (!Number.isInteger(familiaId)) return res.status(400).json({ error: 'Familia invÃ¡lida' });
+  const { nombre, banco, desarme, trabajo, observaciones, orden } = req.body || {};
+  if (!String(nombre || '').trim()) return res.status(400).json({ error: 'nombre requerido' });
+  try {
+    const ins = await db.query(
+      `INSERT INTO familia_ficha_plantillas
+        (familia_id, nombre, banco, desarme, trabajo, observaciones, orden)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING *`,
+      [
+        familiaId,
+        String(nombre).trim(),
+        banco || null,
+        desarme || null,
+        trabajo || null,
+        observaciones || null,
+        Number.isFinite(Number(orden)) ? Number(orden) : 0
+      ]
+    );
+    res.status(201).json(ins.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/:familiaId/plantillas/:id', async (req, res, next) => {
+  const familiaId = Number(req.params.familiaId);
+  const id = Number(req.params.id);
+  if (!Number.isInteger(familiaId) || !Number.isInteger(id)) return res.status(400).json({ error: 'ParÃ¡metros invÃ¡lidos' });
+  const { nombre, banco, desarme, trabajo, observaciones, orden } = req.body || {};
+  if (!String(nombre || '').trim()) return res.status(400).json({ error: 'nombre requerido' });
+  try {
+    const upd = await db.query(
+      `UPDATE familia_ficha_plantillas
+          SET nombre=$3,
+              banco=$4,
+              desarme=$5,
+              trabajo=$6,
+              observaciones=$7,
+              orden=$8
+        WHERE familia_id=$1 AND id=$2
+        RETURNING *`,
+      [
+        familiaId,
+        id,
+        String(nombre).trim(),
+        banco || null,
+        desarme || null,
+        trabajo || null,
+        observaciones || null,
+        Number.isFinite(Number(orden)) ? Number(orden) : 0
+      ]
+    );
+    if (!upd.rowCount) return res.status(404).json({ error: 'No encontrado' });
+    res.json(upd.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/:familiaId/plantillas/:id', async (req, res, next) => {
+  const familiaId = Number(req.params.familiaId);
+  const id = Number(req.params.id);
+  if (!Number.isInteger(familiaId) || !Number.isInteger(id)) return res.status(400).json({ error: 'ParÃ¡metros invÃ¡lidos' });
+  try {
+    const del = await db.query(
+      `DELETE FROM familia_ficha_plantillas WHERE id=$1 AND familia_id=$2 RETURNING id`,
       [id, familiaId]
     );
     if (!del.rowCount) return res.status(404).json({ error: 'No encontrado' });

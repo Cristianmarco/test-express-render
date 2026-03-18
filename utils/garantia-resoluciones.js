@@ -7,7 +7,7 @@ const GARANTIA_RESOLUCIONES = {
 };
 
 const GARANTIA_ACEPTADAS = ['aceptada', 'aceptada_repuestos', 'aceptada_tecnica'];
-const GARANTIA_ACEPTADAS_OPERATIVAS = ['aceptada_repuestos', 'rechazada'];
+const GARANTIA_ACEPTADAS_OPERATIVAS = ['aceptada', 'aceptada_repuestos', 'rechazada'];
 
 function normalizeGarantiaResolucion(value) {
   return String(value || '').trim().toLowerCase();
@@ -24,8 +24,7 @@ function garantiaAceptadaSql(fieldExpr) {
 
 function garantiaOperativaPromedioSql(garantiaExpr, resolucionExpr, nroPedidoExpr) {
   return `
-    COALESCE(NULLIF(TRIM(${nroPedidoExpr}::text), ''), '') <> ''
-    AND (
+    (
       NOT LOWER(COALESCE(${garantiaExpr}::text,'')) IN ('si','true','t','1')
       OR LOWER(COALESCE(${resolucionExpr}, '')) IN ('${GARANTIA_ACEPTADAS_OPERATIVAS.join("','")}')
     )

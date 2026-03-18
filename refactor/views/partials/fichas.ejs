@@ -69,6 +69,8 @@
       <div class="ficha-tabs-box">
         <div class="ficha-tabs">
           <button class="ficha-tab active" data-tab="general">Informacion</button>
+          <button class="ficha-tab" data-tab="proceso">Proceso tecnico</button>
+          <button class="ficha-tab" data-tab="plantillas">Plantillas</button>
           <button class="ficha-tab" data-tab="despiece">Despiece / planos</button>
           <button class="ficha-tab" data-tab="repuestos">Productos relacionados</button>
         </div>
@@ -96,6 +98,71 @@
                 <div id="info-aplicaciones-list" class="info-multi"></div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="ficha-tab-panel" data-tab="proceso" style="display:none;">
+          <div class="ficha-info-columns">
+            <div class="ficha-info-left">
+              <div class="ficha-info-item wide">
+                <span class="muted">Banco de prueba</span>
+                <div id="info-banco-prueba" class="info-multi info-block-text"></div>
+              </div>
+              <div class="ficha-info-item wide">
+                <span class="muted">Diagnostico base</span>
+                <div id="info-diagnostico-base" class="info-multi info-block-text"></div>
+              </div>
+            </div>
+            <div class="ficha-info-right">
+              <div class="ficha-info-item wide">
+                <span class="muted">Procedimiento base</span>
+                <div id="info-procedimiento-base" class="info-multi info-block-text"></div>
+              </div>
+              <div class="ficha-info-item wide">
+                <span class="muted">Control final</span>
+                <div id="info-control-final" class="info-multi info-block-text"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ficha-tab-panel" data-tab="plantillas" style="display:none;">
+          <div class="ficha-media-actions">
+            <div>
+              <div class="muted">Plantillas por familia</div>
+              <div class="tiny">Se usan luego como plantillas rapidas en planilla.</div>
+            </div>
+          </div>
+          <form id="ficha-plantilla-form" class="form-grid" style="margin-top:12px;">
+            <div><label>Nombre</label><input type="text" name="nombre" placeholder="Ej: Rotor, Auxiliar, Nunca vino" required /></div>
+            <div><label>Orden</label><input type="number" name="orden" min="0" step="1" placeholder="0" /></div>
+            <div class="full"><label>Banco</label><textarea name="banco" rows="2" placeholder="Texto para prueba en banco"></textarea></div>
+            <div class="full"><label>Desarme / falla</label><textarea name="desarme" rows="3" placeholder="Texto para diagnostico o desarme"></textarea></div>
+            <div class="full"><label>Trabajo</label><textarea name="trabajo" rows="2" placeholder="Texto sugerido para trabajo realizado"></textarea></div>
+            <div class="full"><label>Observaciones</label><textarea name="observaciones" rows="2" placeholder="Texto sugerido para observaciones"></textarea></div>
+            <div class="full">
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="submit" class="btn-guardar" style="min-width:180px;"><i class="fas fa-bolt"></i> Guardar plantilla</button>
+                <button type="button" id="ficha-plantilla-cancelar" class="btn-ghost">Cancelar edicion</button>
+              </div>
+            </div>
+          </form>
+          <div class="tabla-scroll" style="margin-top:12px;">
+            <table class="tabla-erp">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Banco</th>
+                  <th>Desarme</th>
+                  <th>Trabajo</th>
+                  <th>Observaciones</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="ficha-plantillas-body">
+                <tr><td colspan="6" style="text-align:center;" class="muted">Sin plantillas cargadas</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -172,6 +239,10 @@
         <div><label>Voltaje</label><input type="text" name="voltaje" /></div>
         <div><label>Amperaje</label><input type="text" name="amperaje" /></div>
         <div class="full"><label>Aplicaciones</label><textarea name="aplicaciones" rows="2" placeholder="Una por linea o separadas por coma"></textarea></div>
+        <div class="full"><label>Banco de prueba</label><textarea name="banco_prueba" rows="3" placeholder="Resultado esperado o falla tipica en banco"></textarea></div>
+        <div class="full"><label>Diagnostico base</label><textarea name="diagnostico_base" rows="3" placeholder="Que revisar en el desarme o inspeccion"></textarea></div>
+        <div class="full"><label>Procedimiento base</label><textarea name="procedimiento_base" rows="3" placeholder="Pasos o repuestos habituales para esta familia"></textarea></div>
+        <div class="full"><label>Control final</label><textarea name="control_final" rows="3" placeholder="Chequeos finales antes de entregar"></textarea></div>
         <div class="full">
           <label>Portada URL</label>
           <div style="display:flex; gap:8px; align-items:center;">
