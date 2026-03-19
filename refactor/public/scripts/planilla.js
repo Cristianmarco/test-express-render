@@ -196,16 +196,19 @@ function aplicarFichaTecnicaAGarantia() {
   }
   const banco = document.getElementById('garantia_prueba_banco');
   const desarme = document.getElementById('garantia_desarme');
+  const informeTrabajo = document.getElementById('garantia_informe_trabajo');
+  const informeObservaciones = document.getElementById('garantia_informe_observaciones');
   const partesDesarme = [
     ficha.diagnostico_base && `DIAGNOSTICO BASE:\n${String(ficha.diagnostico_base).trim()}`,
-    ficha.procedimiento_base && `PROCEDIMIENTO BASE:\n${String(ficha.procedimiento_base).trim()}`,
-    ficha.control_final && `CONTROL FINAL:\n${String(ficha.control_final).trim()}`
+    ficha.procedimiento_base && `PROCEDIMIENTO BASE:\n${String(ficha.procedimiento_base).trim()}`
   ].filter(Boolean);
   if ((banco?.value || desarme?.value) && !confirm('Reemplazar el texto actual con la ficha tecnica del equipo?')) {
     return;
   }
   if (banco) banco.value = String(ficha.banco_prueba || '').trim();
   if (desarme) desarme.value = partesDesarme.join('\n\n');
+  if (informeTrabajo) informeTrabajo.value = String(ficha.procedimiento_base || '').trim();
+  if (informeObservaciones) informeObservaciones.value = String(ficha.control_final || '').trim();
 }
 
 function aplicarFichaTecnicaATrabajo() {
@@ -923,10 +926,12 @@ function renderPlanillaTable(data) {
         <td style="display:none" class="col-id-dota">${rep.id_dota || ''}</td>
         <td style="display:none" class="col-ultimo-reparador-nombre">${rep.ultimo_reparador_nombre || ''}</td>
         <td style="display:none" class="col-ultimo-reparador-id">${rep.ultimo_reparador || ''}</td>
-        <td style="display:none" class="col-resolucion">${rep.resolucion || ''}</td>
-        <td style="display:none" class="col-gar-prueba">${rep.garantia_prueba_banco || ''}</td>
-        <td style="display:none" class="col-gar-desarme">${rep.garantia_desarme || ''}</td>
-        <td style="display:none" class="col-familia-id">${rep.familia_id || ''}</td>
+      <td style="display:none" class="col-resolucion">${rep.resolucion || ''}</td>
+      <td style="display:none" class="col-gar-prueba">${rep.garantia_prueba_banco || ''}</td>
+      <td style="display:none" class="col-gar-desarme">${rep.garantia_desarme || ''}</td>
+      <td style="display:none" class="col-gar-inf-trabajo">${rep.garantia_informe_trabajo || ''}</td>
+      <td style="display:none" class="col-gar-inf-observaciones">${rep.garantia_informe_observaciones || ''}</td>
+      <td style="display:none" class="col-familia-id">${rep.familia_id || ''}</td>
         <td style="display:none" class="col-tecnico-id">${rep.tecnico_id || ''}</td>
         <td style="display:none" class="col-cliente-id">${rep.cliente_id || ''}</td>
         <td style="display:none" class="col-cliente-tipo">${rep.cliente_tipo || ''}</td>
@@ -1160,7 +1165,9 @@ function bindPlanillaActions() {
       ultimo_reparador: fila.querySelector('.col-ultimo-reparador-id')?.textContent.trim()||'',
       resolucion: fila.querySelector('.col-resolucion')?.textContent.trim()||'',
       garantia_prueba_banco: fila.querySelector('.col-gar-prueba')?.textContent.trim()||'',
-      garantia_desarme: fila.querySelector('.col-gar-desarme')?.textContent.trim()||''
+      garantia_desarme: fila.querySelector('.col-gar-desarme')?.textContent.trim()||'',
+      garantia_informe_trabajo: fila.querySelector('.col-gar-inf-trabajo')?.textContent.trim()||'',
+      garantia_informe_observaciones: fila.querySelector('.col-gar-inf-observaciones')?.textContent.trim()||''
     };
   };
 
@@ -1217,6 +1224,8 @@ function bindPlanillaActions() {
       const selGar = document.getElementById('garantia'); if (selGar) selGar.value = 'no';
       const extra = document.getElementById('garantia-extra-fields'); if (extra) extra.style.display = 'none';
       const tpl = document.getElementById('garantia_template'); if (tpl) tpl.value = '';
+      const infTrabajo = document.getElementById('garantia_informe_trabajo'); if (infTrabajo) infTrabajo.value = '';
+      const infObs = document.getElementById('garantia_informe_observaciones'); if (infObs) infObs.value = '';
       limpiarFichaTecnicaSugerida();
     }
     prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
@@ -1269,6 +1278,8 @@ function bindPlanillaActions() {
     setVal("input[name='id_dota']", seleccion.id_dota);
     setVal("textarea[name='garantia_prueba_banco']", seleccion.garantia_prueba_banco);
     setVal("textarea[name='garantia_desarme']", seleccion.garantia_desarme);
+    setVal("#garantia_informe_trabajo", seleccion.garantia_informe_trabajo);
+    setVal("#garantia_informe_observaciones", seleccion.garantia_informe_observaciones);
     await prepararSelectTecnicos();
     const tec=document.getElementById('tecnico_id'); if(tec && seleccion.tecnico_id) tec.value=String(seleccion.tecnico_id);
     const ult=document.getElementById('ultimo_reparador'); if(ult && seleccion.ultimo_reparador) ult.value=String(seleccion.ultimo_reparador);
@@ -1480,6 +1491,10 @@ function toggleGarantiaExtra(){
   } else {
     const tpl = document.getElementById('garantia_template');
     if (tpl) tpl.value = '';
+    const infTrabajo = document.getElementById('garantia_informe_trabajo');
+    const infObs = document.getElementById('garantia_informe_observaciones');
+    if (infTrabajo) infTrabajo.value = '';
+    if (infObs) infObs.value = '';
   }
 }
 
@@ -1549,9 +1564,9 @@ function applyGarantiaTemplate(key){
   if (!tpl) return;
   const banco = document.getElementById('garantia_prueba_banco');
   const desarme = document.getElementById('garantia_desarme');
-  const trabajo = document.getElementById('trabajo');
-  const observaciones = document.querySelector("textarea[name='observaciones']");
-  if ((banco?.value || desarme?.value || trabajo?.value || observaciones?.value) && !confirm('Reemplazar el texto actual con la plantilla seleccionada?')){
+  const informeTrabajo = document.getElementById('garantia_informe_trabajo');
+  const informeObservaciones = document.getElementById('garantia_informe_observaciones');
+  if ((banco?.value || desarme?.value || informeTrabajo?.value || informeObservaciones?.value) && !confirm('Reemplazar el texto actual del informe con la plantilla seleccionada?')){
     select.value = '';
     return;
   }
@@ -1559,11 +1574,8 @@ function applyGarantiaTemplate(key){
   if (banco) banco.value = formatGarantiaTemplate(tpl.banco, ctx);
   if (desarme) desarme.value = formatGarantiaTemplate(tpl.desarme, ctx);
   if (familyTemplate) {
-    if (trabajo) {
-      trabajo.value = formatGarantiaTemplate(tpl.trabajo, ctx);
-      trabajo.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    if (observaciones) observaciones.value = formatGarantiaTemplate(tpl.observaciones, ctx);
+    if (informeTrabajo) informeTrabajo.value = formatGarantiaTemplate(tpl.trabajo, ctx);
+    if (informeObservaciones) informeObservaciones.value = formatGarantiaTemplate(tpl.observaciones, ctx);
   }
 }
 

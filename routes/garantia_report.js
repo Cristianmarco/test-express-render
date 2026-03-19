@@ -5,6 +5,8 @@ const db = require('../db');
 async function ensureGarantiaNotesColumns() {
   await db.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_prueba_banco TEXT");
   await db.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_desarme TEXT");
+  await db.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_informe_trabajo TEXT");
+  await db.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_informe_observaciones TEXT");
 }
 
 function fmtDate(value) {
@@ -39,6 +41,8 @@ router.get('/:id', async (req, res, next) => {
     const parrafos = [];
     if (rep.garantia_prueba_banco) parrafos.push(rep.garantia_prueba_banco);
     if (rep.garantia_desarme) parrafos.push(rep.garantia_desarme);
+    if (rep.garantia_informe_trabajo) parrafos.push(rep.garantia_informe_trabajo);
+    if (rep.garantia_informe_observaciones) parrafos.push(rep.garantia_informe_observaciones);
 
     const reporte = {
       fecha: fmtDate(rep.fecha),
@@ -50,7 +54,7 @@ router.get('/:id', async (req, res, next) => {
       cliente: rep.cliente || '',
       parrafos,
       garantia: rep.garantia === 'si',
-      observaciones: rep.observaciones || ''
+      observaciones: rep.garantia_informe_observaciones || ''
     };
 
     res.render('reports/garantia', { reporte });

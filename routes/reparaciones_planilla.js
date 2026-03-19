@@ -58,6 +58,8 @@ async function ensureGarantiasArchiveTable(dbClient) {
 async function ensurePlanillaGarantiaColumns(dbClient) {
   await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_prueba_banco TEXT");
   await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_desarme TEXT");
+  await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_informe_trabajo TEXT");
+  await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_informe_observaciones TEXT");
 }
 
 async function ensurePlanillaAuditTable(dbClient) {
@@ -83,7 +85,9 @@ function sanitizeGarantiaPayload(payload) {
     ultimo_reparador: normalizeOptionalInteger(payload.ultimo_reparador),
     resolucion: normalizeGarantiaResolucion(payload.resolucion) || null,
     garantia_prueba_banco: normalizeOptionalText(payload.garantia_prueba_banco),
-    garantia_desarme: normalizeOptionalText(payload.garantia_desarme)
+    garantia_desarme: normalizeOptionalText(payload.garantia_desarme),
+    garantia_informe_trabajo: normalizeOptionalText(payload.garantia_informe_trabajo),
+    garantia_informe_observaciones: normalizeOptionalText(payload.garantia_informe_observaciones)
   };
 
   if (cleaned.garantia !== 'si') {
@@ -92,6 +96,8 @@ function sanitizeGarantiaPayload(payload) {
     cleaned.resolucion = null;
     cleaned.garantia_prueba_banco = null;
     cleaned.garantia_desarme = null;
+    cleaned.garantia_informe_trabajo = null;
+    cleaned.garantia_informe_observaciones = null;
     return cleaned;
   }
 
@@ -280,7 +286,9 @@ function pickAuditSnapshot(row) {
     resolucion: row.resolucion ?? null,
     nro_pedido_ref: row.nro_pedido_ref ?? null,
     garantia_prueba_banco: row.garantia_prueba_banco ?? null,
-    garantia_desarme: row.garantia_desarme ?? null
+    garantia_desarme: row.garantia_desarme ?? null,
+    garantia_informe_trabajo: row.garantia_informe_trabajo ?? null,
+    garantia_informe_observaciones: row.garantia_informe_observaciones ?? null
   };
 }
 
@@ -708,7 +716,9 @@ router.get("/", async (req, res) => {
         r.resolucion,
         r.nro_pedido_ref,
         r.garantia_prueba_banco,
-        r.garantia_desarme
+        r.garantia_desarme,
+        r.garantia_informe_trabajo,
+        r.garantia_informe_observaciones
       FROM equipos_reparaciones r
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
@@ -1312,7 +1322,9 @@ router.post("/", async (req, res) => {
       resolucion,
       nro_pedido_ref,
       garantia_prueba_banco,
-      garantia_desarme
+      garantia_desarme,
+      garantia_informe_trabajo,
+      garantia_informe_observaciones
     } = req.body;
 
     const garantiaData = sanitizeGarantiaPayload({
@@ -1321,7 +1333,9 @@ router.post("/", async (req, res) => {
       ultimo_reparador,
       resolucion,
       garantia_prueba_banco,
-      garantia_desarme
+      garantia_desarme,
+      garantia_informe_trabajo,
+      garantia_informe_observaciones
     });
     if (garantiaData.error) {
       return res.status(400).json({ error: garantiaData.error });
@@ -1351,6 +1365,8 @@ router.post("/", async (req, res) => {
     resolucion = garantiaData.resolucion;
     garantia_prueba_banco = garantiaData.garantia_prueba_banco;
     garantia_desarme = garantiaData.garantia_desarme;
+    garantia_informe_trabajo = garantiaData.garantia_informe_trabajo;
+    garantia_informe_observaciones = garantiaData.garantia_informe_observaciones;
     garantia = garantiaData.garantia;
 
     await client.query("BEGIN");
@@ -1361,8 +1377,9 @@ router.post("/", async (req, res) => {
       `
       INSERT INTO equipos_reparaciones
         (id_reparacion, cliente_id, cliente_tipo, tecnico_id, trabajo, observaciones, fecha, garantia,
-         id_dota, ultimo_reparador, resolucion, coche_numero, familia_id, hora_inicio, hora_fin, nro_pedido_ref, garantia_prueba_banco, garantia_desarme)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+         id_dota, ultimo_reparador, resolucion, coche_numero, familia_id, hora_inicio, hora_fin, nro_pedido_ref,
+         garantia_prueba_banco, garantia_desarme, garantia_informe_trabajo, garantia_informe_observaciones)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
       RETURNING *;
     `,
       [
@@ -1383,7 +1400,9 @@ router.post("/", async (req, res) => {
         req.body.hora_fin || null,
         licitacionData.nro_pedido_ref,
         garantia_prueba_banco,
-        garantia_desarme
+        garantia_desarme,
+        garantia_informe_trabajo,
+        garantia_informe_observaciones
       ]
     );
 
@@ -1526,7 +1545,9 @@ router.put("/:id", async (req, res) => {
       ultimo_reparador,
       resolucion,
       garantia_prueba_banco: req.body.garantia_prueba_banco,
-      garantia_desarme: req.body.garantia_desarme
+      garantia_desarme: req.body.garantia_desarme,
+      garantia_informe_trabajo: req.body.garantia_informe_trabajo,
+      garantia_informe_observaciones: req.body.garantia_informe_observaciones
     });
     if (garantiaData.error) {
       return res.status(400).json({ error: garantiaData.error });
@@ -1572,8 +1593,9 @@ router.put("/:id", async (req, res) => {
        SET cliente_tipo=$1, cliente_id=$2, id_reparacion=$3, coche_numero=$4,
            familia_id=$5, tecnico_id=$6, hora_inicio=$7, hora_fin=$8, trabajo=$9,
            garantia=$10, observaciones=$11, id_dota=$12, ultimo_reparador=$13, resolucion=$14,
-           nro_pedido_ref=$15, garantia_prueba_banco=$16, garantia_desarme=$17
-       WHERE id=$18
+           nro_pedido_ref=$15, garantia_prueba_banco=$16, garantia_desarme=$17,
+           garantia_informe_trabajo=$18, garantia_informe_observaciones=$19
+       WHERE id=$20
        RETURNING *`,
       [
         cliente_tipo,
@@ -1593,6 +1615,8 @@ router.put("/:id", async (req, res) => {
         licitacionData.nro_pedido_ref,
         garantiaData.garantia_prueba_banco,
         garantiaData.garantia_desarme,
+        garantiaData.garantia_informe_trabajo,
+        garantiaData.garantia_informe_observaciones,
         req.params.id
       ]
     );
