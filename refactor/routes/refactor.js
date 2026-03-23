@@ -17,6 +17,7 @@ router.get("/", (req, res) => {
 
 // === Rutas dinámicas: carga vistas parciales ===
 router.get("/view/:view", (req, res) => {
+  if (!req.session.user) return res.status(401).send("No autenticado");
   const viewName = req.params.view;
 
   // ✅ Express buscará refactor/views/partials/<view>.ejs

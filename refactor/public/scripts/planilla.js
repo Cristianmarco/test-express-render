@@ -108,62 +108,17 @@ function formatResolucionLabel(value) {
   return labels[key] || String(value);
 }
 
-function escapeHtmlPlanilla(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function renderFichaTecnicaTexto(value) {
-  const text = String(value || '').trim();
-  if (!text) return '-';
-  return text
-    .split(/\n+/)
-    .map(line => `<div>${escapeHtmlPlanilla(line.trim())}</div>`)
-    .join('');
-}
-
 function limpiarFichaTecnicaSugerida() {
   fichaTecnicaActual = null;
-  const wrap = document.getElementById('ficha-tecnica-sugerida');
-  const set = (id, html) => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = html;
-  };
-  if (wrap) wrap.style.display = 'none';
-  set('ficha-tecnica-titulo', '-');
-  set('ficha-tecnica-banco', '-');
-  set('ficha-tecnica-diagnostico', '-');
-  set('ficha-tecnica-procedimiento', '-');
-  set('ficha-tecnica-control', '-');
   refreshGarantiaTemplateOptions();
 }
 
 function renderFichaTecnicaSugerida(detalle) {
   fichaTecnicaActual = detalle || null;
-  const wrap = document.getElementById('ficha-tecnica-sugerida');
-  if (!wrap || !detalle?.ficha) return limpiarFichaTecnicaSugerida();
-  const ficha = detalle.ficha;
-  const hasContenido = [ficha.banco_prueba, ficha.diagnostico_base, ficha.procedimiento_base, ficha.control_final]
-    .some(value => String(value || '').trim());
-  if (!hasContenido) {
+  if (!detalle?.ficha) {
     limpiarFichaTecnicaSugerida();
     return;
   }
-  const titulo = [ficha.codigo_familia, ficha.titulo || ficha.familia].filter(Boolean).join(' - ') || 'Ficha tecnica';
-  const set = (id, html) => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = html;
-  };
-  wrap.style.display = 'block';
-  set('ficha-tecnica-titulo', escapeHtmlPlanilla(titulo));
-  set('ficha-tecnica-banco', renderFichaTecnicaTexto(ficha.banco_prueba));
-  set('ficha-tecnica-diagnostico', renderFichaTecnicaTexto(ficha.diagnostico_base));
-  set('ficha-tecnica-procedimiento', renderFichaTecnicaTexto(ficha.procedimiento_base));
-  set('ficha-tecnica-control', renderFichaTecnicaTexto(ficha.control_final));
   refreshGarantiaTemplateOptions();
 }
 
@@ -181,63 +136,6 @@ async function cargarFichaTecnicaFamilia(familiaId) {
     console.warn('No se pudo cargar ficha tecnica sugerida', err);
     limpiarFichaTecnicaSugerida();
   }
-}
-
-function aplicarFichaTecnicaAGarantia() {
-  const ficha = fichaTecnicaActual?.ficha;
-  if (!ficha) {
-    alert('No hay ficha tecnica cargada para este equipo.');
-    return;
-  }
-  const garantia = document.getElementById('garantia');
-  if (garantia && garantia.value !== 'si') {
-    garantia.value = 'si';
-    toggleGarantiaExtra();
-  }
-  const banco = document.getElementById('garantia_prueba_banco');
-  const desarme = document.getElementById('garantia_desarme');
-  const informeTrabajo = document.getElementById('garantia_informe_trabajo');
-  const informeObservaciones = document.getElementById('garantia_informe_observaciones');
-  const partesDesarme = [
-    ficha.diagnostico_base && `DIAGNOSTICO BASE:\n${String(ficha.diagnostico_base).trim()}`,
-    ficha.procedimiento_base && `PROCEDIMIENTO BASE:\n${String(ficha.procedimiento_base).trim()}`
-  ].filter(Boolean);
-  if ((banco?.value || desarme?.value) && !confirm('Reemplazar el texto actual con la ficha tecnica del equipo?')) {
-    return;
-  }
-  if (banco) banco.value = String(ficha.banco_prueba || '').trim();
-  if (desarme) desarme.value = partesDesarme.join('\n\n');
-  if (informeTrabajo) informeTrabajo.value = String(ficha.procedimiento_base || '').trim();
-  if (informeObservaciones) informeObservaciones.value = String(ficha.control_final || '').trim();
-}
-
-function aplicarFichaTecnicaATrabajo() {
-  const ficha = fichaTecnicaActual?.ficha;
-  if (!ficha) {
-    alert('No hay ficha tecnica cargada para este equipo.');
-    return;
-  }
-  const trabajo = document.getElementById('trabajo');
-  const observaciones = document.querySelector("textarea[name='observaciones']");
-  const nuevoTrabajo = String(ficha.procedimiento_base || '').trim();
-  const partesObs = [
-    ficha.banco_prueba && `BANCO DE PRUEBA:\n${String(ficha.banco_prueba).trim()}`,
-    ficha.diagnostico_base && `DIAGNOSTICO BASE:\n${String(ficha.diagnostico_base).trim()}`,
-    ficha.control_final && `CONTROL FINAL:\n${String(ficha.control_final).trim()}`
-  ].filter(Boolean);
-  const nuevasObs = partesObs.join('\n\n');
-  if (!nuevoTrabajo && !nuevasObs) {
-    alert('La ficha tecnica no tiene texto base para aplicar.');
-    return;
-  }
-  if ((trabajo?.value || observaciones?.value) && !confirm('Reemplazar el texto actual con la ficha tecnica del equipo?')) {
-    return;
-  }
-  if (trabajo) {
-    trabajo.value = nuevoTrabajo;
-    trabajo.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-  if (observaciones) observaciones.value = nuevasObs;
 }
 
 function setHistorialTableMode(mode) {
@@ -460,31 +358,34 @@ function parseInputDate(valor) {
 function getRepuestosFiltroInputs() {
   const inputNro = document.getElementById('repuestos-nro-pedido');
   const inputFamilia = document.getElementById('repuestos-familia');
+  const inputTipo = document.getElementById('repuestos-tipo');
   const inputDesde = document.getElementById('repuestos-desde');
   const inputHasta = document.getElementById('repuestos-hasta');
   const nro = (inputNro && inputNro.value || '').trim();
   const familia = (inputFamilia && inputFamilia.value || '').trim();
+  const tipo = (inputTipo && inputTipo.value || '').trim();
   const desde = parseInputDate(inputDesde && inputDesde.value);
   const hasta = parseInputDate(inputHasta && inputHasta.value);
-  return { nro, familia, desde, hasta };
+  return { nro, familia, tipo, desde, hasta };
 }
 
 async function repuestosPlanillaFiltrar() {
-  const { nro, familia, desde, hasta } = getRepuestosFiltroInputs();
+  const { nro, familia, tipo, desde, hasta } = getRepuestosFiltroInputs();
   const tbodyRep = document.getElementById('tbody-repuestos-reparaciones');
   const tbodyList = document.getElementById('tbody-repuestos-listado');
-  if (!nro && !familia) {
-    alert('Complete Nro de Pedido o Modelo/Familia.');
+  if (!nro && !familia && tipo !== 'garantia') {
+    alert('Complete Nro de Pedido, Modelo/Familia o seleccione Solo garantias.');
     return;
   }
-  console.log('Repuestos filtro:', { nro, familia, desde, hasta });
+  console.log('Repuestos filtro:', { nro, familia, tipo, desde, hasta });
   if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
   if (tbodyList) tbodyList.innerHTML = '';
-  repuestosFiltro = { nro, familia, desde, hasta };
+  repuestosFiltro = { nro, familia, tipo, desde, hasta };
   try {
     const qp = [];
     if (nro) qp.push(`nro=${encodeURIComponent(nro)}`);
     if (familia) qp.push(`familia=${encodeURIComponent(familia)}`);
+    if (tipo) qp.push(`tipo=${encodeURIComponent(tipo)}`);
     let qs = qp.join('&');
     if (desde) qs += `&desde=${encodeURIComponent(desde)}`;
     if (hasta) qs += `&hasta=${encodeURIComponent(hasta)}`;
@@ -512,6 +413,7 @@ async function repuestosPlanillaListado() {
     const qp = [];
     if (repuestosFiltro.nro) qp.push(`nro=${encodeURIComponent(repuestosFiltro.nro)}`);
     if (repuestosFiltro.familia) qp.push(`familia=${encodeURIComponent(repuestosFiltro.familia)}`);
+    if (repuestosFiltro.tipo) qp.push(`tipo=${encodeURIComponent(repuestosFiltro.tipo)}`);
     if (repuestosSeleccionIds.size > 0) qp.push(`ids=${encodeURIComponent(Array.from(repuestosSeleccionIds).join(','))}`);
     let qs = qp.join('&');
     if (repuestosFiltro.desde) qs += `&desde=${encodeURIComponent(repuestosFiltro.desde)}`;
@@ -547,6 +449,7 @@ function limpiarModalRepuestosPlanilla() {
   const checkAll = document.getElementById('repuestos-check-all');
   const inputNro = document.getElementById('repuestos-nro-pedido');
   const inputFamilia = document.getElementById('repuestos-familia');
+  const inputTipo = document.getElementById('repuestos-tipo');
   const inputDesde = document.getElementById('repuestos-desde');
   const inputHasta = document.getElementById('repuestos-hasta');
   repuestosFiltro = null;
@@ -556,6 +459,7 @@ function limpiarModalRepuestosPlanilla() {
   if (checkAll) checkAll.checked = false;
   if (inputNro) inputNro.value = '';
   if (inputFamilia) inputFamilia.value = '';
+  if (inputTipo) inputTipo.value = '';
   if (inputDesde) inputDesde.value = '';
   if (inputHasta) inputHasta.value = '';
   actualizarContadoresRepuestos(0);
@@ -569,9 +473,10 @@ function repuestosPlanillaImprimir() {
   }
   const nro = repuestosFiltro && repuestosFiltro.nro ? repuestosFiltro.nro : '';
   const familia = repuestosFiltro && repuestosFiltro.familia ? repuestosFiltro.familia : '';
+  const tipo = repuestosFiltro && repuestosFiltro.tipo ? repuestosFiltro.tipo : '';
   const desde = repuestosFiltro && repuestosFiltro.desde ? repuestosFiltro.desde : '';
   const hasta = repuestosFiltro && repuestosFiltro.hasta ? repuestosFiltro.hasta : '';
-  const title = `Listado de repuestos${nro ? ' - Pedido ' + nro : ''}${familia ? ' - Modelo ' + familia : ''}`;
+  const title = `Listado de repuestos${nro ? ' - Pedido ' + nro : ''}${familia ? ' - Modelo ' + familia : ''}${tipo === 'garantia' ? ' - Garantias' : ''}`;
   const subtitle = [desde && `Desde: ${desde}`, hasta && `Hasta: ${hasta}`].filter(Boolean).join(' | ');
   const html = `
     <html>
@@ -1231,7 +1136,6 @@ function bindPlanillaActions() {
     prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
     bindClienteExternoToggle(true);
     bindGarantiaToggle(true);
-    bindFichaTecnicaControl();
   };
 
   if (btnReporte) btnReporte.onclick = () => {
@@ -1299,7 +1203,6 @@ function bindPlanillaActions() {
     } else {
       limpiarFichaTecnicaSugerida();
     }
-    bindFichaTecnicaControl();
   };
 
   if (btnEliminar) btnEliminar.onclick = async () => {
@@ -1586,19 +1489,6 @@ function bindGarantiaTemplateControl(){
   if (select._bound) return;
   select._bound = true;
   select.addEventListener('change', () => applyGarantiaTemplate(select.value));
-}
-
-function bindFichaTecnicaControl() {
-  const btnTrabajo = document.getElementById('btn-aplicar-ficha-trabajo');
-  const btn = document.getElementById('btn-aplicar-ficha-tecnica');
-  if (btnTrabajo && !btnTrabajo._bound) {
-    btnTrabajo._bound = true;
-    btnTrabajo.addEventListener('click', aplicarFichaTecnicaATrabajo);
-  }
-  if (btn && !btn._bound) {
-    btn._bound = true;
-    btn.addEventListener('click', aplicarFichaTecnicaAGarantia);
-  }
 }
 
 // ----- Modal helpers (close) -----
@@ -2089,7 +1979,6 @@ function initPlanilla(){
   bindCodigoRepuestoEnter();
   bindTrabajoWatcher();
   bindTrabajoAutocomplete();
-  bindFichaTecnicaControl();
 }
 
 if (document.getElementById('calendarGrid')) {

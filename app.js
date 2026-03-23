@@ -137,7 +137,7 @@ app.use('/api/fichas', requireLogin, fichasRouter);
 // Vistas protegidas
 // ============================
 app.get("/main", requireLogin, (req, res) => {
-  res.sendFile(path.join(__dirname, "public/views/main.html"));
+  res.redirect("/refactor");
 });
 
 app.get("/planilla", requireLogin, (req, res) => {
@@ -146,12 +146,12 @@ app.get("/planilla", requireLogin, (req, res) => {
 
 // Vista de login (pública)
 app.get("/login", (req, res) => {
-  res.sendFile(path.join(__dirname, "public/views/login.html"));
+  res.redirect("/refactor/login");
 });
 
 // Redirigir raíz "/" al login
 app.get("/", (req, res) => {
-  res.redirect("/login");
+  res.redirect("/refactor");
 });
 
 // rutas de vistas adicionales
@@ -198,8 +198,8 @@ app.use(
   express.static(path.join(__dirname, "refactor/public"))
 );
 
-// ✅ Primero protegemos todo el entorno refactor con login
-app.use("/refactor", requireLogin, refactorRouter);
+// ✅ El router refactor maneja su propia protección interna
+app.use("/refactor", refactorRouter);
 
 // ✅ Después pasamos el usuario autenticado a las vistas EJS
 app.use((req, res, next) => {

@@ -539,10 +539,11 @@ router.get("/por_pedido", async (req, res) => {
 router.get("/repuestos", async (req, res) => {
   const nro = (req.query.nro || "").trim();
   const familia = (req.query.familia || "").trim();
+  const tipo = (req.query.tipo || "").trim().toLowerCase();
   const desde = (req.query.desde || "").trim();
   const hasta = (req.query.hasta || "").trim();
-  if (!nro && !familia) {
-    return res.status(400).json({ error: "Ingrese nro de pedido o modelo/familia" });
+  if (!nro && !familia && tipo !== 'garantia') {
+    return res.status(400).json({ error: "Ingrese nro de pedido, modelo/familia o seleccione garantias" });
   }
   try {
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
@@ -574,6 +575,9 @@ router.get("/repuestos", async (req, res) => {
         OR COALESCE(f.codigo, '') ILIKE $${params.length}
       )`;
     }
+    if (tipo === 'garantia') {
+      sql += ` AND LOWER(COALESCE(r.garantia::text, '')) IN ('si','true','t','1')`;
+    }
     if (desde && hasta) {
       params.push(desde);
       params.push(hasta);
@@ -594,14 +598,15 @@ router.get("/repuestos", async (req, res) => {
 router.get("/repuestos/listado", async (req, res) => {
   const nro = (req.query.nro || "").trim();
   const familia = (req.query.familia || "").trim();
+  const tipo = (req.query.tipo || "").trim().toLowerCase();
   const idsRaw = (req.query.ids || "").trim();
   const desde = (req.query.desde || "").trim();
   const hasta = (req.query.hasta || "").trim();
   const ids = idsRaw
     ? idsRaw.split(",").map(v => Number(v.trim())).filter(v => Number.isInteger(v) && v > 0)
     : [];
-  if (!nro && !familia && ids.length === 0) {
-    return res.status(400).json({ error: "Ingrese nro de pedido, modelo/familia o seleccione equipos" });
+  if (!nro && !familia && ids.length === 0 && tipo !== 'garantia') {
+    return res.status(400).json({ error: "Ingrese nro de pedido, modelo/familia, garantias o seleccione equipos" });
   }
   try {
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
@@ -622,6 +627,9 @@ router.get("/repuestos/listado", async (req, res) => {
         COALESCE(f.descripcion, '') ILIKE $${params.length}
         OR COALESCE(f.codigo, '') ILIKE $${params.length}
       )`;
+    }
+    if (tipo === 'garantia') {
+      sql += ` AND LOWER(COALESCE(r.garantia::text, '')) IN ('si','true','t','1')`;
     }
     if (ids.length > 0) {
       params.push(ids);
