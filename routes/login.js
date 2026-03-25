@@ -7,7 +7,8 @@ const bcrypt = require("bcryptjs");
 // POST /api/login
 // ============================
 router.post("/", async (req, res) => {
-  const { email, password } = req.body;
+  const email = String((req.body && (req.body.email || req.body.usuario)) || '').trim();
+  const password = String((req.body && req.body.password) || '').trim();
 
   if (!email || !password) {
     return res.status(400).json({ error: "Faltan credenciales" });

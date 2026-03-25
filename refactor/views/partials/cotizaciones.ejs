@@ -1,0 +1,119 @@
+<section class="cot-hist-panel">
+  <style>
+    .cot-hist-panel{--ink:#124b6e;--line:#d6e4ee;--soft:#eef7fb;--shadow:0 18px 40px rgba(17,63,95,.08)}
+    .cot-hist-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+    .cot-hist-title{display:flex;align-items:center;gap:14px}
+    .cot-hist-badge{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,#0f668d,#29b4bb);color:#fff;font-size:20px}
+    .cot-hist-title h2{margin:0;color:var(--ink);font-size:28px;line-height:1.1}
+    .cot-hist-title p{margin:4px 0 0;color:#5b7387;font-size:13px}
+    .cot-hist-shell{display:grid;grid-template-columns:minmax(0,1.4fr) 360px;gap:18px}
+    .cot-hist-card,.cot-hist-side,.cot-hist-modal-card{background:linear-gradient(180deg,#fff 0%,#f9fcfe 100%);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}
+    .cot-hist-card,.cot-hist-side{padding:18px}
+    .cot-hist-filter{display:grid;grid-template-columns:140px 1fr 150px 150px 170px auto;gap:12px;align-items:end;background:var(--soft);border:1px solid #d7e7f1;border-radius:18px;padding:14px;margin-bottom:16px}
+    .cot-h-field label{display:block;font-size:12px;font-weight:800;color:#1b5d89;margin-bottom:6px;text-transform:uppercase}
+    .cot-h-field input,.cot-h-field select,.cot-h-field textarea{width:100%;box-sizing:border-box;border:1px solid #c7d7e4;border-radius:12px;background:#fff;padding:10px 12px;font-size:14px}
+    .cot-h-table{width:100%;border-collapse:collapse}
+    .cot-h-table th,.cot-h-table td{padding:12px 10px;border-bottom:1px solid #ebf1f5;text-align:left;font-size:13px}
+    .cot-h-table th{color:#1b5d89;font-size:12px;text-transform:uppercase}
+    .cot-h-table tbody tr{cursor:pointer;transition:background .15s ease}
+    .cot-h-table tbody tr:hover{background:#f7fbfe}
+    .cot-h-table tbody tr.is-selected{background:#eaf7fb}
+    .cot-action-row{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}
+    .cot-action-left,.cot-action-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .cot-btn{border:none;border-radius:14px;padding:11px 14px;font-weight:700;cursor:pointer}
+    .cot-btn-primary{background:linear-gradient(135deg,#0f668d,#27b6bb);color:#fff}
+    .cot-btn-soft{background:#f2f8fc;border:1px solid #d8e6ef;color:#215474}
+    .cot-btn-warm{background:linear-gradient(135deg,#f5c44d,#f6a73b);color:#5a3600}
+    .cot-btn-danger{background:#fff2f1;border:1px solid #f2c3bf;color:#a4362f}
+    .cot-btn-mini{width:42px;height:42px;display:grid;place-items:center;padding:0}
+    .cot-side-title{margin:0 0 12px;font-size:15px;color:var(--ink);text-transform:uppercase}
+    .cot-side-block{border:1px solid #dce7ef;border-radius:18px;background:#fff;padding:14px;margin-bottom:12px}
+    .cot-side-block .lbl{display:block;font-size:12px;font-weight:800;color:#5f7388;margin-bottom:4px;text-transform:uppercase}
+    .cot-side-block .txt{white-space:pre-wrap;color:#1f2937;line-height:1.45}
+    .cot-side-empty{color:#698295;font-weight:600}
+    .cot-side-metric{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #edf3f7;color:#284a63}
+    .cot-side-metric:last-child{border-bottom:none}
+    .cot-modal{position:fixed;inset:0;background:rgba(9,25,39,.42);display:none;align-items:center;justify-content:center;z-index:9999;padding:18px}
+    .cot-hist-modal-card{max-width:980px;width:100%;max-height:90vh;overflow:auto;padding:20px}
+    .cot-modal-close{float:right;font-size:28px;cursor:pointer;color:#45667d}
+    @media (max-width:1320px){.cot-hist-shell{grid-template-columns:1fr}.cot-hist-filter{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:760px){.cot-hist-filter{grid-template-columns:1fr}.cot-action-row{flex-direction:column;align-items:stretch}.cot-action-left,.cot-action-right{width:100%;justify-content:space-between}}
+  </style>
+
+  <div class="cot-hist-head">
+    <div class="cot-hist-title">
+      <div class="cot-hist-badge"><i class="fas fa-folder-open"></i></div>
+      <div>
+        <h2>Gestión de Cotizaciones</h2>
+        <p>Historial, filtros y acciones sobre las cotizaciones ya generadas.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="cot-hist-shell">
+    <div class="cot-hist-card">
+      <div class="cot-hist-filter">
+        <div class="cot-h-field"><label for="cot-h-numero">Número</label><input id="cot-h-numero" placeholder="CT-000123" /></div>
+        <div class="cot-h-field"><label for="cot-h-cliente">Cliente</label><input id="cot-h-cliente" placeholder="Razón social o fantasía" /></div>
+        <div class="cot-h-field"><label for="cot-h-desde">Desde</label><input id="cot-h-desde" type="date" /></div>
+        <div class="cot-h-field"><label for="cot-h-hasta">Hasta</label><input id="cot-h-hasta" type="date" /></div>
+        <div class="cot-h-field"><label for="cot-h-estado">Estado</label><select id="cot-h-estado"><option value="">Todos</option><option value="borrador">Borrador</option><option value="enviada">Enviada</option><option value="aprobada">Aprobada</option><option value="rechazada">Rechazada</option></select></div>
+        <button type="button" id="cot-h-buscar" class="cot-btn cot-btn-primary"><i class="fas fa-filter"></i> Buscar</button>
+      </div>
+
+      <div style="overflow:auto;">
+        <table class="cot-h-table">
+          <thead>
+            <tr>
+              <th>Número</th>
+              <th>Fecha</th>
+              <th>Cliente</th>
+              <th>Equipo</th>
+              <th>Estado</th>
+              <th>Items</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="cot-h-body">
+            <tr><td colspan="7" style="text-align:center; color:#6f8797;">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cot-action-row">
+        <div class="cot-action-left">
+          <button type="button" id="cot-h-ver" class="cot-btn cot-btn-soft cot-btn-mini" title="Visualizar"><i class="fas fa-eye"></i></button>
+          <button type="button" id="cot-h-editar" class="cot-btn cot-btn-soft cot-btn-mini" title="Modificar"><i class="fas fa-pen"></i></button>
+          <button type="button" id="cot-h-eliminar" class="cot-btn cot-btn-danger cot-btn-mini" title="Eliminar"><i class="fas fa-trash"></i></button>
+        </div>
+        <div class="cot-action-right">
+          <button type="button" id="cot-h-recargar" class="cot-btn cot-btn-soft"><i class="fas fa-rotate"></i> Recargar</button>
+          <button type="button" id="cot-h-imprimir" class="cot-btn cot-btn-warm"><i class="fas fa-print"></i> Imprimir</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="cot-hist-side">
+      <h3 class="cot-side-title">Detalle</h3>
+      <div id="cot-h-empty" class="cot-side-empty">Selecciona una cotización para visualizarla.</div>
+      <div id="cot-h-detail" style="display:none;">
+        <div class="cot-side-block"><span class="lbl">Cliente</span><div id="cot-h-det-cliente" class="txt"></div></div>
+        <div class="cot-side-block"><span class="lbl">Equipo / Familia</span><div id="cot-h-det-equipo" class="txt"></div></div>
+        <div class="cot-side-block"><span class="lbl">Diagnóstico</span><div id="cot-h-det-diagnostico" class="txt"></div></div>
+        <div class="cot-side-block"><span class="lbl">Detalle técnico</span><div id="cot-h-det-detalle" class="txt"></div></div>
+        <div class="cot-side-block">
+          <div class="cot-side-metric"><span>Items</span><strong id="cot-h-det-items">0</strong></div>
+          <div class="cot-side-metric"><span>Estado</span><strong id="cot-h-det-estado">-</strong></div>
+          <div class="cot-side-metric"><span>Total</span><strong id="cot-h-det-total">$ 0,00</strong></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="cot-h-modal" class="cot-modal">
+    <div class="cot-hist-modal-card">
+      <span id="cot-h-modal-close" class="cot-modal-close">&times;</span>
+      <div id="cot-h-modal-content"></div>
+    </div>
+  </div>
+</section>

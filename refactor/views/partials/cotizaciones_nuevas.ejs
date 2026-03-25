@@ -1,0 +1,144 @@
+<section class="cotizacion-panel">
+  <style>
+    .cotizacion-panel {
+      --cot-ink: #134b6f;
+      --cot-soft: #eef7fb;
+      --cot-line: #d6e5ef;
+      --cot-shadow: 0 18px 40px rgba(17, 63, 95, 0.08);
+      --cot-warm: #fff8ea;
+    }
+    .cot-shell { display:grid; grid-template-columns:minmax(0,1.65fr) 340px; gap:18px; align-items:start; }
+    .cot-main-card, .cot-side-card { background:linear-gradient(180deg,#ffffff 0%,#f9fcfe 100%); border:1px solid var(--cot-line); border-radius:22px; box-shadow:var(--cot-shadow); }
+    .cot-main-card { padding:20px; }
+    .cot-side { display:grid; gap:16px; position:sticky; top:18px; }
+    .cot-side-card { padding:18px; }
+    .cot-topbar { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:18px; flex-wrap:wrap; }
+    .cot-title { display:flex; align-items:center; gap:14px; }
+    .cot-title-badge { width:48px; height:48px; border-radius:16px; display:grid; place-items:center; background:linear-gradient(135deg,#0f668d,#29b4bb); color:#fff; font-size:20px; }
+    .cot-title h2 { margin:0; color:var(--cot-ink); font-size:28px; line-height:1.1; }
+    .cot-title p { margin:4px 0 0; color:#5b7387; font-size:13px; }
+    .cot-status-chip { border-radius:999px; padding:8px 14px; font-size:12px; font-weight:800; text-transform:uppercase; border:1px solid #cfe2ee; color:#2f556e; background:#f5fbff; }
+    .cot-grid-2, .cot-grid-3, .cot-grid-4 { display:grid; gap:12px; }
+    .cot-grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .cot-grid-3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .cot-grid-4 { grid-template-columns:1.45fr 100px 130px auto; }
+    .cot-field label { display:block; font-size:12px; font-weight:800; color:#1b5d89; margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em; }
+    .cot-field input, .cot-field select, .cot-field textarea { width:100%; box-sizing:border-box; border-radius:12px; border:1px solid #c7d7e4; background:#fff; padding:11px 12px; color:#1e2937; font-size:14px; }
+    .cot-field textarea { resize:vertical; min-height:100px; }
+    .cot-field input[readonly] { background:#f4f9fc; color:#4f697e; font-weight:700; }
+    .cot-cliente-card, .cot-add-item, .cot-diagnostico-grid { background:var(--cot-soft); border:1px solid #d7e7f1; border-radius:18px; padding:14px; margin-bottom:16px; }
+    .cot-cliente-card { display:grid; grid-template-columns:72px minmax(0,1fr); gap:14px; align-items:center; }
+    .cot-client-icon { width:72px; height:72px; border-radius:20px; background:linear-gradient(145deg,#ffffff,#d8edf8); border:1px solid #c8ddea; display:grid; place-items:center; color:#1f6589; font-size:28px; }
+    .cot-items-card { border:1px solid #d9e6ef; border-radius:20px; overflow:hidden; background:#fff; margin-bottom:16px; }
+    .cot-items-head, .cot-item-row { display:grid; grid-template-columns:120px minmax(0,1fr) 110px 140px 140px 74px; }
+    .cot-items-head { background:linear-gradient(180deg,#f8fbfe 0%,#ecf6fb 100%); color:var(--cot-ink); font-size:12px; font-weight:800; text-transform:uppercase; border-bottom:1px solid #d9e6ef; }
+    .cot-items-head span, .cot-item-row span { padding:12px 14px; border-right:1px solid #e4edf4; }
+    .cot-items-head span:last-child, .cot-item-row span:last-child { border-right:none; }
+    .cot-item-row { border-bottom:1px solid #edf3f7; align-items:center; }
+    .cot-item-row:last-child { border-bottom:none; }
+    .cot-item-row span { color:#1f2d3b; min-height:54px; display:flex; align-items:center; }
+    .cot-item-desc { white-space:pre-wrap; line-height:1.35; }
+    .cot-item-empty { padding:26px 18px; text-align:center; color:#698295; font-weight:600; }
+    .cot-inline-actions { display:flex; gap:8px; align-items:center; }
+    .cot-btn { border:none; border-radius:14px; padding:11px 14px; font-weight:700; cursor:pointer; }
+    .cot-btn-primary { background:linear-gradient(135deg,#0f668d,#27b6bb); color:#fff; }
+    .cot-btn-soft { background:#f2f8fc; border:1px solid #d8e6ef; color:#215474; }
+    .cot-btn-warm { background:linear-gradient(135deg,#f5c44d,#f6a73b); color:#5a3600; }
+    .cot-btn-danger { background:#fff2f1; border:1px solid #f2c3bf; color:#a4362f; }
+    .cot-btn-mini { width:38px; height:38px; display:grid; place-items:center; padding:0; border-radius:12px; }
+    .cot-side-title { margin:0 0 12px; font-size:15px; color:var(--cot-ink); text-transform:uppercase; letter-spacing:.04em; }
+    .cot-metric { border-radius:16px; padding:12px 14px; background:linear-gradient(180deg,#f7fbff 0%,#eef7fb 100%); border:1px solid #d9e6ef; margin-bottom:10px; }
+    .cot-metric span { display:block; font-size:12px; color:#628095; margin-bottom:4px; text-transform:uppercase; font-weight:700; }
+    .cot-metric strong { font-size:24px; color:var(--cot-ink); }
+    .cot-summary-row { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:9px 0; border-bottom:1px solid #edf3f7; color:#284a63; }
+    .cot-summary-row:last-child { border-bottom:none; }
+    .cot-summary-row strong { font-size:18px; color:#0f4e73; }
+    .cot-print-note { font-size:12px; color:#678195; line-height:1.45; margin-top:10px; }
+    @media (max-width:1320px){ .cot-shell{grid-template-columns:1fr;} .cot-side{position:static;} }
+    @media (max-width:900px){ .cot-grid-2,.cot-grid-3,.cot-grid-4{grid-template-columns:1fr;} .cot-cliente-card{grid-template-columns:1fr;} .cot-items-head,.cot-item-row{grid-template-columns:100px minmax(0,1fr) 90px 120px 120px 64px;} .cot-items-head span,.cot-item-row span{padding:10px 8px; font-size:12px;} }
+  </style>
+
+  <div class="cot-topbar">
+    <div class="cot-title">
+      <div class="cot-title-badge"><i class="fas fa-file-invoice-dollar"></i></div>
+      <div>
+        <h2>Nueva Cotización</h2>
+        <p>Generación de cotizaciones con cliente, repuestos, mano de obra y diagnóstico.</p>
+      </div>
+    </div>
+    <div id="cot-status-chip" class="cot-status-chip">Borrador</div>
+  </div>
+
+  <div class="cot-shell">
+    <div class="cot-main-card">
+      <form id="cot-form-main" autocomplete="off">
+        <input type="hidden" name="id" />
+        <div class="cot-cliente-card">
+          <div class="cot-client-icon"><i class="fas fa-users"></i></div>
+          <div class="cot-grid-3">
+            <div class="cot-field" style="grid-column: 1 / -1;">
+              <label for="cot-cliente-input">Cliente</label>
+              <input id="cot-cliente-input" name="cliente_nombre" list="cot-clientes" placeholder="Buscar o escribir cliente" />
+              <datalist id="cot-clientes"></datalist>
+            </div>
+            <div class="cot-field"><label for="cot-contacto">Contacto</label><input id="cot-contacto" name="contacto" placeholder="Persona o telefono" /></div>
+            <div class="cot-field"><label for="cot-coche">Coche</label><input id="cot-coche" name="coche_numero" placeholder="Ej: 6862" /></div>
+            <div class="cot-field"><label for="cot-fecha">Fecha</label><input id="cot-fecha" type="date" name="fecha" /></div>
+          </div>
+        </div>
+
+        <div class="cot-grid-3" style="margin-bottom:16px;">
+          <div class="cot-field"><label for="cot-numero">Número</label><input id="cot-numero" name="numero" readonly placeholder="Se genera al guardar" /></div>
+          <div class="cot-field"><label for="cot-estado">Estado</label><select id="cot-estado" name="estado"><option value="borrador">Borrador</option><option value="enviada">Enviada</option><option value="aprobada">Aprobada</option><option value="rechazada">Rechazada</option></select></div>
+          <div class="cot-field"><label for="cot-familia-id">Equipo / Familia</label><select id="cot-familia-id" name="familia_id"><option value="">Seleccione</option></select></div>
+        </div>
+
+        <div class="cot-field" style="margin-bottom:16px;"><label for="cot-equipo-texto">Equipo libre</label><input id="cot-equipo-texto" name="equipo_texto" placeholder="Opcional, si querés detallar equipo o modelo puntual" /></div>
+
+        <div class="cot-add-item">
+          <div class="cot-grid-4">
+            <div class="cot-field"><label for="cot-producto-input">Repuesto / Producto</label><input id="cot-producto-input" list="cot-productos" placeholder="Codigo o descripcion" /><datalist id="cot-productos"></datalist></div>
+            <div class="cot-field"><label for="cot-item-cantidad">Cantidad</label><input id="cot-item-cantidad" type="number" min="0.01" step="0.01" value="1" /></div>
+            <div class="cot-field"><label for="cot-item-precio">Precio</label><input id="cot-item-precio" type="number" min="0" step="0.01" value="0" /></div>
+            <div class="cot-inline-actions" style="align-self:end;"><button type="button" id="cot-btn-agregar-item" class="cot-btn cot-btn-primary"><i class="fas fa-plus"></i> Agregar</button></div>
+          </div>
+        </div>
+
+        <div class="cot-items-card">
+          <div class="cot-items-head"><span>Código</span><span>Descripción</span><span>Cantidad</span><span>Precio</span><span>Importe</span><span></span></div>
+          <div id="cot-items-body"><div class="cot-item-empty">Todavía no agregaste repuestos a la cotización.</div></div>
+        </div>
+
+        <div class="cot-diagnostico-grid cot-grid-2">
+          <div class="cot-field"><label for="cot-falla-reportada">Falla reportada</label><textarea id="cot-falla-reportada" name="falla_reportada" rows="4" placeholder="Qué llegó a informar el cliente o qué síntoma presenta el equipo"></textarea></div>
+          <div class="cot-field"><label for="cot-diagnostico">Diagnóstico / Explicación de reparación</label><textarea id="cot-diagnostico" name="diagnostico" rows="4" placeholder="Texto amplio para explicar la reparación o diagnóstico"></textarea></div>
+        </div>
+
+      </form>
+    </div>
+
+    <aside class="cot-side">
+      <div class="cot-side-card">
+        <h3 class="cot-side-title">Acciones</h3>
+        <div class="cot-metric"><span>Cliente actual</span><strong id="cot-cliente-preview">-</strong></div>
+        <div style="display:grid; gap:10px;">
+          <button type="button" id="cot-btn-nueva" class="cot-btn cot-btn-soft"><i class="fas fa-file-circle-plus"></i> Nueva</button>
+          <button type="button" id="cot-btn-guardar" class="cot-btn cot-btn-primary"><i class="fas fa-save"></i> Guardar cotización</button>
+          <button type="button" id="cot-btn-imprimir" class="cot-btn cot-btn-warm"><i class="fas fa-print"></i> Imprimir</button>
+          <button type="button" id="cot-btn-eliminar" class="cot-btn cot-btn-danger"><i class="fas fa-trash"></i> Eliminar</button>
+        </div>
+        <div class="cot-print-note">Podés abrir esta pantalla para crear una cotización nueva o editar una existente desde el historial.</div>
+      </div>
+
+      <div class="cot-side-card">
+        <h3 class="cot-side-title">Resumen</h3>
+        <div class="cot-summary-row"><span>Repuestos</span><span id="cot-subtotal-productos">$ 0,00</span></div>
+        <div class="cot-summary-row"><span>Mano de obra</span><input id="cot-mano-obra" form="cot-form-main" name="mano_obra" type="number" min="0" step="0.01" value="0" style="width:130px; text-align:right;" /></div>
+        <div class="cot-summary-row"><span>Descuento</span><input id="cot-descuento" form="cot-form-main" name="descuento" type="number" min="0" step="0.01" value="0" style="width:130px; text-align:right;" /></div>
+        <div class="cot-summary-row"><span>Recargo</span><input id="cot-recargo" form="cot-form-main" name="recargo" type="number" min="0" step="0.01" value="0" style="width:130px; text-align:right;" /></div>
+        <div class="cot-summary-row"><span>Items</span><span id="cot-items-count">0</span></div>
+        <div class="cot-summary-row"><span>Total</span><strong id="cot-total-final">$ 0,00</strong></div>
+      </div>
+    </aside>
+  </div>
+</section>

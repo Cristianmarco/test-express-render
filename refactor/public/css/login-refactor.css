@@ -18,6 +18,13 @@ body.login-body {
   text-align: center;
 }
 
+.login-logo-refactor {
+  width: 150px;
+  max-width: 100%;
+  display: block;
+  margin: 0 auto 16px auto;
+}
+
 .login-card h2 {
   margin-bottom: 20px;
   color: #155e75;

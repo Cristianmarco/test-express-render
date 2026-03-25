@@ -4,15 +4,28 @@ const mainContent = document.getElementById("main-content");
 const tabsContainer = document.getElementById("tabs");
 let openTabs = [];
 
+function getTabLabel(view) {
+  switch (view) {
+    case "cotizaciones_nuevas":
+      return "Cotizacion";
+    default:
+      return view.charAt(0).toUpperCase() + view.slice(1);
+  }
+}
+
 async function loadView(view) {
   // Si ya existe, solo activarla
   const existing = openTabs.find(t => t.view === view);
-  if (existing) return activateTab(view);
+  if (existing) {
+    activateTab(view);
+    document.dispatchEvent(new CustomEvent("view:changed", { detail: view }));
+    return;
+  }
 
   // Crear pestaña
   const tab = document.createElement("button");
   tab.className = "tab";
-  tab.textContent = view.charAt(0).toUpperCase() + view.slice(1);
+  tab.textContent = getTabLabel(view);
 
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "x";
@@ -47,6 +60,8 @@ async function loadView(view) {
   // Ejecutar el JS asociado si aplica
   ejecutarScriptVista(view);
 } 
+
+window.loadView = loadView;
 
   // === Activar pestaña
   function activateTab(view) {
@@ -97,6 +112,12 @@ async function loadView(view) {
       break;
     case "fichas":
       cargarScript("/static/scripts/fichas.js");
+      break;
+    case "cotizaciones_nuevas":
+      cargarScript("/static/scripts/cotizaciones_nuevas.js");
+      break;
+    case "cotizaciones":
+      cargarScript("/static/scripts/cotizaciones.js");
       break;
     default:
       try { console.log(`No hay script especifico para ${view}`); } catch {}

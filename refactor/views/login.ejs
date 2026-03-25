@@ -2,15 +2,18 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Amorim ERP — Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amorim ERP - Login</title>
   <link rel="stylesheet" href="/static/css/login-refactor.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="login-body">
   <div class="login-card">
-    <h2><i class="fas fa-lock"></i> Iniciar Sesión</h2>
+    <img src="/static/images/logo.png" alt="Amorim" class="login-logo-refactor">
+    <h2><i class="fas fa-lock"></i> Iniciar Sesion</h2>
     <form id="loginForm">
-      <input type="text" id="usuario" placeholder="Usuario" required>
-      <input type="password" id="password" placeholder="Contraseña" required>
+      <input type="email" id="usuario" placeholder="Email" required>
+      <input type="password" id="password" placeholder="Contrasena" required>
       <button type="submit">Ingresar</button>
     </form>
     <p id="login-msg"></p>
@@ -25,18 +28,19 @@
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuario, password })
+        credentials: "include",
+        body: JSON.stringify({ email: usuario, password })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       const msg = document.getElementById("login-msg");
 
       if (res.ok) {
-        msg.textContent = "✅ Bienvenido!";
+        msg.textContent = "Bienvenido";
         msg.style.color = "green";
-        setTimeout(() => (window.location.href = "/refactor"), 800);
+        setTimeout(() => (window.location.href = "/refactor"), 500);
       } else {
-        msg.textContent = data.error || "❌ Credenciales inválidas";
+        msg.textContent = data.error || "Credenciales invalidas";
         msg.style.color = "red";
       }
     });

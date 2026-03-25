@@ -29,6 +29,7 @@ const reparacionesPlanillaRouter = require("./routes/reparaciones_planilla");
 const stockRouter = require("./routes/stock");
 const reportesRouter = require('./routes/reportes');
 const fichasRouter = require('./routes/fichas');
+const cotizacionesReparacionRouter = require('./routes/cotizaciones_reparacion');
 
 
 // ============================
@@ -131,6 +132,7 @@ app.use("/api/reparaciones_planilla", requireLogin, reparacionesPlanillaRouter);
 app.use("/api/stock", stockRouter);
 app.use('/api/reportes', requireLogin, reportesRouter);
 app.use('/api/fichas', requireLogin, fichasRouter);
+app.use('/api/cotizaciones_reparacion', requireLogin, cotizacionesReparacionRouter);
 
 
 // ============================
