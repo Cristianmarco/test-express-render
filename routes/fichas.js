@@ -19,6 +19,7 @@ async function ensureTables() {
       voltaje TEXT,
       amperaje TEXT,
       aplicaciones TEXT,
+      tipos_repuesto TEXT,
       banco_prueba TEXT,
       diagnostico_base TEXT,
       procedimiento_base TEXT,
@@ -30,6 +31,7 @@ async function ensureTables() {
   await db.query(`ALTER TABLE familia_ficha ADD COLUMN IF NOT EXISTS diagnostico_base TEXT;`);
   await db.query(`ALTER TABLE familia_ficha ADD COLUMN IF NOT EXISTS procedimiento_base TEXT;`);
   await db.query(`ALTER TABLE familia_ficha ADD COLUMN IF NOT EXISTS control_final TEXT;`);
+  await db.query(`ALTER TABLE familia_ficha ADD COLUMN IF NOT EXISTS tipos_repuesto TEXT;`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS familia_ficha_media (
       id SERIAL PRIMARY KEY,
@@ -48,11 +50,15 @@ async function ensureTables() {
       id SERIAL PRIMARY KEY,
       familia_id INTEGER REFERENCES familia(id) ON DELETE CASCADE,
       producto_id INTEGER REFERENCES productos(id) ON DELETE CASCADE,
+      tipo_repuesto TEXT,
+      indice_uso NUMERIC(10,2) NOT NULL DEFAULT 1,
       alias_codigo TEXT,
       nota TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
+  await db.query(`ALTER TABLE familia_ficha_repuestos ADD COLUMN IF NOT EXISTS tipo_repuesto TEXT;`);
+  await db.query(`ALTER TABLE familia_ficha_repuestos ADD COLUMN IF NOT EXISTS indice_uso NUMERIC(10,2) NOT NULL DEFAULT 1;`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_ficha_rep_familia ON familia_ficha_repuestos(familia_id);`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS familia_ficha_plantillas (
@@ -136,7 +142,7 @@ router.get('/:familiaId', async (req, res, next) => {
       `SELECT f.id AS familia_id, f.descripcion AS familia,
               f.codigo AS codigo_familia,
               fi.marca, fi.categoria, fi.id_original, fi.titulo, fi.descripcion_corta,
-              fi.portada_url, fi.voltaje, fi.amperaje, fi.aplicaciones,
+              fi.portada_url, fi.voltaje, fi.amperaje, fi.aplicaciones, fi.tipos_repuesto,
               fi.banco_prueba, fi.diagnostico_base, fi.procedimiento_base, fi.control_final,
               fi.updated_at
          FROM familia f
@@ -155,7 +161,7 @@ router.get('/:familiaId', async (req, res, next) => {
     );
 
     const repuestos = await db.query(
-      `SELECT r.id, r.producto_id, r.alias_codigo, r.nota,
+      `SELECT r.id, r.producto_id, r.tipo_repuesto, r.indice_uso, r.alias_codigo, r.nota,
               p.codigo, p.descripcion
          FROM familia_ficha_repuestos r
          LEFT JOIN productos p ON p.id = r.producto_id
@@ -197,6 +203,7 @@ router.post('/:familiaId', async (req, res, next) => {
     voltaje,
     amperaje,
     aplicaciones,
+    tipos_repuesto,
     banco_prueba,
     diagnostico_base,
     procedimiento_base,
@@ -207,10 +214,10 @@ router.post('/:familiaId', async (req, res, next) => {
       `INSERT INTO familia_ficha
         (
           familia_id, marca, categoria, id_original, titulo, descripcion_corta,
-          portada_url, voltaje, amperaje, aplicaciones,
+          portada_url, voltaje, amperaje, aplicaciones, tipos_repuesto,
           banco_prueba, diagnostico_base, procedimiento_base, control_final, updated_at
         )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, NOW())
        ON CONFLICT (familia_id) DO UPDATE SET
          marca=EXCLUDED.marca,
          categoria=EXCLUDED.categoria,
@@ -221,6 +228,7 @@ router.post('/:familiaId', async (req, res, next) => {
          voltaje=EXCLUDED.voltaje,
          amperaje=EXCLUDED.amperaje,
          aplicaciones=EXCLUDED.aplicaciones,
+         tipos_repuesto=EXCLUDED.tipos_repuesto,
          banco_prueba=EXCLUDED.banco_prueba,
          diagnostico_base=EXCLUDED.diagnostico_base,
          procedimiento_base=EXCLUDED.procedimiento_base,
@@ -229,7 +237,7 @@ router.post('/:familiaId', async (req, res, next) => {
        RETURNING *`,
       [
         familiaId, marca, categoria, id_original, titulo, descripcion_corta,
-        portada_url, voltaje, amperaje, aplicaciones,
+        portada_url, voltaje, amperaje, aplicaciones, tipos_repuesto,
         banco_prueba, diagnostico_base, procedimiento_base, control_final
       ]
     );
@@ -277,13 +285,15 @@ router.delete('/:familiaId/media/:id', async (req, res, next) => {
 // Agregar repuesto vinculado
 router.post('/:familiaId/repuestos', async (req, res, next) => {
   const familiaId = Number(req.params.familiaId);
-  const { producto_id, alias_codigo, nota } = req.body || {};
+  const { producto_id, tipo_repuesto, indice_uso, alias_codigo, nota } = req.body || {};
   if (!Number.isInteger(Number(producto_id))) return res.status(400).json({ error: 'producto_id requerido' });
+  const indice = Number(indice_uso);
+  if (!Number.isFinite(indice) || indice <= 0) return res.status(400).json({ error: 'indice_uso invalido' });
   try {
     const ins = await db.query(
-      `INSERT INTO familia_ficha_repuestos (familia_id, producto_id, alias_codigo, nota)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
-      [familiaId, Number(producto_id), alias_codigo || null, nota || null]
+      `INSERT INTO familia_ficha_repuestos (familia_id, producto_id, tipo_repuesto, indice_uso, alias_codigo, nota)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [familiaId, Number(producto_id), tipo_repuesto || null, indice, alias_codigo || null, nota || null]
     );
     res.status(201).json(ins.rows[0]);
   } catch (err) {

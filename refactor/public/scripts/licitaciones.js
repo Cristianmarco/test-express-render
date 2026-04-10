@@ -1327,13 +1327,45 @@ async function eliminarGarantia() {
   }
 }
 
+async function actualizarGarantias() {
+  if (!confirm('Actualizar garantias y quitar del listado las que ya fueron hechas en planilla?')) return;
+  const btn = document.getElementById('btn-gar-actualizar');
+  const previousHtml = btn ? btn.innerHTML : '';
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = "<i class='fas fa-spinner fa-spin'></i>";
+    }
+    const res = await fetch('/api/licitaciones/garantias/actualizar', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Error al actualizar garantias');
+    await cargarGarantias();
+    alert(body.removed
+      ? `Se quitaron ${body.removed} garantias ya realizadas en planilla.`
+      : 'No habia garantias hechas para quitar del listado.');
+  } catch (err) {
+    console.error('actualizar garantias', err);
+    alert(err.message || 'No se pudo actualizar el listado de garantias.');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = previousHtml;
+    }
+  }
+}
+
 function bindGarantiasPanel() {
   const btnAdd = document.getElementById('btn-gar-agregar');
+  const btnRefresh = document.getElementById('btn-gar-actualizar');
   const btnEdit = document.getElementById('btn-gar-modificar');
   const btnDel = document.getElementById('btn-gar-eliminar');
   const btnImp = document.getElementById('btn-gar-importar');
   const inputFile = document.getElementById('gar-import-file');
   if (btnAdd && !btnAdd._bound) { btnAdd._bound = true; btnAdd.addEventListener('click', () => openGarantiaModal(false)); }
+  if (btnRefresh && !btnRefresh._bound) { btnRefresh._bound = true; btnRefresh.addEventListener('click', actualizarGarantias); }
   if (btnEdit && !btnEdit._bound) { btnEdit._bound = true; btnEdit.addEventListener('click', () => openGarantiaModal(true)); }
   if (btnDel && !btnDel._bound) { btnDel._bound = true; btnDel.addEventListener('click', eliminarGarantia); }
   if (btnImp && !btnImp._bound) {

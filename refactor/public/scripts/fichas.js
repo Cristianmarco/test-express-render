@@ -9,6 +9,8 @@
   let formFichaBasica, modalFicha, modalClose, btnEditarFicha;
   let fotoFileInput, fotoBrowseBtn, fotoUrlInput;
   let modalMedia, modalMediaClose, mediaConfigList, mediaConfigBtn;
+  let tipoRepuestoSelect, modalTipo, modalTipoClose, modalTipoTitle, modalTipoBody;
+  let modalProducto, modalProductoClose;
 
   const state = {
     listado: [],
@@ -65,6 +67,13 @@
     modalMediaClose = host.querySelector('#modal-ficha-media-close');
     mediaConfigList = host.querySelector('#ficha-media-config-list');
     mediaConfigBtn = host.querySelector('#ficha-media-config');
+    tipoRepuestoSelect = host.querySelector('#ficha-tipo-repuesto-select');
+    modalTipo = host.querySelector('#modal-ficha-tipo');
+    modalTipoClose = host.querySelector('#modal-ficha-tipo-close');
+    modalTipoTitle = host.querySelector('#modal-ficha-tipo-title');
+    modalTipoBody = host.querySelector('#modal-ficha-tipo-body');
+    modalProducto = host.querySelector('#modal-ficha-producto');
+    modalProductoClose = host.querySelector('#modal-ficha-producto-close');
 
     bindEvents();
     cargarListado();
@@ -89,6 +98,16 @@
     window.addEventListener('click', (e) => { if (e.target === modalFicha) modalFicha.style.display = 'none'; });
     if (modalMediaClose) modalMediaClose.onclick = () => (modalMedia.style.display = 'none');
     window.addEventListener('click', (e) => { if (e.target === modalMedia) modalMedia.style.display = 'none'; });
+    if (modalTipoClose) modalTipoClose.onclick = () => (modalTipo.style.display = 'none');
+    window.addEventListener('click', (e) => { if (e.target === modalTipo) modalTipo.style.display = 'none'; });
+    if (modalProductoClose) modalProductoClose.onclick = () => (modalProducto.style.display = 'none');
+    window.addEventListener('click', (e) => { if (e.target === modalProducto) modalProducto.style.display = 'none'; });
+    if (modalProducto && !modalProducto._tabsBound) {
+      modalProducto._tabsBound = true;
+      modalProducto.querySelectorAll('.erp-tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => activarModalProductoTab(btn.dataset.fpTab || 'fp-tab-stock'));
+      });
+    }
 
     if (mediaBrowseBtn && mediaFileInput) {
       mediaBrowseBtn.onclick = () => mediaFileInput.click();
@@ -327,11 +346,6 @@
     setText('#ficha-observaciones', ficha.descripcion_corta || 'Sin observaciones');
     setList('info-id-list', ficha.id_original);
     setList('info-aplicaciones-list', ficha.aplicaciones);
-    setBlockText('info-banco-prueba', ficha.banco_prueba);
-    setBlockText('info-diagnostico-base', ficha.diagnostico_base);
-    setBlockText('info-procedimiento-base', ficha.procedimiento_base);
-    setBlockText('info-control-final', ficha.control_final);
-
     if (formFichaBasica) {
       formFichaBasica.elements['familia_id'].value = ficha.familia_id || '';
       formFichaBasica.elements['marca'].value = ficha.marca || '';
@@ -342,6 +356,7 @@
       formFichaBasica.elements['voltaje'].value = ficha.voltaje || '';
       formFichaBasica.elements['amperaje'].value = ficha.amperaje || '';
       formFichaBasica.elements['aplicaciones'].value = ficha.aplicaciones || '';
+      formFichaBasica.elements['tipos_repuesto'].value = ficha.tipos_repuesto || '';
       formFichaBasica.elements['banco_prueba'].value = ficha.banco_prueba || '';
       formFichaBasica.elements['diagnostico_base'].value = ficha.diagnostico_base || '';
       formFichaBasica.elements['procedimiento_base'].value = ficha.procedimiento_base || '';
@@ -350,11 +365,22 @@
     }
 
     renderSlides(media, ficha);
-    renderMedia(media);
+    renderMedia(media, ficha);
     renderMediaConfig(media);
+    renderDespieceRepuestos(ficha.tipos_repuesto);
+    renderTipoRepuestoOptions(ficha.tipos_repuesto);
     renderRepuestos(repuestos);
     renderPlantillas(plantillas);
     resetPlantillaForm();
+  }
+
+  function parseTiposRepuesto(value) {
+    return Array.from(new Set(
+      String(value || '')
+        .split(/[\n,;]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    ));
   }
 
   function renderSlides(media, ficha) {
@@ -437,22 +463,191 @@
     }
   }
 
-  function renderMedia(list) {
-    if (!mediaList) return;
-    mediaList.innerHTML = '';
-    // Mostrar solo despiece/plano. Usamos la primera disponible para la imagen principal.
-    const items = Array.isArray(list) ? list.filter(m => m.tipo === 'despiece' || m.tipo === 'plano') : [];
+  function renderMedia(list, ficha) {
+    const items = Array.isArray(list) ? list : [];
+    const despieceItems = items.filter(m => m.tipo === 'despiece' || m.tipo === 'plano');
+    const fallbackImage = items.find((m) => esImagen(m.url));
+    const fallbackPortada = ficha?.portada_url ? { url: ficha.portada_url, titulo: ficha.titulo || ficha.familia } : null;
+    const candidates = [...despieceItems, fallbackImage, fallbackPortada]
+      .filter(Boolean)
+      .map((item) => ({ ...item, url: normalizeMediaUrl(item.url) }))
+      .filter((item, index, arr) => item.url && arr.findIndex((x) => x.url === item.url) === index);
     const img = host.querySelector('#despiece-img');
     if (img) {
-      if (items[0]) {
-        img.src = items[0].url;
-        img.alt = items[0].titulo || 'Despiece';
+      if (candidates.length) {
+        let currentIndex = 0;
+        img.onerror = () => {
+          currentIndex += 1;
+          if (currentIndex < candidates.length) {
+            img.src = candidates[currentIndex].url;
+            img.alt = candidates[currentIndex].titulo || 'Despiece';
+          } else {
+            img.onerror = null;
+            img.removeAttribute('src');
+            img.alt = 'Sin despiece';
+          }
+        };
+        img.src = candidates[0].url;
+        img.alt = candidates[0].titulo || 'Despiece';
       } else {
-        img.src = '';
+        img.onerror = null;
+        img.removeAttribute('src');
         img.alt = 'Sin despiece';
       }
     }
-    // Ya no renderizamos cards aquí; la pestaña es solo imagen + lista fija a la derecha.
+  }
+
+  function renderDespieceRepuestos(value) {
+    const el = host.querySelector('#despiece-repuestos-list');
+    if (!el) return;
+    const items = parseTiposRepuesto(value);
+    if (!items.length) {
+      el.innerHTML = '<li class="muted">Sin tipos de repuesto cargados</li>';
+      return;
+    }
+    el.innerHTML = items.map((item) => {
+      const relacionados = (state.detalle?.repuestos || []).filter((rep) => normalizeTipoRepuesto(rep.tipo_repuesto) === normalizeTipoRepuesto(item));
+      const cantidad = relacionados.length;
+      return `
+        <li>
+          <button type="button" class="despiece-type-btn" data-tipo="${escapeHtml(item)}">
+            <span>${escapeHtml(item)}</span>
+            <small>${cantidad} producto${cantidad === 1 ? '' : 's'}</small>
+          </button>
+        </li>`;
+    }).join('');
+    el.querySelectorAll('.despiece-type-btn').forEach((btn) => {
+      btn.addEventListener('click', () => abrirModalTipo(btn.dataset.tipo || ''));
+    });
+  }
+
+  function normalizeTipoRepuesto(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function renderTipoRepuestoOptions(value) {
+    if (!tipoRepuestoSelect) return;
+    const items = parseTiposRepuesto(value);
+    const current = tipoRepuestoSelect.value;
+    tipoRepuestoSelect.innerHTML = '<option value="">Tipo de repuesto</option>';
+    items.forEach((item) => {
+      const opt = document.createElement('option');
+      opt.value = item;
+      opt.textContent = item;
+      tipoRepuestoSelect.appendChild(opt);
+    });
+    tipoRepuestoSelect.value = items.includes(current) ? current : '';
+    tipoRepuestoSelect.disabled = !items.length;
+  }
+
+  function abrirModalTipo(tipo) {
+    if (!modalTipo || !modalTipoBody || !modalTipoTitle) return;
+    const productos = (state.detalle?.repuestos || []).filter((rep) => normalizeTipoRepuesto(rep.tipo_repuesto) === normalizeTipoRepuesto(tipo));
+    modalTipoTitle.textContent = tipo || 'Tipo de repuesto';
+    if (!productos.length) {
+      modalTipoBody.innerHTML = '<tr><td colspan="5" style="text-align:center;" class="muted">Sin productos vinculados a este tipo</td></tr>';
+    } else {
+      modalTipoBody.innerHTML = productos.map((item) => `
+        <tr data-producto-id="${item.producto_id || ''}">
+          <td>${escapeHtml(item.indice_uso ?? '-')}</td>
+          <td>${escapeHtml(item.codigo || '-')}</td>
+          <td>${escapeHtml(item.descripcion || '-')}</td>
+          <td>${escapeHtml(item.alias_codigo || '-')}</td>
+          <td>${escapeHtml(item.nota || '-')}</td>
+        </tr>
+      `).join('');
+      modalTipoBody.querySelectorAll('tr[data-producto-id]').forEach((tr) => {
+        tr.addEventListener('dblclick', () => abrirModalProductoFicha(tr.dataset.productoId));
+      });
+    }
+    modalTipo.style.display = 'flex';
+  }
+
+  async function abrirModalProductoFicha(productoId) {
+    const id = Number(productoId);
+    if (!id || !modalProducto) return;
+    await ensureProductos();
+    const producto = state.productos.find((item) => Number(item.id) === id);
+    if (!producto) {
+      alert('No se pudo encontrar el producto vinculado');
+      return;
+    }
+    setProductoFichaText('fp-codigo', producto.codigo);
+    setProductoFichaText('fp-descripcion', producto.descripcion);
+    setProductoFichaText('fp-familia', Array.isArray(producto.familias) && producto.familias.length ? producto.familias.map((f) => f.descripcion || f.nombre || f.id).join(', ') : producto.familia);
+    setProductoFichaText('fp-grupo', producto.grupo);
+    setProductoFichaText('fp-marca', producto.marca);
+    setProductoFichaText('fp-categoria', Array.isArray(producto.categorias) && producto.categorias.length ? producto.categorias.map((c) => c.descripcion || c.nombre || c.id).join(', ') : producto.categoria);
+    setProductoFichaText('fp-proveedor', producto.proveedor);
+    setProductoFichaText('fp-stock', producto.stock_total != null ? String(producto.stock_total) : '-');
+    setProductoFichaText('fp-equivalencia', producto.equivalencia);
+    setProductoFichaText('fp-origen', producto.origen);
+    setProductoFichaText('fp-precio', 'Cargando...');
+    activarModalProductoTab('fp-tab-stock');
+    modalProducto.style.display = 'flex';
+    await cargarStockProductoFicha(id);
+    try {
+      const res = await fetch(`/api/productos/${encodeURIComponent(id)}/precios`, { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Error al cargar precio');
+      const precio = Number(data.precio_lista || 0);
+      setProductoFichaText('fp-precio', formatMoney(precio));
+    } catch (_) {
+      setProductoFichaText('fp-precio', '-');
+    }
+  }
+
+  function setProductoFichaText(id, value) {
+    const el = host.querySelector(`#${id}`);
+    if (el) el.textContent = value && String(value).trim() ? String(value) : '-';
+  }
+
+  function activarModalProductoTab(tabId) {
+    if (!modalProducto) return;
+    modalProducto.querySelectorAll('.erp-tab-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.fpTab === tabId);
+    });
+    ['fp-tab-stock', 'fp-tab-detalle', 'fp-tab-precios'].forEach((id) => {
+      const el = host.querySelector(`#${id}`);
+      if (el) el.style.display = id === tabId ? '' : 'none';
+    });
+  }
+
+  async function cargarStockProductoFicha(productoId) {
+    const tbody = host.querySelector('#fp-tbody-stock');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;" class="muted"><i class="fas fa-spinner fa-spin"></i> Cargando stock...</td></tr>';
+    try {
+      const res = await fetch(`/api/stock/${encodeURIComponent(productoId)}`, { credentials: 'include' });
+      const data = await res.json().catch(() => ([]));
+      if (!res.ok) throw new Error(data.error || 'Error stock');
+      const list = Array.isArray(data) ? data : [];
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;" class="muted">Sin stock</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map((item) => `
+        <tr>
+          <td>${escapeHtml(item.deposito || '-')}</td>
+          <td>${escapeHtml(item.cantidad ?? 0)}</td>
+        </tr>
+      `).join('');
+    } catch (_) {
+      tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;" class="muted">No se pudo cargar el stock</td></tr>';
+    }
+  }
+
+  function formatMoney(value) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return '-';
+    return amount.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
+  }
+
+  function normalizeMediaUrl(url) {
+    const value = String(url || '').trim();
+    if (!value) return '';
+    if (/^(https?:)?\/\//i.test(value) || value.startsWith('data:')) return value;
+    return value.startsWith('/') ? value : `/${value}`;
   }
 
   function renderMediaConfig(list) {
@@ -564,13 +759,16 @@
     if (!state.detalle?.ficha?.familia_id) return alert('Selecciona una ficha');
     await ensureProductos();
     const data = Object.fromEntries(new FormData(repuestoForm).entries());
+    if (!String(data.tipo_repuesto || '').trim()) return alert('Selecciona un tipo de repuesto');
+    const indiceUso = Number(data.indice_uso);
+    if (!Number.isFinite(indiceUso) || indiceUso <= 0) return alert('Ingresa un indice de uso valido');
     const productoId = buscarProductoId(data.producto);
     if (!productoId) return alert('Selecciona un producto valido');
     try {
       const res = await fetch(`/api/fichas/${encodeURIComponent(state.detalle.ficha.familia_id)}/repuestos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ producto_id: productoId, alias_codigo: data.alias_codigo, nota: data.nota }),
+        body: JSON.stringify({ producto_id: productoId, tipo_repuesto: data.tipo_repuesto, indice_uso: indiceUso, alias_codigo: data.alias_codigo, nota: data.nota }),
         credentials: 'include',
       });
       const payload = await res.json().catch(() => ({}));
@@ -587,12 +785,14 @@
     if (!repuestosBody) return;
     repuestosBody.innerHTML = '';
     if (!list.length) {
-      repuestosBody.innerHTML = `<tr><td colspan="5" style="text-align:center;" class="muted">Sin repuestos vinculados</td></tr>`;
+      repuestosBody.innerHTML = `<tr><td colspan="7" style="text-align:center;" class="muted">Sin repuestos vinculados</td></tr>`;
       return;
     }
     list.forEach(item => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
+        <td>${item.tipo_repuesto || '-'}</td>
+        <td>${item.indice_uso ?? '-'}</td>
         <td>${item.codigo || '-'}</td>
         <td>${item.descripcion || '-'}</td>
         <td>${item.alias_codigo || '-'}</td>

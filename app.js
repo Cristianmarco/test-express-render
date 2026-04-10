@@ -30,6 +30,7 @@ const stockRouter = require("./routes/stock");
 const reportesRouter = require('./routes/reportes');
 const fichasRouter = require('./routes/fichas');
 const cotizacionesReparacionRouter = require('./routes/cotizaciones_reparacion');
+const comprasRouter = require('./routes/compras');
 
 
 // ============================
@@ -133,6 +134,7 @@ app.use("/api/stock", stockRouter);
 app.use('/api/reportes', requireLogin, reportesRouter);
 app.use('/api/fichas', requireLogin, fichasRouter);
 app.use('/api/cotizaciones_reparacion', requireLogin, cotizacionesReparacionRouter);
+app.use('/api/compras', requireLogin, comprasRouter);
 
 
 // ============================

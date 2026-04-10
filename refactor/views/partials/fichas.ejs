@@ -69,7 +69,6 @@
       <div class="ficha-tabs-box">
         <div class="ficha-tabs">
           <button class="ficha-tab active" data-tab="general">Informacion</button>
-          <button class="ficha-tab" data-tab="proceso">Proceso tecnico</button>
           <button class="ficha-tab" data-tab="plantillas">Plantillas</button>
           <button class="ficha-tab" data-tab="despiece">Despiece / planos</button>
           <button class="ficha-tab" data-tab="repuestos">Productos relacionados</button>
@@ -96,31 +95,6 @@
               <div class="ficha-info-item wide">
                 <span class="muted">Aplicaciones</span>
                 <div id="info-aplicaciones-list" class="info-multi"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="ficha-tab-panel" data-tab="proceso" style="display:none;">
-          <div class="ficha-info-columns">
-            <div class="ficha-info-left">
-              <div class="ficha-info-item wide">
-                <span class="muted">Banco de prueba</span>
-                <div id="info-banco-prueba" class="info-multi info-block-text"></div>
-              </div>
-              <div class="ficha-info-item wide">
-                <span class="muted">Diagnostico base</span>
-                <div id="info-diagnostico-base" class="info-multi info-block-text"></div>
-              </div>
-            </div>
-            <div class="ficha-info-right">
-              <div class="ficha-info-item wide">
-                <span class="muted">Procedimiento base</span>
-                <div id="info-procedimiento-base" class="info-multi info-block-text"></div>
-              </div>
-              <div class="ficha-info-item wide">
-                <span class="muted">Control final</span>
-                <div id="info-control-final" class="info-multi info-block-text"></div>
               </div>
             </div>
           </div>
@@ -173,17 +147,8 @@
             </div>
             <div class="despiece-panel">
               <div class="muted">Tipos de repuesto</div>
-              <ul class="despiece-list">
-                <li>Rotor</li>
-                <li>Estator</li>
-                <li>Regulador</li>
-                <li>Plaqueta Rectificadora</li>
-                <li>Tapa delantera</li>
-                <li>Tapa trasera</li>
-                <li>Polea</li>
-                <li>Separador</li>
-                <li>Tuerca rotor</li>
-                <li>Pasantes</li>
+              <ul id="despiece-repuestos-list" class="despiece-list">
+                <li class="muted">Sin repuestos vinculados</li>
               </ul>
             </div>
           </div>
@@ -198,6 +163,10 @@
             <form id="ficha-repuesto-form" class="ficha-inline-form">
               <input list="ficha-productos" name="producto" id="ficha-producto-input" placeholder="Codigo o descripcion" autocomplete="off" required />
               <datalist id="ficha-productos"></datalist>
+              <select name="tipo_repuesto" id="ficha-tipo-repuesto-select" required>
+                <option value="">Tipo de repuesto</option>
+              </select>
+              <input name="indice_uso" type="number" min="0.01" step="0.01" value="1" placeholder="Indice de uso" required />
               <input name="alias_codigo" type="text" placeholder="Codigo original/alias" />
               <input name="nota" type="text" placeholder="Nota (opcional)" />
               <button type="submit" class="btn-guardar" style="min-width:140px;"><i class="fas fa-link"></i> Vincular</button>
@@ -207,6 +176,8 @@
             <table class="tabla-erp">
               <thead>
                 <tr>
+                  <th>Tipo</th>
+                  <th>Indice</th>
                   <th>Codigo</th>
                   <th>Descripcion</th>
                   <th>Alias</th>
@@ -215,7 +186,7 @@
                 </tr>
               </thead>
               <tbody id="ficha-repuestos-body">
-                <tr><td colspan="5" style="text-align:center;" class="muted">Sin repuestos vinculados</td></tr>
+                <tr><td colspan="7" style="text-align:center;" class="muted">Sin repuestos vinculados</td></tr>
               </tbody>
             </table>
           </div>
@@ -239,6 +210,7 @@
         <div><label>Voltaje</label><input type="text" name="voltaje" /></div>
         <div><label>Amperaje</label><input type="text" name="amperaje" /></div>
         <div class="full"><label>Aplicaciones</label><textarea name="aplicaciones" rows="2" placeholder="Una por linea o separadas por coma"></textarea></div>
+        <div class="full"><label>Tipos de repuesto</label><textarea name="tipos_repuesto" rows="4" placeholder="Rotor&#10;Estator&#10;Regulador&#10;Plaqueta rectificadora"></textarea></div>
         <div class="full"><label>Banco de prueba</label><textarea name="banco_prueba" rows="3" placeholder="Resultado esperado o falla tipica en banco"></textarea></div>
         <div class="full"><label>Diagnostico base</label><textarea name="diagnostico_base" rows="3" placeholder="Que revisar en el desarme o inspeccion"></textarea></div>
         <div class="full"><label>Procedimiento base</label><textarea name="procedimiento_base" rows="3" placeholder="Pasos o repuestos habituales para esta familia"></textarea></div>
@@ -262,6 +234,78 @@
         </div>
         <button type="submit" class="btn-guardar" style="margin-top:12px;"><i class="fas fa-save"></i> Guardar cambios</button>
       </form>
+    </div>
+  </div>
+
+  <div id="modal-ficha-tipo" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:760px; max-height:80vh; overflow-y:auto;">
+      <span class="cerrar" id="modal-ficha-tipo-close">&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-sitemap"></i> <span id="modal-ficha-tipo-title">Tipo de repuesto</span></h2>
+      <div class="tabla-scroll" style="margin-top:12px;">
+        <table class="tabla-erp">
+          <thead>
+            <tr>
+              <th>Indice</th>
+              <th>Codigo</th>
+              <th>Descripcion</th>
+              <th>Alias</th>
+              <th>Nota</th>
+            </tr>
+          </thead>
+          <tbody id="modal-ficha-tipo-body">
+            <tr><td colspan="5" style="text-align:center;" class="muted">Sin productos vinculados</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-ficha-producto" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:900px; max-height:85vh; overflow-y:auto;">
+      <span class="cerrar" id="modal-ficha-producto-close">&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-box"></i> Producto vinculado</h2>
+      <div class="erp-tabs" style="margin-bottom:10px;">
+        <button class="erp-tab-btn active" data-fp-tab="fp-tab-stock">Stock</button>
+        <button class="erp-tab-btn" data-fp-tab="fp-tab-detalle">Detalle</button>
+        <button class="erp-tab-btn" data-fp-tab="fp-tab-precios">Precio</button>
+      </div>
+
+      <div id="fp-tab-stock" class="tab-erp">
+        <div class="erp-table-card" style="margin-bottom:12px;">
+          <table class="tabla-erp">
+            <thead>
+              <tr>
+                <th>Deposito</th>
+                <th>Cantidad</th>
+              </tr>
+            </thead>
+            <tbody id="fp-tbody-stock">
+              <tr><td colspan="2" style="text-align:center;" class="muted">Sin datos</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="fp-tab-detalle" class="tab-erp" style="display:none;">
+        <div class="detalle-grid">
+          <p><b>Codigo:</b> <span id="fp-codigo">-</span></p>
+          <p><b>Descripcion:</b> <span id="fp-descripcion">-</span></p>
+          <p><b>Familia:</b> <span id="fp-familia">-</span></p>
+          <p><b>Grupo:</b> <span id="fp-grupo">-</span></p>
+          <p><b>Marca:</b> <span id="fp-marca">-</span></p>
+          <p><b>Categoria:</b> <span id="fp-categoria">-</span></p>
+          <p><b>Proveedor:</b> <span id="fp-proveedor">-</span></p>
+          <p><b>Stock total:</b> <span id="fp-stock">-</span></p>
+          <p><b>Equivalencia:</b> <span id="fp-equivalencia">-</span></p>
+          <p><b>Origen:</b> <span id="fp-origen">-</span></p>
+        </div>
+      </div>
+
+      <div id="fp-tab-precios" class="tab-erp" style="display:none;">
+        <div class="detalle-grid">
+          <p><b>Precio de lista:</b> <span id="fp-precio">-</span></p>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -119,6 +119,9 @@ window.loadView = loadView;
     case "cotizaciones":
       cargarScript("/static/scripts/cotizaciones.js");
       break;
+    case "compras":
+      cargarScript("/static/scripts/compras.js");
+      break;
     default:
       try { console.log(`No hay script especifico para ${view}`); } catch {}
   }

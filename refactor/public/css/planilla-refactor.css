@@ -533,6 +533,22 @@
   background: #dc2626;
 }
 
+.icon-button-erp.actualizar {
+  background: #38bdf8;
+}
+
+.icon-button-erp.actualizar:hover {
+  background: #0ea5e9;
+}
+
+.icon-button-erp.importar {
+  background: #22c55e;
+}
+
+.icon-button-erp.importar:hover {
+  background: #16a34a;
+}
+
 /* Botón exportar pequeño junto al contador */
 .icon-button-erp.exportar-min {
   background: #16a34a; /* verde Excel */

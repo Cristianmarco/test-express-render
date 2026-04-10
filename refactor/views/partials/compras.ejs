@@ -1,2 +1,77 @@
-<h2>Compras</h2>
-<p>Página de prueba para el módulo de compras.</p>
+<section class="planilla-section">
+  <div class="erp-main-card">
+    <div class="erp-header-row">
+      <div class="titulo-dota">
+        <i class="fas fa-cart-shopping"></i> Compras sugeridas
+      </div>
+      <div id="compras-resumen" class="panel-counter">Compra sugerida total: 0</div>
+    </div>
+
+    <div class="fichas-toolbar erp-main-card" style="margin-bottom:12px;">
+      <div class="fichas-filtros">
+        <select id="compras-pedido" style="min-width:260px;">
+          <option value="">Todos los pedidos con pendientes</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button id="btn-compras-buscar" class="btn-guardar"><i class="fas fa-calculator"></i> Calcular</button>
+        <button id="btn-compras-precompra" class="btn-ghost"><i class="fas fa-layer-group"></i> Ver precompra</button>
+        <button id="btn-compras-imprimir" class="btn-ghost"><i class="fas fa-print"></i> Imprimir</button>
+        <button id="btn-compras-limpiar" class="btn-ghost">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="erp-table-card">
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th>Pedido</th>
+            <th>Cod. familia</th>
+            <th>Equipo</th>
+            <th>Tipo</th>
+            <th>Cod. producto</th>
+            <th>Producto</th>
+            <th>Pendientes</th>
+            <th>Indice</th>
+            <th>Necesidad</th>
+            <th>Stock</th>
+            <th>Comprar</th>
+          </tr>
+        </thead>
+        <tbody id="compras-sugeridas-body">
+          <tr><td colspan="11" style="text-align:center;" class="muted">Sin calcular</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="erp-table-card" style="margin-top:12px;">
+      <div style="padding:10px 12px; font-weight:700; color:#0f172a;">Precompra agrupada por producto</div>
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th>Codigo</th>
+            <th>Producto</th>
+            <th>Tipos</th>
+            <th>Necesidad</th>
+            <th>Stock</th>
+            <th>Comprar</th>
+          </tr>
+        </thead>
+        <tbody id="compras-precompra-body">
+          <tr><td colspan="6" style="text-align:center;" class="muted">Sin calcular</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
+      <div class="erp-main-card">
+        <h3 style="margin-top:0;">Pendientes sin ficha</h3>
+        <div id="compras-faltantes-ficha" class="tiny">Sin calcular.</div>
+      </div>
+      <div class="erp-main-card">
+        <h3 style="margin-top:0;">Pendientes sin articulos vinculados</h3>
+        <div id="compras-faltantes-producto" class="tiny">Sin calcular.</div>
+      </div>
+    </div>
+  </div>
+</section>

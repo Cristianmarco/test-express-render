@@ -12,6 +12,31 @@ const {
 const AUDIT_DOMAIN_LICITACIONES = 'licitaciones';
 
 let garantiasTableReady = false;
+const GARANTIA_ARCHIVE_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS licitacion_garantias_archive (
+    id SERIAL PRIMARY KEY,
+    reparacion_id INTEGER NOT NULL,
+    garantia_original_id INTEGER,
+    id_cliente TEXT,
+    ingreso TIMESTAMP NULL,
+    cabecera TEXT,
+    interno TEXT,
+    codigo TEXT,
+    alt TEXT,
+    cantidad INTEGER,
+    notificacion TEXT,
+    notificado_en DATE,
+    detalle TEXT,
+    recepcion TEXT,
+    cod_proveedor TEXT,
+    proveedor TEXT,
+    ref_proveedor TEXT,
+    ref_proveedor_alt TEXT,
+    resolucion TEXT,
+    archived_at TIMESTAMP DEFAULT NOW()
+  );
+`;
+
 async function ensureGarantiasTable() {
   if (garantiasTableReady) return;
   await db.query(`
@@ -37,6 +62,10 @@ async function ensureGarantiasTable() {
   `);
   await db.query(`ALTER TABLE licitacion_garantias ADD COLUMN IF NOT EXISTS id_cliente TEXT`);
   garantiasTableReady = true;
+}
+
+async function ensureGarantiasArchiveTable(dbClient) {
+  await dbClient.query(GARANTIA_ARCHIVE_TABLE_SQL);
 }
 
 function mapGarantiaPayload(body = {}) {
@@ -518,6 +547,91 @@ router.post('/garantias/import-file', async (req, res, next) => {
     }
   } catch (err) {
     next(err);
+  }
+});
+
+router.post('/garantias/actualizar', async (req, res, next) => {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    await ensureGarantiasArchiveTable(client);
+
+    const completed = await client.query(
+      `SELECT DISTINCT ON (btrim(id_dota::text))
+          id,
+          btrim(id_dota::text) AS id_cliente
+       FROM equipos_reparaciones
+       WHERE btrim(COALESCE(id_dota::text, '')) <> ''
+         AND lower(btrim(COALESCE(garantia, 'no'))) = 'si'
+       ORDER BY btrim(id_dota::text), fecha DESC NULLS LAST, id DESC`
+    );
+
+    if (!completed.rowCount) {
+      await client.query('COMMIT');
+      return res.json({ removed: 0 });
+    }
+
+    const reparacionByIdCliente = new Map();
+    const idClientes = [];
+    completed.rows.forEach((row) => {
+      const key = String(row.id_cliente || '').trim();
+      if (!key) return;
+      reparacionByIdCliente.set(key, row.id);
+      idClientes.push(key);
+    });
+
+    if (!idClientes.length) {
+      await client.query('COMMIT');
+      return res.json({ removed: 0 });
+    }
+
+    const deleted = await client.query(
+      `DELETE FROM licitacion_garantias
+       WHERE btrim(id_cliente) = ANY($1::text[])
+       RETURNING *`,
+      [idClientes]
+    );
+
+    if (deleted.rowCount) {
+      const insertArchive = `
+        INSERT INTO licitacion_garantias_archive
+          (reparacion_id, garantia_original_id, id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+      `;
+      for (const row of deleted.rows) {
+        const key = String(row.id_cliente || '').trim();
+        const reparacionId = reparacionByIdCliente.get(key);
+        if (!reparacionId) continue;
+        await client.query(insertArchive, [
+          reparacionId,
+          row.id,
+          row.id_cliente,
+          row.ingreso,
+          row.cabecera,
+          row.interno,
+          row.codigo,
+          row.alt,
+          row.cantidad,
+          row.notificacion,
+          row.notificado_en,
+          row.detalle,
+          row.recepcion,
+          row.cod_proveedor,
+          row.proveedor,
+          row.ref_proveedor,
+          row.ref_proveedor_alt,
+          row.resolucion
+        ]);
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ removed: deleted.rowCount });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
   }
 });
 
