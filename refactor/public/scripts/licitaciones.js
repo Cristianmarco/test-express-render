@@ -8,6 +8,13 @@ let vigRecalcBusy = false;
 const garSeleccionMultiple = new Set(); // ids marcados para eliminación múltiple
 let garSeleccionAnchorIndex = null; // último índice usado para selección por shift
 
+function refreshInicioDashboard() {
+  try {
+    document.dispatchEvent(new CustomEvent('dashboard:refresh'));
+    if (typeof window.refreshInicioStats === 'function') window.refreshInicioStats();
+  } catch (_) {}
+}
+
 function buildGarantiaFromRow(tr) {
   if (!tr) return null;
   return {
@@ -47,7 +54,7 @@ let garImportBusy = false;
 async function cargarLicitaciones() {
   const tbody = document.getElementById('tbody-licitaciones');
   if (!tbody) return;
-  // asegurar encabezado con columna Cliente
+  // asegurar encabezados dinamicos para la grilla refactorizada
   try {
     const theadRow = tbody.closest('table')?.querySelector('thead tr');
     if (theadRow && !theadRow._clienteAdded) {
@@ -57,14 +64,20 @@ async function cargarLicitaciones() {
       theadRow.insertBefore(th, firstTh || null);
       theadRow._clienteAdded = true;
     }
+    if (theadRow && !theadRow._equiposAdded) {
+      const th = document.createElement('th');
+      th.textContent = 'Equipos';
+      theadRow.appendChild(th);
+      theadRow._equiposAdded = true;
+    }
   } catch {}
-  tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
   try {
     const res = await fetch('/api/licitaciones', { credentials: 'include' });
     const data = await res.json();
     const lista = Array.isArray(data) ? data : [];
     if (lista.length === 0) {
-      tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:10px; color:#666'>Sin licitaciones.</td></tr>";
+      tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:#666'>Sin licitaciones.</td></tr>";
       return;
     }
     const fmt = (d)=>{ if(!d) return '-'; try { return new Date(d).toLocaleDateString('es-AR'); } catch { return String(d); } };
@@ -79,6 +92,9 @@ async function cargarLicitaciones() {
           <button class="icon-button-erp visualizar btn-ver-licitacion" data-nro="${l.nro_licitacion}" title="Ver">
             <i class="fas fa-sign-in-alt"></i>
           </button>
+        </td>
+        <td class="lic-equipos-cell">
+          <span class="lic-equipos-box">${Number(l.cantidad_equipos || 0)}</span>
         </td>
       </tr>
     `).join('');
@@ -98,7 +114,7 @@ async function cargarLicitaciones() {
     };
   } catch (err) {
     console.error('Error cargando licitaciones:', err);
-    tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+    tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
   }
 }
 
@@ -311,6 +327,7 @@ function ensureAceptarModal(){
       const js = await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(js.error||'No se pudo aceptar');
       alert('Ítem aceptado y enviado a Reparaciones Vigentes.');
+      refreshInicioDashboard();
       close();
       try{ if(window._aceptarOriginBtn){ window._aceptarOriginBtn.classList.add('btn-accepted'); window._aceptarOriginBtn.disabled = true; window._aceptarOriginBtn.title='Ya aceptado'; window._aceptarOriginBtn = null; } }catch{}
     }catch(err){ alert(err.message||'No se pudo aceptar'); }
@@ -438,7 +455,7 @@ function bindLicitacionesPanel() {
     if (isVigenteActiveView()){
       if (!vigSeleccionada){ alert('Seleccione una reparación vigente.'); return; }
       if (!confirm('Eliminar reparación vigente seleccionada?')) return;
-      try{ const r = await fetch(`/api/reparaciones_dota/${vigSeleccionada}`, { method:'DELETE', credentials:'include' }); const p = await r.json(); if(!r.ok) throw new Error(p.error||'Error'); vigSeleccionada=null; cargarVigentes(); }catch{ alert('No se pudo eliminar.'); }
+      try{ const r = await fetch(`/api/reparaciones_dota/${vigSeleccionada}`, { method:'DELETE', credentials:'include' }); const p = await r.json(); if(!r.ok) throw new Error(p.error||'Error'); vigSeleccionada=null; cargarVigentes(); refreshInicioDashboard(); }catch{ alert('No se pudo eliminar.'); }
       return;
     }
     if (!licSeleccionada) { alert('Seleccione una licitacion.'); return; }
@@ -690,7 +707,7 @@ function ensureVigenteModal(){
       const r = await fetch(url, { method, credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const js = await r.json().catch(()=>({}));
       if(!r.ok) throw new Error(js.error||'Error');
-      m.style.display='none'; cargarVigentes();
+      m.style.display='none'; cargarVigentes(); refreshInicioDashboard();
     }catch(err){ alert('No se pudo guardar'); }
   });
 }
@@ -1094,6 +1111,7 @@ function bindVigentesRecalcular(){
       if (!res.ok) throw new Error(data.error || 'No se pudo recalcular');
       alert('Pendientes recalculados (' + (data.updated || 0) + ').');
       cargarVigentes();
+      refreshInicioDashboard();
     } catch (err) {
       console.error('recalcular pendientes', err);
       alert(err.message || 'No se pudo recalcular');
@@ -1280,6 +1298,7 @@ async function guardarGarantia(e) {
     document.getElementById('modal-garantia').style.display = 'none';
     garSeleccionada = null;
     cargarGarantias();
+    refreshInicioDashboard();
   } catch (err) {
     console.error('guardar garantia', err);
     alert('No se pudo guardar la garantia');
@@ -1303,6 +1322,7 @@ async function eliminarGarantia() {
       garSeleccionMultiple.clear();
       garSeleccionada = null;
       cargarGarantias();
+      refreshInicioDashboard();
     } catch (err) {
       console.error('eliminar garantias', err);
       alert('No se pudo eliminar las garantias seleccionadas');
@@ -1321,6 +1341,7 @@ async function eliminarGarantia() {
     alert('Garantia eliminada');
     garSeleccionada = null;
     cargarGarantias();
+    refreshInicioDashboard();
   } catch (err) {
     console.error('eliminar garantia', err);
     alert('No se pudo eliminar la garantia');
@@ -1343,6 +1364,7 @@ async function actualizarGarantias() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'Error al actualizar garantias');
     await cargarGarantias();
+    refreshInicioDashboard();
     alert(body.removed
       ? `Se quitaron ${body.removed} garantias ya realizadas en planilla.`
       : 'No habia garantias hechas para quitar del listado.');
@@ -1410,6 +1432,7 @@ async function importarGarantiasDesdeArchivo(file) {
     if (!res.ok) throw new Error(body.error || 'Error al importar');
     alert(`Importacion completada (${body.inserted || 0} filas).`);
     cargarGarantias();
+    refreshInicioDashboard();
   } catch (err) {
     console.error('import garantias', err);
     alert(err.message || 'No se pudo importar el archivo de garantias.');

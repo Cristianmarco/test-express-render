@@ -38,7 +38,7 @@
       form: [
         { name: 'codigo', label: 'Codigo', type: 'text', required: true },
         { name: 'descripcion', label: 'Nombre', type: 'text', required: true },
-        { name: 'familias', label: 'Familias', type: 'multiselect', required: false, endpoint: '/api/familias', map: { value: 'id', label: 'descripcion' } },
+        { name: 'familias', label: 'Familias', type: 'familias_checklist', required: false, endpoint: '/api/familias', map: { value: 'id', label: 'descripcion' } },
       ],
     },
     marca: {
@@ -167,6 +167,25 @@
     title.innerHTML = `<i class="fas fa-database"></i> ${edit ? 'Editar' : 'Nuevo'} ${entidad}`;
     fieldsWrap.innerHTML = meta.form.map(f => {
       const req = f.required ? 'required' : '';
+      if (f.type === 'familias_checklist') {
+        return `
+          <div style="grid-column: 1 / -1; width: 100%; min-width: 0;">
+            <label>${f.label}${f.required ? ' *' : ''}</label>
+            <div style="margin-top:8px; border:1px solid #dbe3ee; border-radius:10px; background:#fff;">
+              <div class="familias-quick-actions" style="display:flex; flex-wrap:wrap; gap:6px; padding:10px 10px 8px; border-bottom:1px solid #eef2f7;">
+                <button type="button" class="btn-secundario" data-family-bulk="arranque" style="padding:6px 10px; font-size:12px;">Todos los Arranques</button>
+                <button type="button" class="btn-secundario" data-family-bulk="alternador" style="padding:6px 10px; font-size:12px;">Todos los Alternadores</button>
+                <button type="button" class="btn-secundario" data-family-bulk="clear" style="padding:6px 10px; font-size:12px;">Limpiar</button>
+              </div>
+              <details open>
+                <summary style="cursor:pointer; list-style:none; padding:8px 10px; font-size:12px; font-weight:600; color:#475569;">Seleccionar familias</summary>
+                <div id="familias-checklist" style="width:100%; max-height:220px; overflow:auto; padding:6px 10px 10px; background:#fff; box-sizing:border-box;">
+                  <div style="color:#64748b; font-size:12px;">Cargando familias...</div>
+                </div>
+              </details>
+            </div>
+          </div>`;
+      }
       if (f.type === 'select' || f.type === 'multiselect') {
         const opts = (f.options || []).map(o => `<option value="${o.value}">${o.label}</option>`).join('');
         const multiple = f.type === 'multiselect' ? ' multiple size="6"' : '';
@@ -215,6 +234,54 @@
     modal.style.display = 'flex';
     // Completar selects remotos (endpoint)
     meta.form.forEach(async (f) => {
+      if (f.type === 'familias_checklist' && f.endpoint) {
+        const box = document.getElementById('familias-checklist');
+        if (!box) return;
+        try {
+          const res = await fetch(f.endpoint, { credentials: 'include' });
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : [];
+          const selectedIds = edit && seleccionado && Array.isArray(seleccionado[f.name])
+            ? new Set(seleccionado[f.name].map(x => String(x.id ?? x)))
+            : new Set();
+          box.innerHTML = `<div style="display:grid; width:100%; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px 12px; box-sizing:border-box;">` + list.map((item) => {
+            const id = String(item.id ?? '');
+            const code = item.codigo != null ? String(item.codigo).trim() : '';
+            const desc = (item.descripcion || item.nombre || '').toString().trim();
+            const categoria = (item.categoria || '').toString().trim().toLowerCase();
+            const text = code && desc ? `${code} - ${desc}` : (desc || code || `Familia ${id}`);
+            const checked = selectedIds.has(id) ? 'checked' : '';
+            return `
+              <label style="display:flex; align-items:flex-start; gap:8px; padding:6px 8px; border:1px solid #eef2f7; border-radius:8px; min-width:0;">
+                <input type="checkbox" name="familias" value="${id}" data-categoria="${categoria}" ${checked} style="margin-top:2px; flex:0 0 auto;" />
+                <span style="font-size:12px; line-height:1.25; color:#334155;">${text}</span>
+              </label>`;
+          }).join('') + `</div>` || '<div style="color:#64748b;">(sin datos)</div>';
+
+          fieldsWrap.querySelectorAll('[data-family-bulk]').forEach((btn) => {
+            if (btn._bound) return;
+            btn._bound = true;
+            btn.addEventListener('click', () => {
+              const mode = btn.getAttribute('data-family-bulk');
+              const checks = Array.from(box.querySelectorAll('input[type="checkbox"][name="familias"]'));
+              if (mode === 'clear') {
+                checks.forEach(ch => { ch.checked = false; });
+                return;
+              }
+              checks.forEach(ch => {
+                const cat = String(ch.dataset.categoria || '');
+                ch.checked = mode === 'arranque'
+                  ? cat.includes('arranque')
+                  : cat.includes('alternador');
+              });
+            });
+          });
+        } catch (e) {
+          console.error('Checklist familias error', e);
+          box.innerHTML = '<div style="color:#64748b;">(sin datos)</div>';
+        }
+        return;
+      }
       if ((f.type === 'select' || f.type === 'multiselect') && f.endpoint) {
         const sel = form.querySelector(`[name='${f.name}']`);
         if (!sel) return;
@@ -267,9 +334,18 @@
     e.preventDefault();
     const meta = entidades[entidad];
     const data = Object.fromEntries(new FormData(form).entries());
+    const refreshDashboard = () => {
+      try {
+        document.dispatchEvent(new CustomEvent('dashboard:refresh'));
+        if (typeof window.refreshInicioStats === 'function') window.refreshInicioStats();
+      } catch (_) {}
+    };
     // Adaptar multiselects a arrays de valores
     meta.form.forEach(f => {
-      if (f.type === 'multiselect') {
+      if (f.type === 'familias_checklist') {
+        const checks = form.querySelectorAll(`input[type="checkbox"][name='${f.name}']:checked`);
+        data[f.name] = Array.from(checks).map(ch => ch.value);
+      } else if (f.type === 'multiselect') {
         const sel = form.querySelector(`[name='${f.name}']`);
         if (sel) {
           const vals = Array.from(sel.selectedOptions).map(o => o.value);
@@ -297,6 +373,7 @@
         if (!res.ok) throw new Error(payload.error || 'Error al actualizar pendiente');
         modal.style.display = 'none';
         await cargarLista();
+        refreshDashboard();
       } catch (err) {
         console.error(err);
         alert('No se pudo actualizar el pendiente');
@@ -316,6 +393,7 @@
       form.dataset.mode = 'create';
       form.dataset.editId = '';
       await cargarLista();
+      if (meta.endpoint === '/api/reparaciones_dota') refreshDashboard();
     } catch (err) {
       console.error(err);
       alert('No se pudo guardar');

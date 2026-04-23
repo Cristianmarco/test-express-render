@@ -16,6 +16,20 @@ async function tableExists(name) {
   }
 }
 
+async function ensureProductoFamiliaTable() {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS producto_familia (
+        producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+        familia_id INTEGER NOT NULL REFERENCES familia(id) ON DELETE CASCADE,
+        PRIMARY KEY (producto_id, familia_id)
+      );
+    `);
+  } catch (e) {
+    console.warn('Aviso: no se pudo asegurar tabla producto_familia:', e && e.message ? e.message : e);
+  }
+}
+
 // Asegura la tabla de precios por producto si no existe
 async function ensureProductoPreciosTable() {
   try {
@@ -45,6 +59,7 @@ async function ensureProductoPreciosTable() {
 // ============================
 router.get('/', async (req, res, next) => {
   try {
+    await ensureProductoFamiliaTable();
     const { grupo_id, familia_id, categoria_id } = req.query;
 
     const hasPF = await tableExists('producto_familia');
@@ -54,7 +69,7 @@ router.get('/', async (req, res, next) => {
     const where = [];
     if (grupo_id) { where.push(`p.grupo_id = $${where.length+1}`); params.push(grupo_id); }
     if (familia_id) {
-      if (hasPF) where.push(`EXISTS (SELECT 1 FROM producto_familia pf2 WHERE pf2.producto_id = p.id AND pf2.familia_id = $${where.length+1})`);
+      if (hasPF) where.push(`(p.familia_id = $${where.length+1} OR EXISTS (SELECT 1 FROM producto_familia pf2 WHERE pf2.producto_id = p.id AND pf2.familia_id = $${where.length+1}))`);
       else where.push(`p.familia_id = $${where.length+1}`);
       params.push(familia_id);
     }
@@ -84,13 +99,19 @@ router.get('/', async (req, res, next) => {
 
     if (hasPF) {
       select += `,
-        COALESCE(
-          JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', pf.familia_id, 'descripcion', f2.descripcion))
-          FILTER (WHERE pf.familia_id IS NOT NULL), '[]'::jsonb
-        ) AS familias`;
-      from += `
-        LEFT JOIN producto_familia pf ON pf.producto_id = p.id
-        LEFT JOIN familia f2 ON f2.id = pf.familia_id`;
+        COALESCE((
+          SELECT JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', ff.id, 'descripcion', ff.descripcion))
+          FROM (
+            SELECT f2.id, f2.descripcion
+            FROM producto_familia pf
+            JOIN familia f2 ON f2.id = pf.familia_id
+            WHERE pf.producto_id = p.id
+            UNION
+            SELECT f3.id, f3.descripcion
+            FROM familia f3
+            WHERE f3.id = p.familia_id
+          ) ff
+        ), '[]'::jsonb) AS familias`;
     } else {
       select += `,
         CASE WHEN p.familia_id IS NOT NULL
@@ -147,6 +168,7 @@ router.get('/', async (req, res, next) => {
 // ============================
 router.post('/', async (req, res, next) => {
   try {
+    await ensureProductoFamiliaTable();
     const {
       codigo, descripcion, equivalencia,
       descripcion_adicional, familia_id, grupo_id,
@@ -160,6 +182,8 @@ router.post('/', async (req, res, next) => {
 
     // normalizar vacíos a null
     const norm = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : v);
+    const famArr = Array.isArray(familias) ? familias.filter(Boolean) : (familia_id ? [familia_id] : []);
+    const familiaPrincipal = famArr.length ? famArr[0] : norm(familia_id);
 
     const ins = await db.query(`
       INSERT INTO productos (
@@ -171,7 +195,7 @@ router.post('/', async (req, res, next) => {
       ) RETURNING id
     `, [
       codigo, descripcion, norm(equivalencia),
-      norm(descripcion_adicional), norm(familia_id), norm(grupo_id),
+      norm(descripcion_adicional), norm(familiaPrincipal), norm(grupo_id),
       norm(marca_id), norm(categoria_id), norm(proveedor_id),
       norm(origen), norm(iva_tipo), norm(codigo_barra)
     ]);
@@ -181,7 +205,6 @@ router.post('/', async (req, res, next) => {
     // Insertar pivotes solo si existen las tablas
     const hasPF = await tableExists('producto_familia');
     const hasPC = await tableExists('producto_categoria');
-    const famArr = Array.isArray(familias) ? familias : (familia_id ? [familia_id] : []);
     if (hasPF) {
       for (const fid of famArr || []) {
         if (!fid) continue;
@@ -315,6 +338,7 @@ router.put('/:id/precios', async (req, res) => {
 // ============================
 router.put('/:id', async (req, res, next) => {
   try {
+    await ensureProductoFamiliaTable();
     const {
       codigo, descripcion, equivalencia,
       descripcion_adicional, familia_id, grupo_id,
@@ -324,6 +348,8 @@ router.put('/:id', async (req, res, next) => {
     } = req.body;
 
     const norm = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : v);
+    const famArr = Array.isArray(familias) ? familias.filter(Boolean) : (familia_id ? [familia_id] : []);
+    const familiaPrincipal = famArr.length ? famArr[0] : norm(familia_id);
 
     await db.query(`
       UPDATE productos
@@ -334,7 +360,7 @@ router.put('/:id', async (req, res, next) => {
       WHERE id=$13
     `, [
       codigo, descripcion, norm(equivalencia),
-      norm(descripcion_adicional), norm(familia_id), norm(grupo_id),
+      norm(descripcion_adicional), norm(familiaPrincipal), norm(grupo_id),
       norm(marca_id), norm(categoria_id), norm(proveedor_id),
       norm(origen), norm(iva_tipo), norm(codigo_barra),
       req.params.id
@@ -343,9 +369,9 @@ router.put('/:id', async (req, res, next) => {
     const prodId = req.params.id;
     const hasPF = await tableExists('producto_familia');
     const hasPC = await tableExists('producto_categoria');
-    if (Array.isArray(familias) && hasPF) {
+    if (hasPF) {
       await db.query(`DELETE FROM producto_familia WHERE producto_id=$1`, [prodId]);
-      for (const fid of familias) {
+      for (const fid of famArr) {
         if (!fid) continue;
         await db.query(`INSERT INTO producto_familia (producto_id, familia_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [prodId, fid]);
       }

@@ -310,9 +310,13 @@ router.get('/', async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT l.nro_licitacion, l.fecha, l.fecha_cierre, l.observacion,
-             l.cliente_codigo, c.razon_social AS cliente_razon
+             l.cliente_codigo, c.razon_social AS cliente_razon,
+             COALESCE(SUM(li.cantidad), 0) AS cantidad_equipos
       FROM licitaciones l
+      LEFT JOIN licitacion_items li ON li.nro_licitacion = l.nro_licitacion
       LEFT JOIN clientes c ON c.codigo = l.cliente_codigo
+      GROUP BY l.nro_licitacion, l.fecha, l.fecha_cierre, l.observacion,
+               l.cliente_codigo, c.razon_social
       ORDER BY l.fecha DESC`);
     res.json(result.rows);  // <-- esto DEBE ser un array
   } catch (err) {

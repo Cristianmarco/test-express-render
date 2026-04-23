@@ -497,6 +497,92 @@ router.get("/buscar", async (req, res) => {
 // ============================
 // Buscar por nro de pedido (parcial) en equipos_reparaciones
 // ============================
+router.get("/pedido_info", async (req, res) => {
+  const nro = normalizePedidoRef(req.query.nro);
+  if (!nro) return res.json({ nro_pedido_ref: null, familia_id: null, equipo: null, familias_detectadas: 0 });
+  try {
+    await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
+    const sql = `
+      WITH planilla_base AS (
+        SELECT
+          r.familia_id,
+          f.descripcion AS equipo,
+          r.fecha,
+          r.hora_inicio,
+          r.id
+        FROM equipos_reparaciones r
+        LEFT JOIN familia f ON r.familia_id = f.id
+        WHERE btrim(COALESCE(r.nro_pedido_ref, '')) = btrim($1)
+          AND r.familia_id IS NOT NULL
+      ),
+      planilla_latest AS (
+        SELECT familia_id, equipo
+        FROM planilla_base
+        ORDER BY fecha DESC NULLS LAST, hora_inicio DESC NULLS LAST, id DESC
+        LIMIT 1
+      ),
+      planilla_counted AS (
+        SELECT COUNT(DISTINCT familia_id)::int AS familias_detectadas
+        FROM planilla_base
+      ),
+      vigentes_base AS (
+        SELECT
+          f.id AS familia_id,
+          f.descripcion AS equipo,
+          rd.id
+        FROM reparaciones_dota rd
+        LEFT JOIN familia f
+          ON btrim(COALESCE(f.codigo, '')) = btrim(COALESCE(rd.codigo, ''))
+          OR lower(btrim(COALESCE(f.descripcion, ''))) = lower(btrim(COALESCE(rd.descripcion, '')))
+        WHERE btrim(COALESCE(rd.nro_pedido, '')) = btrim($1)
+          AND f.id IS NOT NULL
+      ),
+      vigentes_latest AS (
+        SELECT familia_id, equipo
+        FROM vigentes_base
+        ORDER BY id DESC
+        LIMIT 1
+      ),
+      vigentes_counted AS (
+        SELECT COUNT(DISTINCT familia_id)::int AS familias_detectadas
+        FROM vigentes_base
+      )
+      SELECT
+        $1::text AS nro_pedido_ref,
+        CASE
+          WHEN COALESCE(vigentes_counted.familias_detectadas, 0) > 0 THEN vigentes_latest.familia_id
+          ELSE planilla_latest.familia_id
+        END AS familia_id,
+        CASE
+          WHEN COALESCE(vigentes_counted.familias_detectadas, 0) > 0 THEN vigentes_latest.equipo
+          ELSE planilla_latest.equipo
+        END AS equipo,
+        CASE
+          WHEN COALESCE(vigentes_counted.familias_detectadas, 0) > 0 THEN COALESCE(vigentes_counted.familias_detectadas, 0)
+          ELSE COALESCE(planilla_counted.familias_detectadas, 0)
+        END AS familias_detectadas
+      FROM planilla_counted
+      CROSS JOIN vigentes_counted
+      LEFT JOIN planilla_latest ON true
+      LEFT JOIN vigentes_latest ON true
+    `;
+    const { rows } = await pool.query(sql, [nro]);
+    const row = rows[0] || {};
+    return res.json({
+      nro_pedido_ref: nro,
+      familia_id: row.familia_id ?? null,
+      equipo: row.equipo ?? null,
+      familias_detectadas: Number(row.familias_detectadas || 0)
+    });
+  } catch (err) {
+    console.error("Error GET /reparaciones_planilla/pedido_info:", err);
+    return res.status(500).json({ error: "Error al obtener info del nro de pedido" });
+  }
+});
+
+// ============================
+// Buscar por nro de pedido (parcial) en equipos_reparaciones
+// ============================
 router.get("/por_pedido", async (req, res) => {
   const nro = (req.query.nro || "").trim();
   if (!nro) return res.json([]);

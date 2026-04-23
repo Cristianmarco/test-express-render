@@ -96,8 +96,6 @@
 
   async function cargarOpcionesSelect(url, selectId, valueField, textField, codeField) {
     const sel = qs(selectId);
-    if (!sel) return;
-    sel.innerHTML = `<option value="">Cargando...</option>`;
     try {
       const res = await fetch(url);
       const data = await res.json();
@@ -109,6 +107,7 @@
         if (url.includes('/api/marca')) cache.marcas = Array.isArray(data) ? data : [];
         if (url.includes('/api/proveedores')) cache.proveedores = Array.isArray(data) ? data : [];
       } catch {}
+      if (!sel) return;
       sel.innerHTML = `<option value="">Seleccione</option>`;
       data.forEach(item => {
         const opt = document.createElement("option");
@@ -121,13 +120,83 @@
       });
     } catch (e) {
       console.error("Error cargarOpcionesSelect", url, e);
-      sel.innerHTML = `<option value="">(sin datos)</option>`;
+      if (sel) sel.innerHTML = `<option value="">(sin datos)</option>`;
     }
+  }
+
+  function getSelectedFamiliasIds() {
+    return Array.from(document.querySelectorAll('#prod-familias-checklist input[name="familias"]:checked')).map(ch => String(ch.value));
+  }
+
+  function setSelectedFamiliasIds(ids) {
+    const selected = new Set((ids || []).map(String));
+    document.querySelectorAll('#prod-familias-checklist input[name="familias"]').forEach(ch => {
+      ch.checked = selected.has(String(ch.value));
+    });
+  }
+
+  function renderFamiliasChecklist(lista) {
+    const box = qs('prod-familias-checklist');
+    if (!box) return;
+    const selected = new Set(getSelectedFamiliasIds());
+    const items = Array.isArray(lista) ? lista : [];
+    if (!items.length) {
+      box.innerHTML = `<div style="color:#64748b; font-size:12px;">(sin familias disponibles)</div>`;
+      return;
+    }
+    const classify = (f) => {
+      const cat = String(f.categoria || '').trim().toLowerCase();
+      const text = `${f.codigo ? `${f.codigo} - ` : ''}${f.descripcion || f.nombre || f.id}`.toLowerCase();
+      if (cat.includes('alternador') || text.includes('alternador')) return 'alternadores';
+      if (cat.includes('arranque') || text.includes('arranque')) return 'arranques';
+      return 'otros';
+    };
+    const groups = {
+      alternadores: items.filter(f => classify(f) === 'alternadores'),
+      arranques: items.filter(f => classify(f) === 'arranques'),
+      otros: items.filter(f => classify(f) === 'otros'),
+    };
+    const renderItem = (f) => {
+      const id = String(f.id);
+      const checked = selected.has(id) ? 'checked' : '';
+      const label = `${f.codigo ? `${f.codigo} - ` : ''}${f.descripcion || f.nombre || f.id}`;
+      return `<label style="display:grid; grid-template-columns:16px minmax(0, 1fr); gap:6px; align-items:center; border:1px solid #eef2f7; border-radius:7px; padding:3px 6px; min-width:0;">
+        <input type="checkbox" name="familias" value="${id}" ${checked} style="margin:0;" />
+        <span style="font-size:11px; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left;">${label}</span>
+      </label>`;
+    };
+    const renderColumn = (title, arr) => `
+      <div style="min-width:0;">
+        <div style="position:sticky; top:-8px; z-index:1; background:#fff; padding:0 0 6px; font-size:11px; font-weight:700; color:#334155; text-transform:uppercase;">${title} (${arr.length})</div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          ${arr.length ? arr.map(renderItem).join('') : `<div style="color:#94a3b8; font-size:11px; padding:4px 0;">Sin familias</div>`}
+        </div>
+      </div>`;
+    const mainColumns = [];
+    if (groups.alternadores.length) mainColumns.push(renderColumn('Alternadores', groups.alternadores));
+    if (groups.arranques.length) mainColumns.push(renderColumn('Arranques', groups.arranques));
+    if (!mainColumns.length) {
+      mainColumns.push(`<div style="color:#94a3b8; font-size:11px; padding:4px 0;">Sin familias para el grupo seleccionado.</div>`);
+    }
+    const colsTemplate = mainColumns.length > 1
+      ? 'minmax(0, 1fr) minmax(0, 1fr)'
+      : 'minmax(0, 1fr)';
+    box.innerHTML = `
+      <div style="display:grid; width:100%; grid-template-columns:${colsTemplate}; gap:10px 12px; box-sizing:border-box;">
+        ${mainColumns.join('')}
+      </div>
+      ${groups.otros.length ? `
+        <div style="margin-top:10px;">
+          <div style="font-size:11px; font-weight:700; color:#334155; text-transform:uppercase; margin-bottom:6px;">Otros (${groups.otros.length})</div>
+          <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:4px 10px;">
+            ${groups.otros.map(renderItem).join('')}
+          </div>
+        </div>` : ''}
+    `;
   }
 
   // ---- Helpers de filtrado dependiente ----
   function poblarFamiliasFiltradas(grupoId) {
-    const sel = qs('prod-familia_id'); if (!sel) return;
     const todas = cache.familias || [];
     let permitidas = todas;
     try {
@@ -141,24 +210,17 @@
         }
       }
     } catch {}
-    const selected = sel.value;
-    sel.innerHTML = '<option value="">Seleccione</option>';
-    permitidas.forEach(f => {
-      const opt = document.createElement('option');
-      opt.value = f.id; opt.textContent = `${f.codigo ? f.codigo + ' - ' : ''}${f.descripcion || f.nombre || f.id}`;
-      if (String(selected) === String(f.id)) opt.selected = true;
-      sel.appendChild(opt);
-    });
+    renderFamiliasChecklist(permitidas);
   }
 
   function poblarCategoriasDesdeFamilias() {
     const selC = qs('prod-categoria_id'); if (!selC) return;
     const todas = cache.categorias || [];
-    const famSel = qs('prod-familia_id')?.value;
-    const fam = (cache.familias || []).find(f => String(f.id) === String(famSel));
-    const catId = fam && fam.categoria_id ? String(fam.categoria_id) : null;
+    const famIds = new Set(getSelectedFamiliasIds());
+    const familiasSel = (cache.familias || []).filter(f => famIds.has(String(f.id)));
+    const catIds = Array.from(new Set(familiasSel.map(f => f && f.categoria_id != null ? String(f.categoria_id) : '').filter(Boolean)));
     let permitidas = todas;
-    if (catId) permitidas = todas.filter(c => String(c.id) === catId);
+    if (catIds.length) permitidas = todas.filter(c => catIds.includes(String(c.id)));
     const selected = selC.value;
     selC.innerHTML = '<option value="">Seleccione</option>';
     permitidas.forEach(c => {
@@ -169,6 +231,7 @@
     });
     // si hay una única categoría permitida, seleccionarla por conveniencia
     if (permitidas.length === 1) selC.value = String(permitidas[0].id);
+    else if (selected && permitidas.some(c => String(c.id) === String(selected))) selC.value = String(selected);
   }
 
   function cargarProductoEnFormulario(prod) {
@@ -184,8 +247,7 @@
     poblarCategoriasDesdeFamilias();
     // familia/categoria principal si vienen en arreglo (M2M)
     if (prod.familias && prod.familias.length) {
-      const famId = String(prod.familias[0].id);
-      const fSel = qs('prod-familia_id'); if (fSel) fSel.value = famId;
+      setSelectedFamiliasIds(prod.familias.map(f => f.id));
       poblarCategoriasDesdeFamilias();
     }
     if (prod.categorias && prod.categorias.length) {
@@ -214,8 +276,8 @@
       // bind dependencias una sola vez
       const gSel = qs('prod-grupo_id');
       if (gSel && !gSel._bound) { gSel._bound = true; gSel.addEventListener('change', () => { poblarFamiliasFiltradas(gSel.value); poblarCategoriasDesdeFamilias(); }); }
-      const fSel = qs('prod-familia_id');
-      if (fSel && !fSel._bound) { fSel._bound = true; fSel.addEventListener('change', poblarCategoriasDesdeFamilias); }
+      const famBox = qs('prod-familias-checklist');
+      if (famBox && !famBox._bound) { famBox._bound = true; famBox.addEventListener('change', poblarCategoriasDesdeFamilias); }
       qs("modal-agregar-producto").style.display = "flex";
     };
 
@@ -233,8 +295,8 @@
       cargarProductoEnFormulario(productoSeleccionado);
       const gSel = qs('prod-grupo_id');
       if (gSel && !gSel._bound) { gSel._bound = true; gSel.addEventListener('change', () => { poblarFamiliasFiltradas(gSel.value); poblarCategoriasDesdeFamilias(); }); }
-      const fSel = qs('prod-familia_id');
-      if (fSel && !fSel._bound) { fSel._bound = true; fSel.addEventListener('change', poblarCategoriasDesdeFamilias); }
+      const famBox = qs('prod-familias-checklist');
+      if (famBox && !famBox._bound) { famBox._bound = true; famBox.addEventListener('change', poblarCategoriasDesdeFamilias); }
       qs("modal-agregar-producto").style.display = "flex";
     };
 
@@ -264,16 +326,15 @@
         poblarCategoriasDesdeFamilias();
         // seleccionar familia principal si viene en arreglo (M2M)
         if (productoSeleccionado.familias && productoSeleccionado.familias.length) {
-          const famId = String(productoSeleccionado.familias[0].id);
-          const fSel2 = qs('prod-familia_id'); if (fSel2) fSel2.value = famId;
+          setSelectedFamiliasIds(productoSeleccionado.familias.map(f => f.id));
           poblarCategoriasDesdeFamilias();
         }
       }
       // bind dependencias si no están
       const gSel = qs('prod-grupo_id');
       if (gSel && !gSel._bound) { gSel._bound = true; gSel.addEventListener('change', () => { poblarFamiliasFiltradas(gSel.value); poblarCategoriasDesdeFamilias(); }); }
-      const fSel = qs('prod-familia_id');
-      if (fSel && !fSel._bound) { fSel._bound = true; fSel.addEventListener('change', poblarCategoriasDesdeFamilias); }
+      const famBox = qs('prod-familias-checklist');
+      if (famBox && !famBox._bound) { famBox._bound = true; famBox.addEventListener('change', poblarCategoriasDesdeFamilias); }
       qs("modal-agregar-producto").style.display = "flex";
     };
 
@@ -313,8 +374,9 @@
       const fd = new FormData(formProd);
       const datos = Object.fromEntries(fd.entries());
       // familia única
-      const famVal = qs('prod-familia_id')?.value || '';
-      datos.familia_id = famVal || null;
+      const familiasSel = getSelectedFamiliasIds();
+      datos.familias = familiasSel;
+      datos.familia_id = familiasSel[0] || null;
       const editMode = !forceCreate && !!(productoSeleccionado && productoSeleccionado.id);
       const url = editMode ? `/api/productos/${productoSeleccionado.id}` : "/api/productos";
       const method = editMode ? "PUT" : "POST";

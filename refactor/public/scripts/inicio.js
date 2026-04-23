@@ -36,6 +36,8 @@ function actualizarTotales(valores) {
   document.getElementById("total-vencidos").textContent = valores.vencidos;
 }
 
+window.refreshInicioStats = cargarEstadisticas;
+
 // Asegurar inicialización cuando la vista se carga dinámicamente
 (function(){
   if (window.__inicioBoot) return; window.__inicioBoot = true;
@@ -44,4 +46,5 @@ function actualizarTotales(valores) {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
   document.addEventListener('view:changed', (e)=>{ if (e && e.detail === 'inicio') run(); });
+  document.addEventListener('dashboard:refresh', run);
 })();

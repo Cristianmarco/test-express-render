@@ -65,8 +65,8 @@ router.get("/", async (req, res, next) => {
         LEFT JOIN familia f ON f.id = gf.familia_id
         GROUP BY g.id
         ORDER BY
-          REGEXP_REPLACE(g.codigo, '[0-9]', '', 'g'),
-          NULLIF(REGEXP_REPLACE(g.codigo, '[^0-9]', '', 'g'), '')::int
+          REGEXP_REPLACE(btrim(g.codigo), '[0-9]', '', 'g'),
+          NULLIF(REGEXP_REPLACE(btrim(g.codigo), '[^0-9]', '', 'g'), '')::int
       `;
       const rows = (await db.query(q)).rows;
       return res.json(rows);
@@ -80,8 +80,8 @@ router.get("/", async (req, res, next) => {
           FROM ${table} g
           LEFT JOIN familia f ON g.familia_id = f.id
           ORDER BY
-            REGEXP_REPLACE(g.codigo, '[0-9]', '', 'g'),
-            NULLIF(REGEXP_REPLACE(g.codigo, '[^0-9]', '', 'g'), '')::int
+            REGEXP_REPLACE(btrim(g.codigo), '[0-9]', '', 'g'),
+            NULLIF(REGEXP_REPLACE(btrim(g.codigo), '[^0-9]', '', 'g'), '')::int
         `;
         rows = (await db.query(q)).rows;
       } else {
@@ -89,8 +89,8 @@ router.get("/", async (req, res, next) => {
           SELECT g.id, g.codigo, g.descripcion, NULL::int AS familia_id, NULL::text AS familia
           FROM ${table} g
           ORDER BY
-            REGEXP_REPLACE(g.codigo, '[0-9]', '', 'g'),
-            NULLIF(REGEXP_REPLACE(g.codigo, '[^0-9]', '', 'g'), '')::int
+            REGEXP_REPLACE(btrim(g.codigo), '[0-9]', '', 'g'),
+            NULLIF(REGEXP_REPLACE(btrim(g.codigo), '[^0-9]', '', 'g'), '')::int
         `;
         rows = (await db.query(q)).rows;
       }
@@ -108,16 +108,18 @@ router.get("/", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   const client = await db.connect();
   try {
-    const { codigo, descripcion } = req.body;
+    const codigo = String(req.body.codigo || '').trim();
+    const descripcion = String(req.body.descripcion || '').trim();
     let { familias, familia_id } = req.body;
     if (!codigo || !descripcion) {
-      client.release();
       return res.status(400).json({ error: "Datos obligatorios" });
     }
-    const hasPivot = await tableExists('grupo_familia');
+    const { table, pivot } = await pickGroupsTables();
+    if (!table) return res.status(500).json({ error: "No se encontro la tabla de grupos" });
+    const hasPivot = !!pivot;
     await client.query('BEGIN');
     const ins = await client.query(
-      `INSERT INTO grupo (codigo, descripcion${hasPivot ? '' : ', familia_id'}) VALUES ($1,$2${hasPivot ? '' : ',$3'}) RETURNING id`,
+      `INSERT INTO ${table} (codigo, descripcion${hasPivot ? '' : ', familia_id'}) VALUES ($1,$2${hasPivot ? '' : ',$3'}) RETURNING id`,
       hasPivot ? [codigo, descripcion] : [codigo, descripcion, familia_id || (Array.isArray(familias) ? familias[0] : null)]
     );
     const groupId = ins.rows[0].id;
@@ -125,13 +127,16 @@ router.post("/", async (req, res, next) => {
       const arr = Array.isArray(familias) ? familias : (familia_id ? [familia_id] : []);
       for (const fid of arr) {
         if (!fid) continue;
-        await client.query(`INSERT INTO grupo_familia (grupo_id, familia_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [groupId, fid]);
+        await client.query(`INSERT INTO ${pivot} (grupo_id, familia_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [groupId, fid]);
       }
     }
     await client.query('COMMIT');
     res.status(201).json({ mensaje: "Grupo creado", id: groupId });
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch(_) {}
+    if (e && e.code === '23505') {
+      return res.status(409).json({ error: 'El codigo del grupo ya existe' });
+    }
     next(e);
   } finally {
     client.release();
@@ -143,25 +148,31 @@ router.put("/:id", async (req, res, next) => {
   const client = await db.connect();
   try {
     const id = req.params.id;
-    const { codigo, descripcion } = req.body;
+    const codigo = String(req.body.codigo || '').trim();
+    const descripcion = String(req.body.descripcion || '').trim();
     let { familias, familia_id } = req.body;
-    const hasPivot = await tableExists('grupo_familia');
+    const { table, pivot } = await pickGroupsTables();
+    if (!table) return res.status(500).json({ error: "No se encontro la tabla de grupos" });
+    const hasPivot = !!pivot;
     await client.query('BEGIN');
     if (hasPivot) {
-      await client.query(`UPDATE grupo SET codigo=$1, descripcion=$2 WHERE id=$3`, [codigo, descripcion, id]);
-      await client.query(`DELETE FROM grupo_familia WHERE grupo_id=$1`, [id]);
+      await client.query(`UPDATE ${table} SET codigo=$1, descripcion=$2 WHERE id=$3`, [codigo, descripcion, id]);
+      await client.query(`DELETE FROM ${pivot} WHERE grupo_id=$1`, [id]);
       const arr = Array.isArray(familias) ? familias : (familia_id ? [familia_id] : []);
       for (const fid of arr) {
         if (!fid) continue;
-        await client.query(`INSERT INTO grupo_familia (grupo_id, familia_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [id, fid]);
+        await client.query(`INSERT INTO ${pivot} (grupo_id, familia_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [id, fid]);
       }
     } else {
-      await client.query(`UPDATE grupo SET codigo=$1, descripcion=$2, familia_id=$3 WHERE id=$4`, [codigo, descripcion, familia_id || (Array.isArray(familias) ? familias[0] : null), id]);
+      await client.query(`UPDATE ${table} SET codigo=$1, descripcion=$2, familia_id=$3 WHERE id=$4`, [codigo, descripcion, familia_id || (Array.isArray(familias) ? familias[0] : null), id]);
     }
     await client.query('COMMIT');
     res.json({ mensaje: "Grupo actualizado" });
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch(_) {}
+    if (e && e.code === '23505') {
+      return res.status(409).json({ error: 'El codigo del grupo ya existe' });
+    }
     next(e);
   } finally {
     client.release();
@@ -171,7 +182,9 @@ router.put("/:id", async (req, res, next) => {
 // 📌 Eliminar grupo
 router.delete("/:id", async (req, res, next) => {
   try {
-    await db.query("DELETE FROM grupo WHERE id=$1", [req.params.id]);
+    const { table } = await pickGroupsTables();
+    if (!table) return res.status(500).json({ error: "No se encontro la tabla de grupos" });
+    await db.query(`DELETE FROM ${table} WHERE id=$1`, [req.params.id]);
     res.json({ mensaje: "Grupo eliminado" });
   } catch (e) {
     next(e);
@@ -197,16 +210,16 @@ router.get("/by_familia/:familia_id", async (req, res, next) => {
                  INNER JOIN ${pivot} gf ON gf.grupo_id = g.id
                  WHERE gf.familia_id = $1
                  ORDER BY
-                   regexp_replace(g.codigo, '[0-9]', '', 'g'),
-                   NULLIF(regexp_replace(g.codigo, '[^0-9]', '', 'g'), '')::int`;
+                   regexp_replace(btrim(g.codigo), '[0-9]', '', 'g'),
+                   NULLIF(regexp_replace(btrim(g.codigo), '[^0-9]', '', 'g'), '')::int`;
       rows = (await db.query(q, [familia_id])).rows;
     } else {
       const q = `SELECT id, codigo, descripcion
                  FROM ${table}
                  WHERE familia_id = $1
                  ORDER BY
-                   regexp_replace(codigo, '[0-9]', '', 'g'),
-                   NULLIF(regexp_replace(codigo, '[^0-9]', '', 'g'), '')::int`;
+                   regexp_replace(btrim(codigo), '[0-9]', '', 'g'),
+                   NULLIF(regexp_replace(btrim(codigo), '[^0-9]', '', 'g'), '')::int`;
       rows = (await db.query(q, [familia_id])).rows;
     }
     res.json(rows);

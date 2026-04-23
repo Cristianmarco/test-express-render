@@ -1,4 +1,4 @@
-<!-- Modal: Alta/Edición de Producto -->
+<!-- Modal: Alta/Edicion de Producto -->
 <div id="modal-agregar-producto" class="modal-refactor" style="display:none;">
   <div class="modal-contenido-refactor modal-erp-producto modal-agregar-producto-grande">
     <span class="cerrar" onclick="document.getElementById('modal-agregar-producto').style.display='none'">&times;</span>
@@ -7,11 +7,11 @@
     <form id="form-producto-refactor" autocomplete="off">
       <div class="form-grid doble">
         <div>
-          <label>Código *</label>
+          <label>Codigo *</label>
           <input name="codigo" required />
         </div>
         <div>
-          <label>Descripción *</label>
+          <label>Descripcion *</label>
           <input name="descripcion" required />
         </div>
       </div>
@@ -22,52 +22,59 @@
           <input name="equivalencia" />
         </div>
         <div>
-          <label>Código de barras</label>
+          <label>Codigo de barras</label>
           <input name="codigo_barra" />
         </div>
       </div>
 
       <div class="form-grid">
         <div>
-          <label>Descripción adicional</label>
+          <label>Descripcion adicional</label>
           <textarea name="descripcion_adicional" rows="2"></textarea>
         </div>
       </div>
 
-      <div class="form-grid doble">
+      <div class="form-grid">
         <div>
-          <label>Familia</label>
-          <select id="prod-familia_id" name="familia_id"></select>
+          <label>Familias</label>
+          <div id="prod-familias-box" style="width:100%; box-sizing:border-box; border:1px solid #dbe3ee; border-radius:10px; background:#fff;">
+            <div style="padding:8px 10px; border-bottom:1px solid #eef2f7; font-size:12px; font-weight:600; color:#475569;">
+              Seleccione una o varias familias
+            </div>
+            <div id="prod-familias-checklist" style="width:100%; max-height:260px; overflow:auto; padding:8px 10px; box-sizing:border-box;">
+              <div style="color:#64748b; font-size:12px;">Cargando familias...</div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div class="form-grid doble">
         <div>
           <label>Grupo</label>
           <select id="prod-grupo_id" name="grupo_id"></select>
         </div>
-      </div>
-
-      <div class="form-grid doble">
         <div>
           <label>Marca</label>
           <select id="prod-marca_id" name="marca_id"></select>
         </div>
+      </div>
+
+      <div class="form-grid doble">
         <div>
-          <label>Categoría (una)</label>
+          <label>Categoria (una)</label>
           <select id="prod-categoria_id" name="categoria_id"></select>
+        </div>
+        <div>
+          <label>Proveedor</label>
+          <select id="prod-proveedor_id" name="proveedor_id"></select>
         </div>
       </div>
 
       <div class="form-grid doble">
         <div>
-          <label>Proveedor</label>
-          <select id="prod-proveedor_id" name="proveedor_id"></select>
-        </div>
-        <div>
           <label>Origen</label>
           <input name="origen" />
         </div>
-      </div>
-
-      <div class="form-grid">
         <div>
           <label>IVA</label>
           <select name="iva_tipo">
@@ -84,7 +91,7 @@
       </button>
     </form>
   </div>
-  </div>
+</div>
 
 <!-- Modal: Movimiento de Stock -->
 <div id="modal-mov-stock" class="modal-refactor" style="display:none;">
@@ -95,7 +102,7 @@
     <form id="form-mov-stock-refactor" autocomplete="off">
       <div class="form-grid doble">
         <div>
-          <label>Depósito</label>
+          <label>Deposito</label>
           <select id="mov-deposito" name="deposito_id" required></select>
         </div>
         <div>
@@ -114,7 +121,7 @@
       </div>
       <div class="form-grid">
         <div>
-          <label>Observación</label>
+          <label>Observacion</label>
           <textarea id="mov-observacion" name="observacion" rows="2"></textarea>
         </div>
       </div>
@@ -140,16 +147,16 @@
     <!-- Tab: Detalle -->
     <div id="md-tab-detalle" class="tab-erp" style="">
       <div class="detalle-grid">
-        <p><b>Código:</b> <span id="md-codigo">-</span></p>
-        <p><b>Descripción:</b> <span id="md-descripcion">-</span></p>
+        <p><b>Codigo:</b> <span id="md-codigo">-</span></p>
+        <p><b>Descripcion:</b> <span id="md-descripcion">-</span></p>
         <p><b>Familia:</b> <span id="md-familia">-</span></p>
         <p><b>Grupo:</b> <span id="md-grupo">-</span></p>
         <p><b>Marca:</b> <span id="md-marca">-</span></p>
-        <p><b>Categoría:</b> <span id="md-categoria">-</span></p>
+        <p><b>Categoria:</b> <span id="md-categoria">-</span></p>
         <p><b>Proveedor:</b> <span id="md-proveedor">-</span></p>
         <p><b>Origen:</b> <span id="md-origen">-</span></p>
         <p><b>IVA:</b> <span id="md-iva">-</span></p>
-        <p><b>Código barras:</b> <span id="md-codbarra">-</span></p>
+        <p><b>Codigo barras:</b> <span id="md-codbarra">-</span></p>
       </div>
     </div>
 
@@ -157,13 +164,13 @@
     <div id="md-tab-stock" class="tab-erp" style="display:none;">
       <div class="erp-table-card" style="margin-bottom:12px;">
         <table class="tabla-erp">
-          <thead><tr><th>Depósito</th><th>Cantidad</th></tr></thead>
+          <thead><tr><th>Deposito</th><th>Cantidad</th></tr></thead>
           <tbody id="md-tbody-stock"></tbody>
         </table>
       </div>
       <div class="erp-table-card">
         <table class="tabla-erp">
-          <thead><tr><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Cantidad</th><th>Depósito</th><th>Obs.</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Hora</th><th>Tipo</th><th>Cantidad</th><th>Deposito</th><th>Obs.</th></tr></thead>
           <tbody id="md-tbody-movimientos"></tbody>
         </table>
       </div>

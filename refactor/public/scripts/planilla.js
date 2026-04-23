@@ -1134,6 +1134,7 @@ function bindPlanillaActions() {
       limpiarFichaTecnicaSugerida();
     }
     prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
+    bindPedidoFamiliaAutofill();
     bindClienteExternoToggle(true);
     bindGarantiaToggle(true);
   };
@@ -1196,12 +1197,16 @@ function bindPlanillaActions() {
 
     // Familia: solo cargar y seleccionar
     await prepararSelectFamilias();
+    bindPedidoFamiliaAutofill();
     const fam = document.getElementById('familia_id');
     if (fam && seleccion.familia_id) {
       fam.value = String(seleccion.familia_id);
       await cargarFichaTecnicaFamilia(fam.value);
     } else {
       limpiarFichaTecnicaSugerida();
+      if (String(seleccion.garantia || '').toLowerCase() !== 'si' && (seleccion.nro_pedido_ref || '')) {
+        await autocompletarFamiliaPorPedido(true);
+      }
     }
   };
 
@@ -1366,12 +1371,64 @@ async function prepararSelectFamilias(){
     selFam._fichaBound = true;
     selFam.addEventListener('change', () => cargarFichaTecnicaFamilia(selFam.value));
   }
+  const pedidoInput = document.getElementById('nro_pedido_ref');
+  if (pedidoInput && pedidoInput.value && !selFam.value) {
+    setTimeout(() => { autocompletarFamiliaPorPedido(true); }, 0);
+  }
 }
 
 // Populate tecnicos select
 async function prepararSelectTecnicos(){
   await cargarTecnicosEnSelect('tecnico_id');
   await cargarTecnicosEnSelect('ultimo_reparador');
+}
+async function autocompletarFamiliaPorPedido(force = false){
+  const pedidoInput = document.getElementById('nro_pedido_ref');
+  const familiaSel = document.getElementById('familia_id');
+  const garantiaSel = document.getElementById('garantia');
+  if(!pedidoInput || !familiaSel) return;
+  if (garantiaSel && garantiaSel.value === 'si') return;
+  const nro = String(pedidoInput.value || '').trim();
+  if (!nro) {
+    pedidoInput.dataset.lastPedidoLookup = '';
+    pedidoInput.title = '';
+    return;
+  }
+  if (!force && pedidoInput.dataset.lastPedidoLookup === nro) return;
+  pedidoInput.dataset.lastPedidoLookup = nro;
+  try{
+    const res = await fetch(`/api/reparaciones_planilla/pedido_info?nro=${encodeURIComponent(nro)}`, { credentials:'include' });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(data.error || 'No se pudo obtener el equipo del pedido');
+    if (!data || !data.familia_id) { pedidoInput.title = ''; return; }
+    if (Number(data.familias_detectadas || 0) > 1) {
+      pedidoInput.title = 'Este pedido tiene mas de un equipo asignado. Seleccione la familia manualmente.';
+      return;
+    }
+    const familiaId = String(data.familia_id);
+    if (!familiaSel.querySelector(`option[value="${familiaId}"]`)) {
+      await prepararSelectFamilias();
+    }
+    if (familiaSel.querySelector(`option[value="${familiaId}"]`)) {
+      familiaSel.value = familiaId;
+      familiaSel.dispatchEvent(new Event('change', { bubbles: true }));
+      pedidoInput.title = data.equipo ? `Equipo autocompletado: ${data.equipo}` : '';
+    }
+  }catch(err){
+    console.warn('No se pudo autocompletar la familia por pedido', err);
+  }
+}
+
+function bindPedidoFamiliaAutofill(){
+  const pedidoInput = document.getElementById('nro_pedido_ref');
+  if(!pedidoInput || pedidoInput._pedidoAutofillBound) return;
+  pedidoInput._pedidoAutofillBound = true;
+  pedidoInput.addEventListener('input', () => {
+    clearTimeout(pedidoInput._pedidoAutofillTimer);
+    pedidoInput._pedidoAutofillTimer = setTimeout(() => autocompletarFamiliaPorPedido(true), 250);
+  });
+  pedidoInput.addEventListener('change', () => autocompletarFamiliaPorPedido(true));
+  pedidoInput.addEventListener('blur', () => autocompletarFamiliaPorPedido(true));
 }
 
 // Mostrar/ocultar campos extra de garantía
@@ -1976,6 +2033,7 @@ function initPlanilla(){
   bindRepuestosModal();
   bindProductoSelectorSimple();
   prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
+  bindPedidoFamiliaAutofill();
   bindCodigoRepuestoEnter();
   bindTrabajoWatcher();
   bindTrabajoAutocomplete();
