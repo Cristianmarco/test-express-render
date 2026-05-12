@@ -8,6 +8,14 @@
     #modal-planilla .modal-planilla-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
     #modal-planilla .modal-planilla-actions label { font-size: 0.85rem; font-weight: 600; color: #1a5a90; }
     #modal-planilla .campo-orden-planilla { padding: 6px 10px; border: 1px solid #c5d8ef; border-radius: 6px; font-size: 13px; }
+    #modal-planilla .modal-contenido-refactor.modal-erp-producto { width: min(98vw, 1560px); max-width: 1560px; }
+    #modal-planilla .tabla-planilla-diaria { table-layout: fixed; width: 100%; }
+    #modal-planilla .tabla-planilla-diaria th,
+    #modal-planilla .tabla-planilla-diaria td {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   </style>
   <div class="modal-contenido-refactor modal-erp-producto modal-agregar-producto-grande">
     <span class="cerrar" onclick="cerrarModalPlanilla()">&times;</span>
@@ -25,7 +33,18 @@
     </div>
 
     <div class="erp-table-card">
-      <table class="tabla-erp">
+      <table class="tabla-erp tabla-planilla-diaria">
+        <colgroup>
+          <col style="width: 52px;">
+          <col style="width: 130px;">
+          <col style="width: 125px;">
+          <col style="width: 95px;">
+          <col style="width: 300px;">
+          <col style="width: 140px;">
+          <col style="width: 95px;">
+          <col style="width: 115px;">
+          <col style="width: 380px;">
+        </colgroup>
         <thead>
           <tr>
             <th>#</th>
@@ -74,7 +93,7 @@
 <!-- MODAL REPUESTOS POR PEDIDO -->
 <div id="modal-repuestos-planilla" class="modal-refactor" style="display:none;">
   <style>
-    #modal-repuestos-planilla .form-repuestos-grid { display: grid; grid-template-columns: 1fr 1.6fr 0.9fr 1fr 1fr; gap: 14px; align-items: end; }
+    #modal-repuestos-planilla .form-repuestos-grid { display: grid; grid-template-columns: 1fr 1.5fr 1.2fr 0.9fr 1fr 1fr; gap: 14px; align-items: end; }
     #modal-repuestos-planilla .form-repuestos-grid label { font-size: 0.85rem; font-weight: 600; color: #1a5a90; }
     #modal-repuestos-planilla .form-repuestos-grid > div { min-width: 0; }
     #modal-repuestos-planilla .form-repuestos-grid input,
@@ -129,6 +148,13 @@
         </select>
       </div>
       <div>
+        <label for="repuestos-cliente">Cliente</label>
+        <select id="repuestos-cliente">
+          <option value="">Todos</option>
+          <option value="dota">Dota</option>
+        </select>
+      </div>
+      <div>
         <label for="repuestos-tipo">Tipo</label>
         <select id="repuestos-tipo">
           <option value="">Todos</option>
@@ -164,6 +190,7 @@
             <th><input type="checkbox" id="repuestos-check-all" title="Seleccionar todos" /></th>
             <th>Fecha</th>
             <th>ID Reparacion</th>
+            <th>Cliente</th>
             <th>Equipo</th>
             <th>Tecnico</th>
             <th>Nro Pedido</th>
@@ -488,7 +515,6 @@
       <div><b>ID Reparacion:</b> <span id="historial-id"></span></div>
       <div><b>Cliente:</b> <span id="historial-cliente"></span></div>
       <div><b>Equipo:</b> <span id="historial-equipo"></span></div>
-      <div><b>Nro Coche:</b> <span id="historial-coche"></span></div>
     </div>
 
     <div id="historial-garantia-extra" class="historial-header garantia-extra" style="display:none;">
@@ -498,10 +524,20 @@
     </div>
 
     <div class="erp-table-card historial-tabla">
-      <table class="tabla-erp">
+      <table class="tabla-erp tabla-historial-reparaciones">
+        <colgroup>
+          <col style="width: 110px;">
+          <col style="width: 110px;">
+          <col style="width: 340px;">
+          <col style="width: 120px;">
+          <col style="width: 120px;">
+          <col style="width: 130px;">
+          <col style="width: 150px;">
+        </colgroup>
         <thead>
           <tr id="historial-head-row">
             <th>Fecha</th>
+            <th>Nro Coche</th>
             <th>Trabajo</th>
             <th>Hora Inicio</th>
             <th>Hora Fin</th>

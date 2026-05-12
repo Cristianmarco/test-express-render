@@ -394,7 +394,7 @@
         await cargarProductos(qs("buscar-producto")?.value || "");
       } catch (e) {
         console.error(e);
-        alert("No se pudo guardar el producto");
+        alert(e.message || "No se pudo guardar el producto");
       }
     };
 

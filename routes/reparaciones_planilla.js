@@ -625,11 +625,12 @@ router.get("/por_pedido", async (req, res) => {
 router.get("/repuestos", async (req, res) => {
   const nro = (req.query.nro || "").trim();
   const familia = (req.query.familia || "").trim();
+  const cliente = (req.query.cliente || "").trim();
   const tipo = (req.query.tipo || "").trim().toLowerCase();
   const desde = (req.query.desde || "").trim();
   const hasta = (req.query.hasta || "").trim();
-  if (!nro && !familia && tipo !== 'garantia') {
-    return res.status(400).json({ error: "Ingrese nro de pedido, modelo/familia o seleccione garantias" });
+  if (!nro && !familia && !cliente && tipo !== 'garantia') {
+    return res.status(400).json({ error: "Ingrese nro de pedido, modelo/familia, cliente o seleccione garantias" });
   }
   try {
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
@@ -643,10 +644,12 @@ router.get("/repuestos", async (req, res) => {
         r.trabajo,
         r.nro_pedido_ref,
         f.descripcion AS equipo,
-        t.nombre AS tecnico
+        t.nombre AS tecnico,
+        COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
       FROM equipos_reparaciones r
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
+      LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE 1=1
     `;
     const params = [];
@@ -660,6 +663,14 @@ router.get("/repuestos", async (req, res) => {
         COALESCE(f.descripcion, '') ILIKE $${params.length}
         OR COALESCE(f.codigo, '') ILIKE $${params.length}
       )`;
+    }
+    if (cliente) {
+      if (cliente === 'dota') {
+        sql += ` AND LOWER(COALESCE(r.cliente_tipo, 'dota')) = 'dota'`;
+      } else if (cliente.startsWith('externo:')) {
+        params.push(cliente.slice(8));
+        sql += ` AND LOWER(COALESCE(r.cliente_tipo, '')) = 'externo' AND COALESCE(r.cliente_id::text, '') = $${params.length}`;
+      }
     }
     if (tipo === 'garantia') {
       sql += ` AND LOWER(COALESCE(r.garantia::text, '')) IN ('si','true','t','1')`;
@@ -684,6 +695,7 @@ router.get("/repuestos", async (req, res) => {
 router.get("/repuestos/listado", async (req, res) => {
   const nro = (req.query.nro || "").trim();
   const familia = (req.query.familia || "").trim();
+  const cliente = (req.query.cliente || "").trim();
   const tipo = (req.query.tipo || "").trim().toLowerCase();
   const idsRaw = (req.query.ids || "").trim();
   const desde = (req.query.desde || "").trim();
@@ -691,8 +703,8 @@ router.get("/repuestos/listado", async (req, res) => {
   const ids = idsRaw
     ? idsRaw.split(",").map(v => Number(v.trim())).filter(v => Number.isInteger(v) && v > 0)
     : [];
-  if (!nro && !familia && ids.length === 0 && tipo !== 'garantia') {
-    return res.status(400).json({ error: "Ingrese nro de pedido, modelo/familia, garantias o seleccione equipos" });
+  if (!nro && !familia && !cliente && ids.length === 0 && tipo !== 'garantia') {
+    return res.status(400).json({ error: "Ingrese nro de pedido, modelo/familia, cliente, garantias o seleccione equipos" });
   }
   try {
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
@@ -700,6 +712,7 @@ router.get("/repuestos/listado", async (req, res) => {
       SELECT r.trabajo
       FROM equipos_reparaciones r
       LEFT JOIN familia f ON r.familia_id = f.id
+      LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE 1=1
     `;
     const params = [];
@@ -713,6 +726,14 @@ router.get("/repuestos/listado", async (req, res) => {
         COALESCE(f.descripcion, '') ILIKE $${params.length}
         OR COALESCE(f.codigo, '') ILIKE $${params.length}
       )`;
+    }
+    if (cliente) {
+      if (cliente === 'dota') {
+        sql += ` AND LOWER(COALESCE(r.cliente_tipo, 'dota')) = 'dota'`;
+      } else if (cliente.startsWith('externo:')) {
+        params.push(cliente.slice(8));
+        sql += ` AND LOWER(COALESCE(r.cliente_tipo, '')) = 'externo' AND COALESCE(r.cliente_id::text, '') = $${params.length}`;
+      }
     }
     if (tipo === 'garantia') {
       sql += ` AND LOWER(COALESCE(r.garantia::text, '')) IN ('si','true','t','1')`;
@@ -1720,16 +1741,57 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Reparación no encontrada" });
     }
 
+    const reparacionActualizada = result.rows[0];
+    if (garantiaData.id_dota != null && garantiaData.id_dota !== '') {
+      const idCliente = String(garantiaData.id_dota).trim();
+      if (idCliente) {
+        await ensureGarantiasArchiveTable(client);
+        const deleted = await client.query(
+          `DELETE FROM licitacion_garantias WHERE btrim(id_cliente) = $1 RETURNING *`,
+          [idCliente]
+        );
+        if (deleted.rowCount) {
+          const insertArchive = `
+            INSERT INTO licitacion_garantias_archive
+              (reparacion_id, garantia_original_id, id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+          `;
+          for (const row of deleted.rows) {
+            await client.query(insertArchive, [
+              reparacionActualizada.id,
+              row.id,
+              row.id_cliente,
+              row.ingreso,
+              row.cabecera,
+              row.interno,
+              row.codigo,
+              row.alt,
+              row.cantidad,
+              row.notificacion,
+              row.notificado_en,
+              row.detalle,
+              row.recepcion,
+              row.cod_proveedor,
+              row.proveedor,
+              row.ref_proveedor,
+              row.ref_proveedor_alt,
+              row.resolucion
+            ]);
+          }
+        }
+      }
+    }
+
     await recalculatePedidoPendientes(client, anteriorNroPedidoRef);
     if (anteriorNroPedidoRef !== licitacionData.nro_pedido_ref) {
       await recalculatePedidoPendientes(client, licitacionData.nro_pedido_ref);
     }
-    await safeInsertPlanillaAudit(client, req, 'update', result.rows[0], {
-      changes: buildAuditChanges(reparacionAnterior, result.rows[0])
+    await safeInsertPlanillaAudit(client, req, 'update', reparacionActualizada, {
+      changes: buildAuditChanges(reparacionAnterior, reparacionActualizada)
     });
 
     await client.query("COMMIT");
-    res.json(result.rows[0]);
+    res.json(reparacionActualizada);
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch (_) {}
     console.error("❌ Error actualizando reparación:", err);

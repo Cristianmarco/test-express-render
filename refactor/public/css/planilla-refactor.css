@@ -991,6 +991,20 @@ form#form-reparacion .btn-guardar {
 .historial-tabla .tabla-erp { width: 100%; table-layout: fixed; }
 .historial-tabla .tabla-erp th { text-transform: uppercase; font-size: 12px; }
 .historial-tabla .tabla-erp td { word-break: break-word; }
+.historial-tabla .tabla-historial-reparaciones th,
+.historial-tabla .tabla-historial-reparaciones td { vertical-align: top; }
+.historial-tabla .tabla-historial-reparaciones td:not(.historial-trabajo-cell) { white-space: nowrap; }
+.historial-tabla .tabla-historial-reparaciones .historial-trabajo-cell {
+  white-space: normal;
+  line-height: 1.28;
+  text-align: left;
+}
+.historial-tabla .historial-trabajo-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.historial-tabla .historial-trabajo-item { display: block; }
 
 /* Separación extra antes de la tabla del historial */
 .erp-table-card.historial-tabla { margin-top: 10px; }

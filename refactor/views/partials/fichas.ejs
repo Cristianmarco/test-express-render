@@ -232,6 +232,19 @@
           </div>
           <div class="tiny" style="margin-top:4px;">Se sube como foto del carrusel (no reemplaza la portada).</div>
         </div>
+        <div class="full">
+          <label>Agregar despiece / plano</label>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <select id="ficha-despiece-tipo" style="min-width:150px;">
+              <option value="despiece">Despiece</option>
+              <option value="plano">Plano</option>
+            </select>
+            <input type="text" id="ficha-despiece-url" placeholder="Se completa al subir..." style="flex:1; min-width:260px;" readonly />
+            <input type="file" id="ficha-despiece-file" accept="image/*" style="display:none;" />
+            <button type="button" id="ficha-despiece-browse" class="btn-ghost"><i class="fas fa-folder-open"></i> Examinar</button>
+          </div>
+          <div class="tiny" style="margin-top:4px;">Se guarda separado del carrusel y se prioriza en la pestaña Despiece / planos.</div>
+        </div>
         <button type="submit" class="btn-guardar" style="margin-top:12px;"><i class="fas fa-save"></i> Guardar cambios</button>
       </form>
     </div>

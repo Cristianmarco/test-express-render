@@ -69,13 +69,14 @@ router.get('/planilla/promedios/equipos-por-tecnico', async (req, res, next) => 
   if(!inicio || !fin) return res.status(400).json({ error: 'Faltan parametros inicio/fin' });
   try {
     const filtroLicitacionYGarantia = garantiaOperativaPromedioSql('r.garantia', 'r.resolucion', 'r.nro_pedido_ref');
-    const q = `
+    const buildPromedioSql = (extraWhere = 'TRUE') => `
       WITH filtradas AS (
         SELECT r.tecnico_id,
                DATE(r.fecha) AS dia
           FROM equipos_reparaciones r
          WHERE DATE(r.fecha) BETWEEN $1 AND $2
            AND ${filtroLicitacionYGarantia}
+           AND ${extraWhere}
       ), base AS (
         SELECT tecnico_id, dia
           FROM filtradas
@@ -100,8 +101,21 @@ router.get('/planilla/promedios/equipos-por-tecnico', async (req, res, next) => 
         LEFT JOIN tecnicos t ON t.id = x.tecnico_id
        WHERE (COALESCE(tot.total,0) > 0)
        ORDER BY promedio_diario DESC, tecnico ASC;`;
-    const { rows } = await db.query(q, [inicio, fin]);
-    res.json({ rango: { inicio, fin }, items: rows });
+    const [general, licitacionExternos] = await Promise.all([
+      db.query(buildPromedioSql(), [inicio, fin]),
+      db.query(
+        buildPromedioSql(`(
+          LOWER(COALESCE(r.cliente_tipo, '')) = 'externo'
+          OR NULLIF(BTRIM(COALESCE(r.nro_pedido_ref::text, '')), '') IS NOT NULL
+        ) AND NOT ${garantiaCase('r')}`),
+        [inicio, fin]
+      )
+    ]);
+    res.json({
+      rango: { inicio, fin },
+      items: general.rows,
+      items_licitacion_externos: licitacionExternos.rows
+    });
   } catch (e) { next(e); }
 });
 

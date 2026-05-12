@@ -144,7 +144,7 @@ function setHistorialTableMode(mode) {
   if (head) {
     head.innerHTML = historialTableMode === 'seleccion'
       ? `<th>ID Reparacion</th><th>Cliente</th><th>Equipo</th><th>Nro Coche</th><th>Accion</th>`
-      : `<th>Fecha</th><th>Trabajo</th><th>Hora Inicio</th><th>Hora Fin</th><th>Tecnico</th><th>Garantia</th>`;
+      : `<th>Fecha</th><th>Nro Coche</th><th>Trabajo</th><th>Hora Inicio</th><th>Hora Fin</th><th>Tecnico</th><th>Garantia</th>`;
   }
   const modal = document.getElementById('modal-historial');
   if (modal) modal.setAttribute('data-mode', historialTableMode);
@@ -159,7 +159,6 @@ function setHistorialInfo(info) {
     assign('historial-id', '-');
     assign('historial-cliente', '-');
     assign('historial-equipo', '-');
-    assign('historial-coche', '-');
     assign('historial-id-dota', '-');
     assign('historial-ultimo-reparador', '-');
     assign('historial-resolucion', '-');
@@ -170,7 +169,6 @@ function setHistorialInfo(info) {
   assign('historial-id', info.id);
   assign('historial-cliente', info.cliente);
   assign('historial-equipo', info.equipo);
-  assign('historial-coche', info.coche);
   const extra = document.getElementById('historial-garantia-extra');
   const show = !!(info.id_dota || info.ultimo_reparador || info.resolucion || info.garantia === 'si');
   if (extra) extra.style.display = show ? 'flex' : 'none';
@@ -182,7 +180,7 @@ function setHistorialInfo(info) {
 function renderHistorialPlaceholder(message, color = '#666') {
   const tbody = document.getElementById('tbody-historial');
   if (!tbody) return;
-  const cols = historialTableMode === 'seleccion' ? 5 : 6;
+  const cols = historialTableMode === 'seleccion' ? 5 : 7;
   tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align:center; padding:10px; color:${color}">${message}</td></tr>`;
 }
 
@@ -307,7 +305,7 @@ function renderReparacionesRepuestos(list) {
   repuestosSeleccionIds = new Set();
   if (checkAll) checkAll.checked = false;
   if (!Array.isArray(list) || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:10px; color:#666">Sin reparaciones.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#666">Sin reparaciones.</td></tr>';
     actualizarContadoresRepuestos(0);
     return;
   }
@@ -317,6 +315,7 @@ function renderReparacionesRepuestos(list) {
       <td><input type="checkbox" class="repuestos-check" data-id="${r.id || ''}" /></td>
       <td>${fmtFechaCorta(r.fecha)}</td>
       <td>${r.id_reparacion || '-'}</td>
+      <td>${r.cliente || '-'}</td>
       <td>${r.equipo || '-'}</td>
       <td>${r.tecnico || '-'}</td>
       <td>${r.nro_pedido_ref || '-'}</td>
@@ -358,33 +357,36 @@ function parseInputDate(valor) {
 function getRepuestosFiltroInputs() {
   const inputNro = document.getElementById('repuestos-nro-pedido');
   const inputFamilia = document.getElementById('repuestos-familia');
+  const inputCliente = document.getElementById('repuestos-cliente');
   const inputTipo = document.getElementById('repuestos-tipo');
   const inputDesde = document.getElementById('repuestos-desde');
   const inputHasta = document.getElementById('repuestos-hasta');
   const nro = (inputNro && inputNro.value || '').trim();
   const familia = (inputFamilia && inputFamilia.value || '').trim();
+  const cliente = (inputCliente && inputCliente.value || '').trim();
   const tipo = (inputTipo && inputTipo.value || '').trim();
   const desde = parseInputDate(inputDesde && inputDesde.value);
   const hasta = parseInputDate(inputHasta && inputHasta.value);
-  return { nro, familia, tipo, desde, hasta };
+  return { nro, familia, cliente, tipo, desde, hasta };
 }
 
 async function repuestosPlanillaFiltrar() {
-  const { nro, familia, tipo, desde, hasta } = getRepuestosFiltroInputs();
+  const { nro, familia, cliente, tipo, desde, hasta } = getRepuestosFiltroInputs();
   const tbodyRep = document.getElementById('tbody-repuestos-reparaciones');
   const tbodyList = document.getElementById('tbody-repuestos-listado');
-  if (!nro && !familia && tipo !== 'garantia') {
-    alert('Complete Nro de Pedido, Modelo/Familia o seleccione Solo garantias.');
+  if (!nro && !familia && !cliente && tipo !== 'garantia') {
+    alert('Complete Nro de Pedido, Modelo/Familia, Cliente o seleccione Solo garantias.');
     return;
   }
-  console.log('Repuestos filtro:', { nro, familia, tipo, desde, hasta });
-  if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
+  console.log('Repuestos filtro:', { nro, familia, cliente, tipo, desde, hasta });
+  if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
   if (tbodyList) tbodyList.innerHTML = '';
-  repuestosFiltro = { nro, familia, tipo, desde, hasta };
+  repuestosFiltro = { nro, familia, cliente, tipo, desde, hasta };
   try {
     const qp = [];
     if (nro) qp.push(`nro=${encodeURIComponent(nro)}`);
     if (familia) qp.push(`familia=${encodeURIComponent(familia)}`);
+    if (cliente) qp.push(`cliente=${encodeURIComponent(cliente)}`);
     if (tipo) qp.push(`tipo=${encodeURIComponent(tipo)}`);
     let qs = qp.join('&');
     if (desde) qs += `&desde=${encodeURIComponent(desde)}`;
@@ -397,7 +399,7 @@ async function repuestosPlanillaFiltrar() {
     renderReparacionesRepuestos(data);
   } catch (err) {
     console.error('Error repuestos por pedido:', err);
-    if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:10px; color:#c33">Error al cargar.</td></tr>';
+    if (tbodyRep) tbodyRep.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#c33">Error al cargar.</td></tr>';
   }
 }
 
@@ -413,6 +415,7 @@ async function repuestosPlanillaListado() {
     const qp = [];
     if (repuestosFiltro.nro) qp.push(`nro=${encodeURIComponent(repuestosFiltro.nro)}`);
     if (repuestosFiltro.familia) qp.push(`familia=${encodeURIComponent(repuestosFiltro.familia)}`);
+    if (repuestosFiltro.cliente) qp.push(`cliente=${encodeURIComponent(repuestosFiltro.cliente)}`);
     if (repuestosFiltro.tipo) qp.push(`tipo=${encodeURIComponent(repuestosFiltro.tipo)}`);
     if (repuestosSeleccionIds.size > 0) qp.push(`ids=${encodeURIComponent(Array.from(repuestosSeleccionIds).join(','))}`);
     let qs = qp.join('&');
@@ -434,6 +437,7 @@ function abrirModalRepuestosPlanilla() {
   const modal = document.getElementById('modal-repuestos-planilla');
   limpiarModalRepuestosPlanilla();
   cargarFamiliasRepuestos();
+  cargarClientesRepuestos();
   if (modal) modal.style.display = 'flex';
 }
 
@@ -449,6 +453,7 @@ function limpiarModalRepuestosPlanilla() {
   const checkAll = document.getElementById('repuestos-check-all');
   const inputNro = document.getElementById('repuestos-nro-pedido');
   const inputFamilia = document.getElementById('repuestos-familia');
+  const inputCliente = document.getElementById('repuestos-cliente');
   const inputTipo = document.getElementById('repuestos-tipo');
   const inputDesde = document.getElementById('repuestos-desde');
   const inputHasta = document.getElementById('repuestos-hasta');
@@ -459,10 +464,33 @@ function limpiarModalRepuestosPlanilla() {
   if (checkAll) checkAll.checked = false;
   if (inputNro) inputNro.value = '';
   if (inputFamilia) inputFamilia.value = '';
+  if (inputCliente) inputCliente.value = '';
   if (inputTipo) inputTipo.value = '';
   if (inputDesde) inputDesde.value = '';
   if (inputHasta) inputHasta.value = '';
   actualizarContadoresRepuestos(0);
+}
+
+async function cargarClientesRepuestos() {
+  const select = document.getElementById('repuestos-cliente');
+  if (!select) return;
+  const current = select.value || '';
+  select.innerHTML = '<option value="">Todos</option><option value="dota">Dota</option>';
+  try {
+    const res = await fetch('/api/clientes', { credentials: 'include' });
+    const data = await res.json();
+    const lista = Array.isArray(data) ? data : [];
+    lista.forEach((c) => {
+      const opt = document.createElement('option');
+      const value = c.id != null ? `externo:${c.id}` : `externo:${c.codigo}`;
+      opt.value = value;
+      opt.textContent = c.fantasia || c.razon_social || c.nombre || `Cliente ${c.id || c.codigo || ''}`;
+      select.appendChild(opt);
+    });
+    if (current) select.value = current;
+  } catch (err) {
+    console.warn('No se pudieron cargar clientes para repuestos', err);
+  }
 }
 
 function repuestosPlanillaImprimir() {
@@ -2235,7 +2263,6 @@ async function cargarHistorial(id){
       id,
       cliente: first?.cliente,
       equipo: first?.equipo,
-      coche: first?.coche_numero,
       id_dota: first?.id_dota,
       ultimo_reparador: first?.ultimo_reparador_nombre,
       resolucion: first?.resolucion,
@@ -2243,16 +2270,41 @@ async function cargarHistorial(id){
     });
 
     const fmt = (v) => (v == null || v === '') ? '-' : v;
+    const escHtml = (v) => String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
     const fmtFecha = (f) => { try { return new Date(f).toLocaleDateString('es-AR'); } catch { return String(f||'-'); } };
     const fmtHora = (h) => { if(!h) return '-'; if (typeof h === 'string') return h.slice(0,5); try { return new Date(`1970-01-01T${h}`).toTimeString().slice(0,5);} catch { return String(h);} };
+    const fmtTrabajoHistorial = (value) => {
+      const raw = String(value == null ? '' : value).trim();
+      if (!raw) return '-';
+      const normalized = raw.replace(/\r\n/g, '\n');
+      const compact = normalized.replace(/\n+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+      const marker = /\([A-Z]{2,}[^)]*\)/g;
+      const matches = Array.from(compact.matchAll(marker));
+      if (matches.length > 1) {
+        const parts = matches.map((match, idx) => {
+          const start = match.index ?? 0;
+          const end = idx + 1 < matches.length ? (matches[idx + 1].index ?? compact.length) : compact.length;
+          return compact.slice(start, end).trim().replace(/\s+-\s+/g, ' - ');
+        }).filter(Boolean);
+        return `<div class="historial-trabajo-lista">${parts.map(part => `<span class="historial-trabajo-item">${escHtml(part)}</span>`).join('')}</div>`;
+      }
+      if (normalized.includes('\n')) {
+        return `<div class="historial-trabajo-lista">${normalized.split('\n').map(part => part.trim()).filter(Boolean).map(part => `<span class="historial-trabajo-item">${escHtml(part)}</span>`).join('')}</div>`;
+      }
+      return escHtml(normalized);
+    };
     const rows = (Array.isArray(data)?data:[]).map(r => {
       const fecha = fmtFecha(r.fecha);
-      const trabajo = fmt(r.trabajo);
+      const coche = fmt(r.coche_numero);
+      const trabajo = fmtTrabajoHistorial(r.trabajo);
       const hi = fmtHora(r.hora_inicio);
       const hf = fmtHora(r.hora_fin);
       const tec = fmt(r.tecnico);
       const gar = r.garantia === 'si' ? 'Si' : 'No';
-      return `<tr><td>${fecha}</td><td>${trabajo}</td><td>${hi}</td><td>${hf}</td><td>${tec}</td><td>${gar}</td></tr>`;
+      return `<tr><td>${fecha}</td><td>${coche}</td><td class="historial-trabajo-cell">${trabajo}</td><td>${hi}</td><td>${hf}</td><td>${tec}</td><td>${gar}</td></tr>`;
     }).join('');
     if (rows) {
       if (tbody) tbody.innerHTML = rows;

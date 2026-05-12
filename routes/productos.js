@@ -30,6 +30,30 @@ async function ensureProductoFamiliaTable() {
   }
 }
 
+function normalizeBarcode(value) {
+  if (value === undefined || value === null) return null;
+  const cleaned = String(value).trim();
+  return cleaned || null;
+}
+
+async function findProductoByBarcode(codigoBarra, excludeId = null) {
+  const normalized = normalizeBarcode(codigoBarra);
+  if (!normalized) return null;
+  const params = [normalized];
+  let sql = `
+    SELECT id, codigo, descripcion
+    FROM productos
+    WHERE BTRIM(COALESCE(codigo_barra, '')) = $1
+  `;
+  if (excludeId != null) {
+    params.push(Number(excludeId));
+    sql += ` AND id <> $2`;
+  }
+  sql += ` LIMIT 1`;
+  const result = await db.query(sql, params);
+  return result.rows[0] || null;
+}
+
 // Asegura la tabla de precios por producto si no existe
 async function ensureProductoPreciosTable() {
   try {
@@ -184,6 +208,14 @@ router.post('/', async (req, res, next) => {
     const norm = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : v);
     const famArr = Array.isArray(familias) ? familias.filter(Boolean) : (familia_id ? [familia_id] : []);
     const familiaPrincipal = famArr.length ? famArr[0] : norm(familia_id);
+    const barcode = normalizeBarcode(codigo_barra);
+
+    const duplicateBarcode = await findProductoByBarcode(barcode);
+    if (duplicateBarcode) {
+      return res.status(409).json({
+        error: `Codigo de barras duplicado. Ya lo usa ${duplicateBarcode.codigo || 'otro producto'}${duplicateBarcode.descripcion ? ` - ${duplicateBarcode.descripcion}` : ''}`
+      });
+    }
 
     const ins = await db.query(`
       INSERT INTO productos (
@@ -197,7 +229,7 @@ router.post('/', async (req, res, next) => {
       codigo, descripcion, norm(equivalencia),
       norm(descripcion_adicional), norm(familiaPrincipal), norm(grupo_id),
       norm(marca_id), norm(categoria_id), norm(proveedor_id),
-      norm(origen), norm(iva_tipo), norm(codigo_barra)
+      norm(origen), norm(iva_tipo), barcode
     ]);
 
     const prodId = ins.rows[0].id;
@@ -350,6 +382,14 @@ router.put('/:id', async (req, res, next) => {
     const norm = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : v);
     const famArr = Array.isArray(familias) ? familias.filter(Boolean) : (familia_id ? [familia_id] : []);
     const familiaPrincipal = famArr.length ? famArr[0] : norm(familia_id);
+    const barcode = normalizeBarcode(codigo_barra);
+
+    const duplicateBarcode = await findProductoByBarcode(barcode, req.params.id);
+    if (duplicateBarcode) {
+      return res.status(409).json({
+        error: `Codigo de barras duplicado. Ya lo usa ${duplicateBarcode.codigo || 'otro producto'}${duplicateBarcode.descripcion ? ` - ${duplicateBarcode.descripcion}` : ''}`
+      });
+    }
 
     await db.query(`
       UPDATE productos
@@ -362,7 +402,7 @@ router.put('/:id', async (req, res, next) => {
       codigo, descripcion, norm(equivalencia),
       norm(descripcion_adicional), norm(familiaPrincipal), norm(grupo_id),
       norm(marca_id), norm(categoria_id), norm(proveedor_id),
-      norm(origen), norm(iva_tipo), norm(codigo_barra),
+      norm(origen), norm(iva_tipo), barcode,
       req.params.id
     ]);
 

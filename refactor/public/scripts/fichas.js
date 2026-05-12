@@ -8,6 +8,7 @@
   let slidesWrap, dotsWrap, btnPrev, btnNext;
   let formFichaBasica, modalFicha, modalClose, btnEditarFicha;
   let fotoFileInput, fotoBrowseBtn, fotoUrlInput;
+  let despieceFileInput, despieceBrowseBtn, despieceUrlInput, despieceTipoSelect;
   let modalMedia, modalMediaClose, mediaConfigList, mediaConfigBtn;
   let tipoRepuestoSelect, modalTipo, modalTipoClose, modalTipoTitle, modalTipoBody;
   let modalProducto, modalProductoClose;
@@ -63,6 +64,10 @@
     fotoFileInput = host.querySelector('#ficha-foto-file');
     fotoBrowseBtn = host.querySelector('#ficha-foto-browse');
     fotoUrlInput = host.querySelector('#ficha-foto-url');
+    despieceFileInput = host.querySelector('#ficha-despiece-file');
+    despieceBrowseBtn = host.querySelector('#ficha-despiece-browse');
+    despieceUrlInput = host.querySelector('#ficha-despiece-url');
+    despieceTipoSelect = host.querySelector('#ficha-despiece-tipo');
     modalMedia = host.querySelector('#modal-ficha-media');
     modalMediaClose = host.querySelector('#modal-ficha-media-close');
     mediaConfigList = host.querySelector('#ficha-media-config-list');
@@ -161,6 +166,24 @@
           alert(err.message || 'No se pudo subir la foto');
         } finally {
           fotoFileInput.value = '';
+        }
+      };
+    }
+    if (despieceBrowseBtn && despieceFileInput) {
+      despieceBrowseBtn.onclick = () => despieceFileInput.click();
+      despieceFileInput.onchange = async () => {
+        if (!despieceFileInput.files || !despieceFileInput.files[0]) return;
+        const familiaId = formFichaBasica?.elements['familia_id']?.value || state.detalle?.ficha?.familia_id;
+        if (!familiaId) { alert('Selecciona una ficha antes de subir'); despieceFileInput.value = ''; return; }
+        try {
+          const url = await subirArchivo(despieceFileInput.files[0]);
+          if (despieceUrlInput) despieceUrlInput.value = url;
+          await agregarMediaTipada(familiaId, despieceTipoSelect?.value || 'despiece', url);
+          await cargarDetalle(familiaId);
+        } catch (err) {
+          alert(err.message || 'No se pudo subir el despiece');
+        } finally {
+          despieceFileInput.value = '';
         }
       };
     }
@@ -992,6 +1015,19 @@
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'No se pudo guardar la foto');
+    return data;
+  }
+
+  async function agregarMediaTipada(familiaId, tipo, url) {
+    const payload = { tipo: tipo || 'despiece', url, titulo: '', orden: 0 };
+    const res = await fetch(`/api/fichas/${encodeURIComponent(familiaId)}/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'No se pudo guardar el archivo');
     return data;
   }
 })();
