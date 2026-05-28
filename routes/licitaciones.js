@@ -783,9 +783,28 @@ async function parseGarantiasXlsx(buffer) {
   await workbook.xlsx.load(buffer);
   const sheet = workbook.worksheets[0];
   if (!sheet) return [];
+  const getCellPlainText = (cell) => {
+    if (!cell) return '';
+    let value = cell.value;
+    if (value == null && cell.master && cell.master !== cell) {
+      value = cell.master.value;
+    }
+    if (value == null) return '';
+    if (value instanceof Date) return value.toISOString();
+    if (Array.isArray(value?.richText)) return value.richText.map((t) => t.text || '').join('');
+    if (typeof value === 'object') {
+      if (typeof value.text === 'string') return value.text;
+      if (typeof value.result !== 'undefined' && value.result != null) return String(value.result);
+      if (typeof value.hyperlink === 'string' && typeof value.text === 'string') return value.text;
+      if (typeof value.formula === 'string' && value.result != null) return String(value.result);
+      if (typeof value.sharedFormula === 'string' && value.result != null) return String(value.result);
+      try { return JSON.stringify(value); } catch (_) { return String(value); }
+    }
+    return String(value);
+  };
   const headers = [];
   sheet.getRow(1).eachCell((cell, colNumber) => {
-    headers[colNumber] = removeDiacritics(String(cell.text || cell.value || '').toLowerCase().trim());
+    headers[colNumber] = removeDiacritics(getCellPlainText(cell).toLowerCase().trim());
   });
   const rows = [];
   sheet.eachRow((row, rowNumber) => {
@@ -794,12 +813,7 @@ async function parseGarantiasXlsx(buffer) {
     headers.forEach((header, idx) => {
       if (!header) return;
       const cell = row.getCell(idx);
-      let value = cell?.text ?? cell?.value ?? '';
-      if (value && typeof value === 'object') {
-        if (value.text) value = value.text;
-        else if (value.richText) value = value.richText.map(t => t.text).join('');
-        else if (value instanceof Date) value = value.toISOString();
-      }
+      let value = getCellPlainText(cell);
       obj[header] = value == null ? '' : String(value).trim();
     });
     rows.push(obj);

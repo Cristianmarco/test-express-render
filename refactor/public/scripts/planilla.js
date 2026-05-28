@@ -89,6 +89,7 @@ const GARANTIA_TEMPLATES = {
 
 let currentDate = new Date();
 let historialTableMode = 'historial';
+let historialResultadosCache = [];
 let planillaOrden = 'ingreso';
 let planillaData = [];
 let repuestosFiltro = null;
@@ -177,6 +178,18 @@ function setHistorialInfo(info) {
   assign('historial-resolucion', formatResolucionLabel(info.resolucion));
 }
 
+function limpiarEstadoHistorial() {
+  historialResultadosCache = [];
+}
+
+function volverAListadoHistorial() {
+  if (historialTableMode !== 'historial' || !historialResultadosCache.length) return false;
+  renderHistorialResultados(historialResultadosCache);
+  const modal = document.getElementById('modal-historial');
+  if (modal) modal.style.display = 'flex';
+  return true;
+}
+
 function renderHistorialPlaceholder(message, color = '#666') {
   const tbody = document.getElementById('tbody-historial');
   if (!tbody) return;
@@ -187,6 +200,7 @@ function renderHistorialPlaceholder(message, color = '#666') {
 function renderHistorialResultados(list) {
   const tbody = document.getElementById('tbody-historial');
   if (!tbody) return;
+  historialResultadosCache = Array.isArray(list) ? list.slice() : [];
   setHistorialTableMode('seleccion');
   setHistorialInfo(null);
   const rows = (Array.isArray(list) ? list : []).map(r => {
@@ -1581,13 +1595,29 @@ function cerrarModalPlanilla(){ const m=document.getElementById('modal-planilla'
 function cerrarModalReparacion(){ const m=document.getElementById('modal-reparacion'); if(m) m.style.display='none'; }
 function cerrarModalGrupos(){ const m=document.getElementById('modal-grupos'); if(m) m.style.display='none'; }
 function cerrarModalProductos(){ const m=document.getElementById('modal-productos'); if(m) m.style.display='none'; }
-function cerrarModalHistorial(){ const m=document.getElementById('modal-historial'); if(m) m.style.display='none'; const i=document.getElementById('buscar-reparacion'); if(i) i.value=''; }
+function cerrarModalHistorial(){
+  if (volverAListadoHistorial()) return;
+  limpiarEstadoHistorial();
+  const m=document.getElementById('modal-historial');
+  if(m) m.style.display='none';
+  const i=document.getElementById('buscar-reparacion');
+  if(i) i.value='';
+}
 function cerrarModalDetalle(){ const m=document.getElementById('modal-detalle'); if(m) m.style.display='none'; }
 
 // Cierre por ESC y clic fuera del contenido
 function cerrarModalesAbiertos(){
+  const modalHistorial = document.getElementById('modal-historial');
+  if (
+    modalHistorial &&
+    (modalHistorial.style.display === 'flex' || modalHistorial.style.display === 'block' || getComputedStyle(modalHistorial).display !== 'none') &&
+    volverAListadoHistorial()
+  ) {
+    return;
+  }
   const ids = ['modal-planilla','modal-reparacion','modal-grupos','modal-productos','modal-detalle','modal-historial'];
   ids.forEach(id => { const el = document.getElementById(id); if (el && (el.style.display === 'flex' || el.style.display === 'block' || getComputedStyle(el).display !== 'none')) { el.style.display = 'none'; } });
+  limpiarEstadoHistorial();
 }
 document.addEventListener('keydown', (e)=>{
   if (e.key === 'Escape' || e.key === 'Esc') {
@@ -1598,6 +1628,10 @@ document.addEventListener('keydown', (e)=>{
 document.addEventListener('click', (e)=>{
   const t = e.target;
   if (t && t.classList && t.classList.contains('modal-refactor')) {
+    if (t.id === 'modal-historial') {
+      cerrarModalHistorial();
+      return;
+    }
     t.style.display = 'none';
   }
 });
@@ -2007,6 +2041,7 @@ function bindHistorialSearch(){
   const buscar = async () => {
     const q = (newInput.value||'').trim();
     if(!q){ alert('Ingrese texto a buscar'); return; }
+    limpiarEstadoHistorial();
     const modal = document.getElementById('modal-historial');
     setHistorialTableMode('historial');
     setHistorialInfo(null);
