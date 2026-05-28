@@ -1,10 +1,16 @@
 const express = require('express');
+const helmet = require('helmet');
 const app = express();
 const path = require('path');
 const session = require('express-session');
 const pgSession = require("connect-pg-simple")(session);
-const pool = require("./db"); // 👈 importa tu pool
+const pool = require("./db");
 require('dotenv').config();
+
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET no está configurado en producción');
+  process.exit(1);
+}
 
 
 // Routers
@@ -32,6 +38,13 @@ const fichasRouter = require('./routes/fichas');
 const cotizacionesReparacionRouter = require('./routes/cotizaciones_reparacion');
 const comprasRouter = require('./routes/compras');
 
+
+// ============================
+// Headers de seguridad (Helmet)
+// ============================
+app.use(helmet({
+  contentSecurityPolicy: false // Desactivado para no romper CDNs (Font Awesome, etc.)
+}));
 
 // ============================
 // Seguridad extra: forzar HTTPS en producción

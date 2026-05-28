@@ -2,11 +2,20 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const bcrypt = require("bcryptjs");
+const { rateLimit } = require("express-rate-limit");
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10,                   // máximo 10 intentos por IP
+  message: { error: "Demasiados intentos. Esperá 15 minutos." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // ============================
 // POST /api/login
 // ============================
-router.post("/", async (req, res) => {
+router.post("/", loginLimiter, async (req, res) => {
   const email = String((req.body && (req.body.email || req.body.usuario)) || '').trim();
   const password = String((req.body && req.body.password) || '').trim();
 
