@@ -86,7 +86,10 @@
 
   function bindEvents() {
     btnRecargar && (btnRecargar.onclick = () => cargarListado());
-    searchInput && (searchInput.oninput = renderGrid);
+    if (searchInput) {
+      let _searchTimer;
+      searchInput.oninput = () => { clearTimeout(_searchTimer); _searchTimer = setTimeout(renderGrid, 250); };
+    }
     filtroCat && (filtroCat.onchange = renderGrid);
     filtroEstado && (filtroEstado.onchange = renderGrid);
     tabs.forEach(tab => tab.addEventListener('click', () => activarTab(tab.dataset.tab)));

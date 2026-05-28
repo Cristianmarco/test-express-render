@@ -258,6 +258,7 @@ async function renderCalendar(date) {
   const grid = document.getElementById('calendarGrid');
   const title = document.getElementById('calendarTitle');
   if (!grid || !title) return;
+  window.showSpinner && window.showSpinner();
 
   const y = date.getFullYear();
   const m = date.getMonth();
@@ -295,6 +296,7 @@ async function renderCalendar(date) {
     cell.addEventListener('click', () => abrirModalPlanilla(`${d}/${m+1}/${y}`));
     grid.appendChild(cell);
   }
+  window.hideSpinner && window.hideSpinner();
 }
 
 // ---------- Planilla (modal) ----------
@@ -930,6 +932,7 @@ async function abrirModalPlanilla(fechaTxt) {
     }
   } catch {}
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
+  window.showSpinner && window.showSpinner();
 
   // dd/mm/yyyy -> yyyy-mm-dd
   let fechaISO = '';
@@ -937,7 +940,7 @@ async function abrirModalPlanilla(fechaTxt) {
     const [d,m,y] = (fechaTxt||'').split('/');
     if (d && m && y) fechaISO = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   } catch {}
-  if (!fechaISO) return;
+  if (!fechaISO) { window.hideSpinner && window.hideSpinner(); return; }
 
   try {
     const res = await fetch(`/api/reparaciones_planilla?fecha=${fechaISO}&_=${Date.now()}` , { credentials:'include', cache: 'no-store' });
@@ -948,6 +951,8 @@ async function abrirModalPlanilla(fechaTxt) {
   } catch (err) {
     console.error('planilla load error:', err);
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:10px; color:#c33">Error al conectar con el servidor.</td></tr>';
+  } finally {
+    window.hideSpinner && window.hideSpinner();
   }
 }
 
@@ -1652,22 +1657,25 @@ function bindTrabajoWatcher(){
     }
     return counts;
   };
-  area.addEventListener('input', async ()=>{
-    try{
-      const current = getCounts(area.value||'');
-      for(const [code, data] of _repuestosTrack){
-        const prev = data.count||0;
-        const now = current.get(code)||0;
-        if(now < prev){
-          const diff = prev - now;
-          try{ await aumentarStockProducto(data.id, diff, `Reversion (${code})`); }catch(e){ console.warn('No se pudo revertir stock:', e); }
-          data.count = now; // update downwards
-        } else if(now > prev){
-          // Do not auto discount on manual duplicates; clamp to previous
-          data.count = prev;
+  let _watcherTimer;
+  area.addEventListener('input', ()=>{
+    clearTimeout(_watcherTimer);
+    _watcherTimer = setTimeout(async ()=>{
+      try{
+        const current = getCounts(area.value||'');
+        for(const [code, data] of _repuestosTrack){
+          const prev = data.count||0;
+          const now = current.get(code)||0;
+          if(now < prev){
+            const diff = prev - now;
+            try{ await aumentarStockProducto(data.id, diff, `Reversion (${code})`); }catch(e){ console.warn('No se pudo revertir stock:', e); }
+            data.count = now;
+          } else if(now > prev){
+            data.count = prev;
+          }
         }
-      }
-    }catch(err){ console.warn('Watcher trabajo error:', err); }
+      }catch(err){ console.warn('Watcher trabajo error:', err); }
+    }, 400);
   });
 }
 

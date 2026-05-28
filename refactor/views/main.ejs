@@ -85,9 +85,19 @@
         </main>
     </div>
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <div class="erp-spinner-overlay" id="erp-spinner-overlay">
+      <div class="erp-spinner"></div>
+    </div>
 
     <script>
       window.__ASSET_V = Date.now();
+      // Spinner global: window.showSpinner() / window.hideSpinner()
+      (function () {
+        const el = document.getElementById('erp-spinner-overlay');
+        let _count = 0;
+        window.showSpinner = function () { _count++; el.classList.add('active'); };
+        window.hideSpinner = function () { _count = Math.max(0, _count - 1); if (_count === 0) el.classList.remove('active'); };
+      })();
       (function () {
         const btn = document.getElementById('hamburger-btn');
         const sidebar = document.querySelector('.sidebar');
