@@ -117,6 +117,21 @@
           });
         });
       })();
+
+      // Cerrar modales con Esc
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        // Busca el modal visible más reciente y lo cierra
+        const modals = Array.from(document.querySelectorAll('[id^="modal-"]'));
+        for (let i = modals.length - 1; i >= 0; i--) {
+          const m = modals[i];
+          const style = window.getComputedStyle(m);
+          if (style.display !== 'none') {
+            m.style.display = 'none';
+            break;
+          }
+        }
+      });
     </script>
     <script src="/static/scripts/main.js?v=<%= Date.now() %>"></script>
     <script src="/static/scripts/productos.js?v=<%= Date.now() %>" defer></script>

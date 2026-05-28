@@ -13,8 +13,24 @@ function getTabLabel(view) {
   }
 }
 
+const VIEW_CACHE_TTL = 30 * 60 * 1000; // 30 minutos
+
+function getViewCache(view) {
+  try {
+    const raw = sessionStorage.getItem(`erp_view_${view}`);
+    if (!raw) return null;
+    const { html, ts } = JSON.parse(raw);
+    if (Date.now() - ts > VIEW_CACHE_TTL) { sessionStorage.removeItem(`erp_view_${view}`); return null; }
+    return html;
+  } catch { return null; }
+}
+
+function setViewCache(view, html) {
+  try { sessionStorage.setItem(`erp_view_${view}`, JSON.stringify({ html, ts: Date.now() })); } catch {}
+}
+
 async function loadView(view) {
-  // Si ya existe, solo activarla
+  // Si ya existe como tab abierto, solo activarla
   const existing = openTabs.find(t => t.view === view);
   if (existing) {
     activateTab(view);
@@ -40,9 +56,18 @@ async function loadView(view) {
   tabsContainer.appendChild(tab);
   openTabs.push({ view, tab });
 
-  // Cargar contenido de la vista
-  const res = await fetch(`/refactor/view/${view}`);
-  const html = await res.text();
+  // Cargar HTML: primero del cache, si no hay hace fetch
+  let html = getViewCache(view);
+  if (!html) {
+    window.showSpinner && window.showSpinner();
+    try {
+      const res = await fetch(`/refactor/view/${view}`);
+      html = await res.text();
+      setViewCache(view, html);
+    } finally {
+      window.hideSpinner && window.hideSpinner();
+    }
+  }
 
   const section = document.createElement("div");
   section.className = "tab-content";
@@ -50,14 +75,8 @@ async function loadView(view) {
   section.innerHTML = html;
   mainContent.appendChild(section);
 
-  // Mostrar la pestaña
   activateTab(view);
-
-  // 🔔 Avisar a otros scripts que una nueva vista fue cargada
-  const event = new CustomEvent("view:changed", { detail: view });
-  document.dispatchEvent(event);
-
-  // Ejecutar el JS asociado si aplica
+  document.dispatchEvent(new CustomEvent("view:changed", { detail: view }));
   ejecutarScriptVista(view);
 } 
 
