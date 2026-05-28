@@ -5,6 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Amorim ERP Refactor</title>
+    <link rel="stylesheet" href="/static/css/variables.css?v=<%= Date.now() %>" />
     <link rel="stylesheet" href="/static/css/global.css?v=<%= Date.now() %>" />
     <link rel="stylesheet" href="/static/css/sidebar.css?v=<%= Date.now() %>" />
     <link rel="stylesheet" href="/static/css/header.css?v=<%= Date.now() %>" />
@@ -19,6 +20,9 @@
 <body>
     <header class="header">
         <div class="left-section">
+            <button class="hamburger-btn" id="hamburger-btn" aria-label="Abrir menú">
+                <i class="fa fa-bars"></i>
+            </button>
             <img src="/static/images/logo.png" alt="Amorim" class="logo-img" />
             <span class="logo-erp">ERP</span>
         </div>
@@ -80,8 +84,30 @@
             <div id="main-content" class="content"></div>
         </main>
     </div>
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-    <script>window.__ASSET_V = Date.now();</script>
+    <script>
+      window.__ASSET_V = Date.now();
+      (function () {
+        const btn = document.getElementById('hamburger-btn');
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        function closeSidebar() {
+          sidebar.classList.remove('sidebar-open');
+          overlay.classList.remove('sidebar-open');
+        }
+        btn.addEventListener('click', function () {
+          const isOpen = sidebar.classList.toggle('sidebar-open');
+          overlay.classList.toggle('sidebar-open', isOpen);
+        });
+        overlay.addEventListener('click', closeSidebar);
+        document.querySelectorAll('.menu-link').forEach(function (link) {
+          link.addEventListener('click', function () {
+            if (window.innerWidth <= 768) closeSidebar();
+          });
+        });
+      })();
+    </script>
     <script src="/static/scripts/main.js?v=<%= Date.now() %>"></script>
     <script src="/static/scripts/productos.js?v=<%= Date.now() %>" defer></script>
     <script src="/static/scripts/proveedores.js?v=<%= Date.now() %>" defer></script>

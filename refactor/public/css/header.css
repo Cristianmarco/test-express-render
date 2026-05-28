@@ -1,12 +1,12 @@
 .header {
-  background: #ffffff;
-  height: 70px;
+  background: var(--bg-white);
+  height: var(--header-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 30px;
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -31,26 +31,56 @@
   gap: 20px;
 }
 .user-info {
-  color: #111827;
+  color: var(--text-dark);
   font-size: 14px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .logout-btn {
-  background: #3cfc82; /* Verde brillante */
+  background: var(--color-success);
   border: none;
   color: white;
   padding: 8px 18px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
   transition: background 0.2s ease-in-out, transform 0.1s;
 }
 .logout-btn:hover {
-  background: #12b84f; /* tono un poco más oscuro */
+  background: var(--color-success-hover);
   transform: scale(1.05);
+}
+
+/* ===== Botón hamburger (solo mobile) ===== */
+.hamburger-btn {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  color: var(--text-dark);
+  font-size: 20px;
+  transition: background 0.2s;
+}
+.hamburger-btn:hover {
+  background: var(--bg-body);
+}
+
+@media (max-width: 768px) {
+  .hamburger-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .header {
+    padding: 0 16px;
+  }
+  .user-info span {
+    display: none;
+  }
 }
 .logo-erp {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

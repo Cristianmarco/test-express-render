@@ -1,0 +1,41 @@
+/* ===== AmorimERP - Design Tokens ===== */
+:root {
+  /* Colores primarios (sidebar, botones principales) */
+  --color-primary:        #2e5ae7;
+  --color-primary-hover:  #2563eb;
+  --color-primary-muted:  #a5b4fc;
+
+  /* Acento (tabs activos, badges) */
+  --color-accent:         #22c55e;
+  --color-accent-dark:    #16a34a;
+
+  /* Éxito (botón logout, confirmaciones) */
+  --color-success:        #3cfc82;
+  --color-success-hover:  #12b84f;
+
+  /* Fondos */
+  --bg-body:     #f4f6f8;
+  --bg-content:  #f9fafb;
+  --bg-white:    #ffffff;
+
+  /* Texto */
+  --text-main:   #333333;
+  --text-dark:   #111827;
+  --text-muted:  #6b7280;
+
+  /* Bordes */
+  --border:      #e5e7eb;
+
+  /* Estructura */
+  --sidebar-width:  240px;
+  --header-height:  70px;
+
+  /* Sombras */
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 6px 24px rgba(35, 55, 90, 0.09);
+
+  /* Radios */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+}

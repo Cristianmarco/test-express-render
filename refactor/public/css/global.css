@@ -3,24 +3,24 @@
 body {
   font-family: Arial, sans-serif;
   margin: 0;
-  background: #f4f6f8;
-  color: #333;
+  background: var(--bg-body);
+  color: var(--text-main);
 }
 
 /* ===== Layout principal ===== */
 
 .layout {
   display: flex;
-  min-height: calc(100vh - 70px);
-  margin-top: 70px;
+  min-height: calc(100vh - var(--header-height));
+  margin-top: var(--header-height);
 }
 
 .main-content {
   flex: 1;
-  margin-left: 240px; /* Compensar ancho del sidebar */
+  margin-left: var(--sidebar-width);
   padding: 20px;
-  background: #f9fafb;
-  min-height: calc(100vh - 70px); /* Altura total menos el header */
+  background: var(--bg-content);
+  min-height: calc(100vh - var(--header-height));
   overflow-y: auto;
   transition: margin-left 0.3s ease;
 }
@@ -28,9 +28,9 @@ body {
 /* ===== Tabs (pestañas superiores) ===== */
 
 .tabs {
-  background: #fff;
+  background: var(--bg-white);
   padding: 10px 15px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -40,7 +40,7 @@ body {
   display: flex;
   align-items: center;
   background: #f3f4f6;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 6px 12px;
   font-size: 14px;
   cursor: pointer;
@@ -49,14 +49,14 @@ body {
 }
 
 .tab.active {
-  background: #22c55e; /* Verde fluo */
+  background: var(--color-accent);
   color: white;
-  border-color: #16a34a;
+  border-color: var(--color-accent-dark);
   box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3);
 }
 
 .tab:hover {
-  background: #e5e7eb;
+  background: var(--border);
 }
 
 .tab-close {
@@ -71,6 +71,22 @@ body {
 
 .tab-close:hover {
   color: #ef4444;
+}
+
+/* ===== Responsive — overlay para cerrar sidebar en mobile ===== */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 90;
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    padding: 12px;
+  }
 }
 
 /* ===== Scrollbar personal (opcional) ===== */
