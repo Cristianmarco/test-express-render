@@ -195,6 +195,7 @@
   async function cargarListado() {
     if (!grid) return;
     grid.innerHTML = `<div class="ficha-placeholder">Cargando fichas...</div>`;
+    window.showSpinner && window.showSpinner();
     try {
       const res = await fetch('/api/fichas', { credentials: 'include' });
       const data = await res.json();
@@ -204,6 +205,8 @@
     } catch (err) {
       console.error('Error cargando fichas', err);
       grid.innerHTML = `<div class="ficha-placeholder">No se pudo cargar el listado</div>`;
+    } finally {
+      window.hideSpinner && window.hideSpinner();
     }
   }
 
@@ -295,6 +298,7 @@
   async function cargarDetalle(familiaId) {
     if (!familiaId) return;
     mostrarDetalle();
+    window.showSpinner && window.showSpinner();
     try {
       const res = await fetch(`/api/fichas/${encodeURIComponent(familiaId)}`, { credentials: 'include' });
       const data = await res.json();
@@ -306,6 +310,8 @@
     } catch (err) {
       console.error(err);
       alert('No se pudo cargar la ficha');
+    } finally {
+      window.hideSpinner && window.hideSpinner();
     }
   }
 

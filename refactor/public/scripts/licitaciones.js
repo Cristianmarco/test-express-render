@@ -72,6 +72,7 @@ async function cargarLicitaciones() {
     }
   } catch {}
   tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  window.showSpinner && window.showSpinner();
   try {
     const res = await fetch('/api/licitaciones', { credentials: 'include' });
     const data = await res.json();
@@ -115,6 +116,8 @@ async function cargarLicitaciones() {
   } catch (err) {
     console.error('Error cargando licitaciones:', err);
     tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+  } finally {
+    window.hideSpinner && window.hideSpinner();
   }
 }
 
@@ -867,6 +870,7 @@ function setupLicitacionesTabs(){
 async function cargarVigentes(){
   const tb = document.getElementById('tbody-vigentes'); if(!tb) return;
   tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  window.showSpinner && window.showSpinner();
   try{
     const res = await fetch('/api/reparaciones_dota', { credentials:'include' });
     const data = await res.json();
@@ -908,7 +912,12 @@ async function cargarVigentes(){
         });
       });
     }
-  }catch(err){ console.error('vigentes load', err); tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>"; }
+  } catch(err) {
+    console.error('vigentes load', err);
+    tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+  } finally {
+    window.hideSpinner && window.hideSpinner();
+  }
 }
 
 function ensureVigenteDetalleModal(){
@@ -1144,6 +1153,7 @@ async function cargarGarantias() {
   garSeleccionAnchorIndex = null;
   garSeleccionada = null;
   tbody.innerHTML = "<tr><td colspan='16' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  window.showSpinner && window.showSpinner();
   try {
     const res = await fetch('/api/licitaciones/garantias', { credentials: 'include' });
     const data = await res.json();
@@ -1235,6 +1245,8 @@ async function cargarGarantias() {
   } catch (err) {
     console.error('garantias load', err);
     tbody.innerHTML = "<tr><td colspan='16' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+  } finally {
+    window.hideSpinner && window.hideSpinner();
   }
 }
 
