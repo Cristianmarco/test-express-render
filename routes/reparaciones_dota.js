@@ -14,16 +14,17 @@ const AUDIT_DOMAIN = 'reparaciones_dota';
 router.post('/', async (req, res, next) => {
   const client = await db.connect();
   try {
-    const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes } = req.body;
+    const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones } = req.body;
     if (!codigo || !descripcion || !cantidad) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
+    await client.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS observaciones TEXT');
     await client.query('BEGIN');
     const q = await client.query(
-      `INSERT INTO reparaciones_dota (nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO reparaciones_dota (nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING *`,
-      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, pendientes || cantidad]
+      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, pendientes || cantidad, observaciones || null]
     );
     await insertDomainAudit(client, req, AUDIT_DOMAIN, q.rows[0].id, 'create', {
       snapshot: q.rows[0]
@@ -142,9 +143,10 @@ router.patch('/:id', async (req, res, next) => {
 // PUT: actualizar todos los campos de una reparación
 router.put('/:id', async (req, res, next) => {
   const id = req.params.id;
-  const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes } = req.body;
+  const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones } = req.body;
   const client = await db.connect();
   try {
+    await client.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS observaciones TEXT');
     await client.query('BEGIN');
     const before = await client.query('SELECT * FROM reparaciones_dota WHERE id=$1', [id]);
     if (!before.rowCount) {
@@ -153,9 +155,9 @@ router.put('/:id', async (req, res, next) => {
     }
     const q = await client.query(
       `UPDATE reparaciones_dota
-       SET nro_pedido=$1, codigo=$2, descripcion=$3, cantidad=$4, destino=$5, razon_social=$6, pendientes=$7
-       WHERE id=$8 RETURNING *`,
-      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, (pendientes ?? cantidad), id]
+       SET nro_pedido=$1, codigo=$2, descripcion=$3, cantidad=$4, destino=$5, razon_social=$6, pendientes=$7, observaciones=$8
+       WHERE id=$9 RETURNING *`,
+      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, (pendientes ?? cantidad), observaciones || null, id]
     );
     await insertDomainAudit(client, req, AUDIT_DOMAIN, id, 'update', {
       changes: buildAuditChanges(before.rows[0], q.rows[0])

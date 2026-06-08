@@ -287,14 +287,14 @@ function ensureAceptarModal(){
       <form id="form-aceptar-licit-item" autocomplete="off" style="display:flex; flex-direction:column; gap:10px;">
         <div class="form-grid">
           <div>
-            <label>N° de Orden</label>
+            <label>N° de Pedido</label>
             <input type="text" id="acept-nro" placeholder="Opcional" />
           </div>
         </div>
         <div class="form-grid">
           <div>
             <label>Destino</label>
-            <input type="text" id="acept-destino" placeholder="Taller/Depósito" />
+            <input type="text" id="acept-destino" placeholder="Taller/Depósito" value="Pompeya" />
           </div>
         </div>
         <div class="form-grid">
@@ -350,11 +350,10 @@ function abrirModalAceptarItem({ codigo, descripcion, cantidad, originBtn }){
     f.dataset.cantidad = String(cantidad || 1);
     const nroInput = document.getElementById('acept-nro');
     if (nroInput) nroInput.value='';
-    document.getElementById('acept-destino').value='';
+    document.getElementById('acept-destino').value='Pompeya';
     const sel = document.getElementById('acept-razon');
-    // cargar clientes si aún no cargó
-    if (sel && !sel._loaded) {
-      sel._loaded = true;
+    if (sel) {
+      sel.value = '';
       fetch('/api/clientes', { credentials:'include' })
         .then(r=>r.json()).then(arr=>{
           const list = Array.isArray(arr)? arr : [];
@@ -364,8 +363,6 @@ function abrirModalAceptarItem({ codigo, descripcion, cantidad, originBtn }){
             return `<option value="${safe}">${safe}</option>`;
           }).join('');
         }).catch(()=>{});
-    } else if (sel) {
-      sel.value = '';
     }
     m.style.display = 'flex';
   }
@@ -442,7 +439,8 @@ function bindLicitacionesPanel() {
         cantidad: Number(row.dataset.cantidad||'')||1,
         destino: row.dataset.destino || '',
         razon_social: row.dataset.razon || '',
-        pendientes: (row.dataset.pendientes!==undefined? Number(row.dataset.pendientes) : null)
+        pendientes: (row.dataset.pendientes!==undefined? Number(row.dataset.pendientes) : null),
+        observaciones: row.dataset.observaciones || ''
       };
       abrirModalVigenteABM(data);
     } else {
@@ -491,8 +489,7 @@ async function abrirModalABMLicitacion(data, originalNro){
       form.insertBefore(grid, form.firstElementChild);
     }
     const sel = document.getElementById('lic-cliente');
-    if (sel && !sel._loaded) {
-      sel._loaded = true;
+    if (sel) {
       let clientes = [];
       try {
         const rc = await fetch('/api/clientes', { credentials:'include' });
@@ -538,16 +535,14 @@ async function abrirModalABMLicitacion(data, originalNro){
     } catch {}
   }
   if (title) title.innerHTML = `<i class="fas fa-file-signature"></i> ${originalNro? 'Modificar' : 'Nueva'} Licitacion`;
-  // prepare familias datalist (one-time fetch)
+  // prepare familias datalist (siempre fresco)
   try{
     const dlId = 'lic-familias-dl';
     let dl = modal.querySelector(`#${dlId}`);
     if(!dl){ dl = document.createElement('datalist'); dl.id = dlId; form.prepend(dl); }
-    if(licFamilias.length===0){
-      const r = await fetch('/api/familias', { credentials:'include' });
-      const arr = await r.json();
-      licFamilias = Array.isArray(arr)? arr : [];
-    }
+    const r = await fetch('/api/familias', { credentials:'include' });
+    const arr = await r.json();
+    licFamilias = Array.isArray(arr)? arr : [];
     const opts = licFamilias.map(f=> `<option value="${(f.codigo||'').replace(/\"/g,'&quot;')}">${(f.descripcion||'').replace(/\"/g,'&quot;')}</option>`).join('');
     dl.innerHTML = opts;
   }catch{}
@@ -647,26 +642,28 @@ function ensureVigenteModal(){
       <span class="cerrar" id="btn-close-vigente">&times;</span>
       <h2 class="modal-titulo-principal"><i class="fas fa-tools"></i> Reparación Vigente</h2>
       <form id="form-vigente" autocomplete="off" style="display:flex; flex-direction:column; gap:10px;">
-        <div class="form-grid doble">
+        <div class="form-grid">
           <div>
-            <label>Código *</label>
-            <input type="text" id="vig-codigo" required />
-          </div>
-          <div>
-            <label>Cantidad *</label>
-            <input type="number" id="vig-cantidad" min="1" step="1" required />
+            <label>Cliente *</label>
+            <select id="vig-razon" required><option value="">Seleccione cliente</option></select>
           </div>
         </div>
         <div class="form-grid">
           <div>
-            <label>Descripción *</label>
-            <input type="text" id="vig-descripcion" required />
+            <label>Equipo *</label>
+            <select id="vig-equipo-sel" required><option value="">Seleccione equipo</option></select>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Descripción</label>
+            <input type="text" id="vig-descripcion" />
           </div>
         </div>
         <div class="form-grid doble">
           <div>
-            <label>N° Orden</label>
-            <input type="text" id="vig-nro" />
+            <label>Cantidad *</label>
+            <input type="number" id="vig-cantidad" min="1" step="1" required />
           </div>
           <div>
             <label>Pendientes</label>
@@ -675,14 +672,21 @@ function ensureVigenteModal(){
         </div>
         <div class="form-grid doble">
           <div>
+            <label>Nro de Pedido / Precinto</label>
+            <input type="text" id="vig-nro" />
+          </div>
+          <div>
             <label>Destino</label>
             <input type="text" id="vig-destino" />
           </div>
+        </div>
+        <div class="form-grid">
           <div>
-            <label>Razón Social</label>
-            <select id="vig-razon"><option value="">Seleccione</option></select>
+            <label>Observaciones</label>
+            <textarea id="vig-observaciones" rows="3" style="resize:vertical;"></textarea>
           </div>
         </div>
+        <input type="hidden" id="vig-codigo" />
         <div style="display:flex; justify-content:flex-end; gap:8px;">
           <button type="submit" class="btn-aceptar"><i class="fas fa-save"></i> Guardar</button>
         </div>
@@ -690,6 +694,20 @@ function ensureVigenteModal(){
     </div>`;
   document.body.appendChild(m);
   m.querySelector('#btn-close-vigente').addEventListener('click', ()=> m.style.display='none');
+
+  // Equipo → auto-fill código y descripción
+  const equipoSel = m.querySelector('#vig-equipo-sel');
+  equipoSel.addEventListener('change', () => {
+    const opt = equipoSel.options[equipoSel.selectedIndex];
+    document.getElementById('vig-codigo').value = opt ? (opt.dataset.codigo || '') : '';
+    document.getElementById('vig-descripcion').value = opt ? (opt.dataset.desc || '') : '';
+  });
+
+  // Cantidad → auto-fill pendientes
+  const cantInput = m.querySelector('#vig-cantidad');
+  const pendInput = m.querySelector('#vig-pendientes');
+  cantInput.addEventListener('input', () => { pendInput.value = cantInput.value; });
+
   const form = m.querySelector('#form-vigente');
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
@@ -701,9 +719,10 @@ function ensureVigenteModal(){
       nro_pedido: document.getElementById('vig-nro').value.trim()||null,
       destino: document.getElementById('vig-destino').value.trim()||null,
       razon_social: document.getElementById('vig-razon').value.trim()||null,
-      pendientes: (document.getElementById('vig-pendientes').value!==''? Number(document.getElementById('vig-pendientes').value) : undefined)
+      pendientes: (document.getElementById('vig-pendientes').value!==''? Number(document.getElementById('vig-pendientes').value) : undefined),
+      observaciones: document.getElementById('vig-observaciones').value.trim()||null
     };
-    if (!payload.codigo || !payload.descripcion){ alert('Complete código y descripción'); return; }
+    if (!payload.codigo || !payload.descripcion){ alert('Seleccione un equipo'); return; }
     const method = id? 'PUT' : 'POST';
     const url = id? `/api/reparaciones_dota/${id}` : '/api/reparaciones_dota';
     try{
@@ -715,22 +734,56 @@ function ensureVigenteModal(){
   });
 }
 
-function abrirModalVigenteABM(data){
+async function abrirModalVigenteABM(data){
   ensureVigenteModal();
   const m = document.getElementById('modal-vigente-abm');
   const f = document.getElementById('form-vigente');
-  // cargar clientes para select si no cargó
-  const sel = document.getElementById('vig-razon');
-  if (sel && !sel._loaded){ sel._loaded=true; fetch('/api/clientes',{credentials:'include'}).then(r=>r.json()).then(arr=>{ const list=Array.isArray(arr)?arr:[]; sel.innerHTML='<option value="">Seleccione</option>'+list.map(c=>{const n=(c.razon_social||c.fantasia||'').toString().replace(/\"/g,'&quot;'); return `<option value="${n}">${n}</option>`;}).join(''); }).catch(()=>{}); }
-  if (data){
+
+  // Cargar clientes
+  const selRazon = document.getElementById('vig-razon');
+  if (selRazon) {
+    try {
+      const rc = await fetch('/api/clientes', { credentials:'include' });
+      const clientes = await rc.json();
+      const list = Array.isArray(clientes) ? clientes : [];
+      selRazon.innerHTML = '<option value="">Seleccione cliente</option>' +
+        list.map(c => { const n = (c.razon_social||c.fantasia||'').toString().replace(/"/g,'&quot;'); return `<option value="${n}">${n}</option>`; }).join('');
+    } catch { selRazon.innerHTML = '<option value="">Error al cargar</option>'; }
+  }
+
+  // Cargar familias/equipos
+  const selEquipo = document.getElementById('vig-equipo-sel');
+  let familias = [];
+  if (selEquipo) {
+    try {
+      const rf = await fetch('/api/familias', { credentials:'include' });
+      familias = await rf.json();
+      if (!Array.isArray(familias)) familias = [];
+      selEquipo.innerHTML = '<option value="">Seleccione equipo</option>' +
+        familias.map(f => {
+          const code = (f.codigo||'').toString().replace(/"/g,'&quot;');
+          const desc = (f.descripcion||f.nombre||'').toString().replace(/"/g,'&quot;');
+          const label = code && desc ? `${code} - ${desc}` : (code || desc);
+          return `<option value="${f.id}" data-codigo="${code}" data-desc="${desc}">${label}</option>`;
+        }).join('');
+    } catch { selEquipo.innerHTML = '<option value="">Error al cargar</option>'; }
+  }
+
+  if (data) {
     f.dataset.id = data.id||'';
     document.getElementById('vig-codigo').value = data.codigo||'';
     document.getElementById('vig-descripcion').value = data.descripcion||'';
     document.getElementById('vig-cantidad').value = data.cantidad||1;
     document.getElementById('vig-nro').value = data.nro_pedido||'';
     document.getElementById('vig-destino').value = data.destino||'';
-    document.getElementById('vig-razon').value = data.razon_social||'';
     document.getElementById('vig-pendientes').value = (data.pendientes!=null? data.pendientes : '');
+    document.getElementById('vig-observaciones').value = data.observaciones||'';
+    if (selRazon && data.razon_social) selRazon.value = data.razon_social;
+    // Pre-seleccionar familia por código
+    if (selEquipo && data.codigo) {
+      const match = Array.from(selEquipo.options).find(o => o.dataset.codigo === String(data.codigo));
+      if (match) selEquipo.value = match.value;
+    }
   } else {
     f.dataset.id='';
     document.getElementById('vig-codigo').value = '';
@@ -738,8 +791,9 @@ function abrirModalVigenteABM(data){
     document.getElementById('vig-cantidad').value = 1;
     document.getElementById('vig-nro').value = '';
     document.getElementById('vig-destino').value = '';
-    document.getElementById('vig-razon').value = '';
-    document.getElementById('vig-pendientes').value = '';
+    document.getElementById('vig-pendientes').value = 1;
+    document.getElementById('vig-observaciones').value = '';
+    if (selEquipo) selEquipo.value = '';
   }
   m.style.display='flex';
 }
@@ -847,7 +901,7 @@ function setupLicitacionesTabs(){
       <div class="erp-table-card">
         <table class="tabla-erp">
           <thead><tr>
-            <th>Nro Pedido</th><th>Código</th><th>Descripción</th><th>Cantidad</th><th>Destino</th><th>Razón Social</th><th>Pendientes</th>
+            <th>Nro Pedido</th><th>Código</th><th>Descripción</th><th>Cantidad</th><th>Destino</th><th>Razón Social</th><th>Pendientes</th><th>Observaciones</th>
           </tr></thead>
           <tbody id="tbody-vigentes"></tbody>
         </table>
@@ -869,15 +923,15 @@ function setupLicitacionesTabs(){
 
 async function cargarVigentes(){
   const tb = document.getElementById('tbody-vigentes'); if(!tb) return;
-  tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  tb.innerHTML = "<tr><td colspan='8' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
   window.showSpinner && window.showSpinner();
   try{
     const res = await fetch('/api/reparaciones_dota', { credentials:'include' });
     const data = await res.json();
     const lista = Array.isArray(data)? data : [];
-    if(lista.length===0){ tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
+    if(lista.length===0){ tb.innerHTML = "<tr><td colspan='8' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
     tb.innerHTML = lista.map(r=>`
-      <tr data-id="${r.id}" data-nro="${(r.nro_pedido||'').toString().replace(/\"/g,'&quot;')}" data-codigo="${(r.codigo||'').toString().replace(/\"/g,'&quot;')}" data-descripcion="${(r.descripcion||'').toString().replace(/\"/g,'&quot;')}" data-cantidad="${r.cantidad||''}" data-destino="${(r.destino||'').toString().replace(/\"/g,'&quot;')}" data-razon="${(r.razon_social||'').toString().replace(/\"/g,'&quot;')}" data-pendientes="${(r.pendientes!=null?r.pendientes:'')}">
+      <tr data-id="${r.id}" data-nro="${(r.nro_pedido||'').toString().replace(/\"/g,'&quot;')}" data-codigo="${(r.codigo||'').toString().replace(/\"/g,'&quot;')}" data-descripcion="${(r.descripcion||'').toString().replace(/\"/g,'&quot;')}" data-cantidad="${r.cantidad||''}" data-destino="${(r.destino||'').toString().replace(/\"/g,'&quot;')}" data-razon="${(r.razon_social||'').toString().replace(/\"/g,'&quot;')}" data-pendientes="${(r.pendientes!=null?r.pendientes:'')}" data-observaciones="${(r.observaciones||'').toString().replace(/\"/g,'&quot;')}">
         <td>${r.nro_pedido||'-'}</td>
         <td>${r.codigo||'-'}</td>
         <td>${r.descripcion||'-'}</td>
@@ -885,6 +939,7 @@ async function cargarVigentes(){
         <td>${r.destino||'-'}</td>
         <td>${r.razon_social||'-'}</td>
         <td>${r.pendientes!=null?r.pendientes:'-'}</td>
+        <td>${r.observaciones||'-'}</td>
       </tr>`).join('');
     // selección de filas
     if (!tb._selBound){
@@ -908,7 +963,8 @@ async function cargarVigentes(){
           cantidad: tr.dataset.cantidad || '',
           destino: tr.dataset.destino || '',
           razon_social: tr.dataset.razon || '',
-          pendientes: tr.dataset.pendientes || ''
+          pendientes: tr.dataset.pendientes || '',
+          observaciones: tr.dataset.observaciones || ''
         });
       });
     }
@@ -940,6 +996,7 @@ function ensureVigenteDetalleModal(){
         <div><label>Razon Social</label><span id="vig-det-razon">-</span></div>
         <div><label>Pendientes</label><span id="vig-det-pendientes">-</span></div>
         <div><label>ID Registro</label><span id="vig-det-id">-</span></div>
+        <div style="grid-column:span 2"><label>Observaciones</label><span id="vig-det-observaciones">-</span></div>
       </div>
       <section class="detalle-card detalle-textos">
         <h3><i class="fas fa-history"></i> Auditoria</h3>
@@ -1031,7 +1088,8 @@ function abrirModalDetalleVigente(data){
     'vig-det-destino': data.destino || '-',
     'vig-det-razon': data.razon_social || '-',
     'vig-det-pendientes': data.pendientes || '-',
-    'vig-det-id': data.id || '-'
+    'vig-det-id': data.id || '-',
+    'vig-det-observaciones': data.observaciones || '-'
   };
   Object.entries(map).forEach(([id, value]) => {
     const el = document.getElementById(id);

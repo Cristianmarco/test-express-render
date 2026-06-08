@@ -1,14 +1,4 @@
-# Node
 node_modules/
-npm-debug.log
-
-# Env
 .env
-
-# Logs
 *.log
-
-# OS
-.DS_Store
-Thumbs.db
-
+npm-debug.log*

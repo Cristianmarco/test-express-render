@@ -45,6 +45,7 @@
               <th>Destino</th>
               <th>Razón Social</th>
               <th>Pendientes</th>
+              <th>Observaciones</th>
             </tr>
           </thead>
           <tbody id="tbody-vigentes"></tbody>
@@ -316,12 +317,12 @@
       if(which==='vig'){
         var tb = document.getElementById('tbody-vigentes');
         if(tb && !tb._loaded){
-          tb._loaded = true; tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+          tb._loaded = true; tb.innerHTML = "<tr><td colspan='8' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
           fetch('/api/reparaciones_dota', { credentials:'include' })
             .then(function(r){ return r.json(); })
             .then(function(arr){
               var lista = Array.isArray(arr) ? arr : [];
-              if(lista.length===0){ tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
+              if(lista.length===0){ tb.innerHTML = "<tr><td colspan='8' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
               tb.innerHTML = lista.map(function(r){ return (
                 "<tr>"+
                 "<td>"+(r.nro_pedido||'-')+"</td>"+
@@ -331,9 +332,10 @@
                 "<td>"+(r.destino||'-')+"</td>"+
                 "<td>"+(r.razon_social||'-')+"</td>"+
                 "<td>"+((r.pendientes!=null)?r.pendientes:'-')+"</td>"+
+                "<td>"+(r.observaciones||'-')+"</td>"+
                 "</tr>"); }).join('');
             })
-            .catch(function(){ tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>"; });
+            .catch(function(){ tb.innerHTML = "<tr><td colspan='8' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>"; });
         }
       }
     });
