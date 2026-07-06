@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal Clientes — Amorim</title>
+  <link rel="stylesheet" href="/static/css/portal-login.css" />
+</head>
+<body class="portal-login-body">
+
+  <!-- Fondo: imagen camion completa -->
+  <div class="portal-login-bg"></div>
+
+  <!-- Columna izquierda: card de login -->
+  <div class="portal-login-left">
+    <div class="portal-login-card">
+
+      <img src="/static/img/logo-amorim.png" alt="Amorim" class="portal-login-logo"
+           onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='block';" />
+      <div id="logo-fallback" class="portal-login-logo-placeholder" style="display:none;">AMORIM</div>
+
+      <h1>Bienvenido a Amorim</h1>
+      <p class="portal-login-sub">Ingresá con tu usuario y contraseña</p>
+
+      <form id="form-portal-login" autocomplete="off">
+        <label for="pl-email">Email</label>
+        <input type="email" id="pl-email" name="email"
+               placeholder="usuario@empresa.com" required autocomplete="username" />
+
+        <label for="pl-password">Contraseña</label>
+        <input type="password" id="pl-password" name="password"
+               placeholder="••••••••" required autocomplete="current-password" />
+
+        <button type="submit" class="portal-login-btn">Ingresar</button>
+      </form>
+
+      <div class="portal-login-error" id="pl-error"></div>
+
+      <div class="portal-login-footer">Portal exclusivo para clientes Amorim</div>
+    </div>
+  </div>
+
+  <!-- Columna derecha: el camion queda visible -->
+  <div class="portal-login-right"></div>
+
+  <script>
+    document.getElementById('form-portal-login').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const errEl = document.getElementById('pl-error');
+      errEl.textContent = '';
+      const btn = this.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = 'Ingresando...';
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            email: document.getElementById('pl-email').value.trim(),
+            password: document.getElementById('pl-password').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Usuario o contraseña incorrectos';
+          return;
+        }
+        window.location.href = data.rol === 'cliente' ? '/portal' : '/refactor';
+      } catch (err) {
+        errEl.textContent = 'Error de conexión. Intentá de nuevo.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Ingresar';
+      }
+    });
+  </script>
+</body>
+</html>

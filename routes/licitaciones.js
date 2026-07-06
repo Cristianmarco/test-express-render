@@ -61,6 +61,7 @@ async function ensureGarantiasTable() {
     );
   `);
   await db.query(`ALTER TABLE licitacion_garantias ADD COLUMN IF NOT EXISTS id_cliente TEXT`);
+  await db.query(`ALTER TABLE licitacion_garantias ADD COLUMN IF NOT EXISTS id_reparacion TEXT`);
   garantiasTableReady = true;
 }
 
@@ -95,7 +96,8 @@ function mapGarantiaPayload(body = {}) {
     proveedor: clean(body.proveedor),
     ref_proveedor: clean(body.ref_proveedor),
     ref_proveedor_alt: clean(body.ref_proveedor_alt),
-    resolucion: clean(body.resolucion)
+    resolucion: clean(body.resolucion),
+    id_reparacion: clean(body.id_reparacion)
   };
 }
 
@@ -354,44 +356,8 @@ router.post('/garantias', async (req, res, next) => {
     const data = mapGarantiaPayload(req.body);
     const insert = await db.query(
       `INSERT INTO licitacion_garantias
-       (id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-       RETURNING *`,
-      [
-        data.id_cliente,
-        data.ingreso,
-        data.cabecera,
-        data.interno,
-        data.codigo,
-        data.alt,
-        data.cantidad,
-        data.notificacion,
-        data.notificado_en,
-        data.detalle,
-        data.recepcion,
-        data.cod_proveedor,
-        data.proveedor,
-        data.ref_proveedor,
-        data.ref_proveedor_alt,
-        data.resolucion
-      ]
-    );
-    res.status(201).json(insert.rows[0]);
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.put('/garantias/:id', async (req, res, next) => {
-  const { id } = req.params;
-  try {
-    const data = mapGarantiaPayload(req.body);
-    const upd = await db.query(
-      `UPDATE licitacion_garantias
-       SET id_cliente=$1, ingreso=$2, cabecera=$3, interno=$4, codigo=$5, alt=$6, cantidad=$7,
-           notificacion=$8, notificado_en=$9, detalle=$10, recepcion=$11, cod_proveedor=$12,
-           proveedor=$13, ref_proveedor=$14, ref_proveedor_alt=$15, resolucion=$16
-       WHERE id=$17
+       (id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion, id_reparacion)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING *`,
       [
         data.id_cliente,
@@ -410,6 +376,44 @@ router.put('/garantias/:id', async (req, res, next) => {
         data.ref_proveedor,
         data.ref_proveedor_alt,
         data.resolucion,
+        data.id_reparacion
+      ]
+    );
+    res.status(201).json(insert.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/garantias/:id', async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const data = mapGarantiaPayload(req.body);
+    const upd = await db.query(
+      `UPDATE licitacion_garantias
+       SET id_cliente=$1, ingreso=$2, cabecera=$3, interno=$4, codigo=$5, alt=$6, cantidad=$7,
+           notificacion=$8, notificado_en=$9, detalle=$10, recepcion=$11, cod_proveedor=$12,
+           proveedor=$13, ref_proveedor=$14, ref_proveedor_alt=$15, resolucion=$16, id_reparacion=$17
+       WHERE id=$18
+       RETURNING *`,
+      [
+        data.id_cliente,
+        data.ingreso,
+        data.cabecera,
+        data.interno,
+        data.codigo,
+        data.alt,
+        data.cantidad,
+        data.notificacion,
+        data.notificado_en,
+        data.detalle,
+        data.recepcion,
+        data.cod_proveedor,
+        data.proveedor,
+        data.ref_proveedor,
+        data.ref_proveedor_alt,
+        data.resolucion,
+        data.id_reparacion,
         id
       ]
     );

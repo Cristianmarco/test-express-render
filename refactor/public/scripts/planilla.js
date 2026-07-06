@@ -2379,8 +2379,8 @@ function bindClienteExternoToggle(forceApply){
     const isExt = (sel.value||'').toLowerCase()==='externo';
     wrap.style.display = isExt ? 'grid' : 'none';
     selCli.required = !!isExt;
-    if(isExt){ prepararSelectClientes(); }
-    else { selCli.value=''; }
+    if(isExt && selCli.options.length <= 1){ prepararSelectClientes(); }
+    else if(!isExt){ selCli.value=''; }
   };
   if(!sel._bound){ sel._bound=true; sel.addEventListener('change', apply); }
   if(forceApply || sel.value){ apply(); }

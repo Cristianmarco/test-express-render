@@ -34,7 +34,8 @@ function buildGarantiaFromRow(tr) {
     proveedor: tr.dataset.proveedor || '',
     ref_proveedor: tr.dataset.refprov || '',
     ref_proveedor_alt: tr.dataset.refprov2 || '',
-    resolucion: tr.dataset.resolucion || ''
+    resolucion: tr.dataset.resolucion || '',
+    id_reparacion: tr.dataset.idreparacion || ''
   };
 }
 
@@ -1251,6 +1252,7 @@ async function cargarGarantias() {
           data-refprov="${attr(g.ref_proveedor || '')}"
           data-refprov2="${attr(g.ref_proveedor_alt || '')}"
           data-resolucion="${attr(g.resolucion || '')}"
+          data-idreparacion="${attr(g.id_reparacion || '')}"
         >
           <td>${html(numero)}</td>
           <td>${html(g.id_cliente || g.id || '')}</td>
@@ -1263,6 +1265,7 @@ async function cargarGarantias() {
           <td>${html(formatGarantiaDate(g.notificacion, { dateOnly: true }))}</td>
           <td>${html(g.detalle || '')}</td>
           <td>${html(g.ref_proveedor || '')}</td>
+          <td>${html(g.id_reparacion || '')}</td>
         </tr>`;
     }).join('');
     tbody.innerHTML = rows;
@@ -1308,6 +1311,50 @@ async function cargarGarantias() {
   }
 }
 
+async function initGarantiaSelects() {
+  const selCabecera = document.getElementById('sel-gar-cabecera');
+  if (!selCabecera || selCabecera._inited) return;
+  selCabecera._inited = true;
+  try {
+    const res = await fetch('/api/clientes', { credentials: 'include' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const clientes = await res.json();
+    if (Array.isArray(clientes)) {
+      clientes.forEach(c => {
+        const opt = document.createElement('option');
+        const label = c.razon_social || c.fantasia || c.codigo || '';
+        opt.value = label;
+        opt.textContent = label;
+        selCabecera.appendChild(opt);
+      });
+    }
+  } catch (e) { console.error('Error cargando clientes para garantia:', e); }
+
+  const selCodigo = document.getElementById('sel-gar-codigo');
+  if (selCodigo) {
+    try {
+      const res = await fetch('/api/familias', { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const familias = await res.json();
+      if (Array.isArray(familias)) {
+        familias.forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f.codigo;
+          opt.textContent = `${f.codigo} - ${f.descripcion}`;
+          opt.dataset.descripcion = f.descripcion;
+          selCodigo.appendChild(opt);
+        });
+      }
+    } catch (e) { console.error('Error cargando familias para garantia:', e); }
+
+    selCodigo.addEventListener('change', () => {
+      const opt = selCodigo.options[selCodigo.selectedIndex];
+      const altInput = document.querySelector('#form-garantia [name="alt"]');
+      if (altInput) altInput.value = opt?.dataset.descripcion || '';
+    });
+  }
+}
+
 function openGarantiaModal(edit = false) {
   const modal = document.getElementById('modal-garantia');
   const form = document.getElementById('form-garantia');
@@ -1321,7 +1368,16 @@ function openGarantiaModal(edit = false) {
   if (edit && garSeleccionada) {
     Object.entries(garSeleccionada).forEach(([key, val]) => {
       const input = form.querySelector(`[name="${key}"]`);
-      if (input) input.value = val ?? '';
+      if (!input) return;
+      if (val && input.type === 'date') {
+        const dateStr = String(val).slice(0, 10);
+        input.value = /^\d{4}-\d{2}-\d{2}/.test(dateStr) ? dateStr : '';
+      } else if (val && input.type === 'datetime-local') {
+        const isoStr = String(val).replace(' ', 'T');
+        input.value = isoStr.slice(0, 16);
+      } else {
+        input.value = val ?? '';
+      }
     });
   }
   if (!form._bound) {
@@ -1355,7 +1411,8 @@ async function guardarGarantia(e) {
     proveedor: data.proveedor || null,
     ref_proveedor: data.ref_proveedor || null,
     ref_proveedor_alt: data.ref_proveedor_alt || null,
-    resolucion: data.resolucion || null
+    resolucion: data.resolucion || null,
+    id_reparacion: data.id_reparacion || null
   };
   const isEdit = form.dataset.mode === 'edit' && garSeleccionada && garSeleccionada.id;
   const url = isEdit ? `/api/licitaciones/garantias/${garSeleccionada.id}` : '/api/licitaciones/garantias';
@@ -1450,6 +1507,7 @@ async function actualizarGarantias() {
 }
 
 function bindGarantiasPanel() {
+  initGarantiaSelects();
   const btnAdd = document.getElementById('btn-gar-agregar');
   const btnRefresh = document.getElementById('btn-gar-actualizar');
   const btnEdit = document.getElementById('btn-gar-modificar');

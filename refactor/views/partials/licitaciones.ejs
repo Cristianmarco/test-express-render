@@ -71,6 +71,7 @@
               <th>Colocado</th>
               <th>Detalle</th>
               <th>Fecha proveedor</th>
+              <th>ID reparacion</th>
             </tr>
           </thead>
           <tbody id="tbody-garantias"></tbody>
@@ -131,7 +132,9 @@
         <div class="form-grid doble">
           <div>
             <label>Cabecera</label>
-            <input type="text" name="cabecera" />
+            <select name="cabecera" id="sel-gar-cabecera">
+              <option value="">-- Cliente --</option>
+            </select>
           </div>
           <div>
             <label>Interno</label>
@@ -141,7 +144,9 @@
         <div class="form-grid doble">
           <div>
             <label>Código</label>
-            <input type="text" name="codigo" />
+            <select name="codigo" id="sel-gar-codigo">
+              <option value="">-- Familia --</option>
+            </select>
           </div>
           <div>
             <label>Equipo</label>
@@ -164,10 +169,14 @@
             <textarea name="detalle" rows="2"></textarea>
           </div>
         </div>
-        <div class="form-grid">
+        <div class="form-grid doble">
           <div>
             <label>Fecha proveedor</label>
             <input type="date" name="ref_proveedor" />
+          </div>
+          <div>
+            <label>ID reparacion</label>
+            <input type="text" name="id_reparacion" />
           </div>
         </div>
         <div style="text-align:right; margin-top:16px;">

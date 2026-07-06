@@ -24,8 +24,14 @@ router.post("/", loginLimiter, async (req, res) => {
   }
 
   try {
-    // Buscar usuario por email
-    const query = "SELECT * FROM usuarios WHERE email = $1 LIMIT 1";
+    // Buscar usuario por email, join con clientes para obtener nombre
+    const query = `
+      SELECT u.*, c.razon_social AS cliente_nombre
+      FROM usuarios u
+      LEFT JOIN clientes c ON c.codigo = u.cliente_codigo
+      WHERE u.email = $1
+      LIMIT 1
+    `;
     const result = await pool.query(query, [email]);
 
     if (result.rows.length === 0) {
@@ -53,7 +59,8 @@ router.post("/", loginLimiter, async (req, res) => {
       id: user.id,
       email: user.email,
       rol: user.rol,
-      cliente: user.cliente_id || null
+      cliente_codigo: user.cliente_codigo || null,
+      cliente_nombre: user.cliente_nombre || null
     };
 
     console.log("✅ Sesión creada:", req.session.user);
@@ -63,7 +70,8 @@ router.post("/", loginLimiter, async (req, res) => {
       success: true,
       email: user.email,
       rol: user.rol,
-      cliente: user.cliente_id || null
+      cliente_codigo: user.cliente_codigo || null,
+      cliente_nombre: user.cliente_nombre || null
     });
   } catch (err) {
     console.error("❌ Error en /api/login:", err);

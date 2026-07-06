@@ -1,0 +1,168 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body.portal-login-body {
+  min-height: 100vh;
+  display: flex;
+  align-items: stretch;
+  font-family: 'Segoe UI', sans-serif;
+  background: #1a2636;
+  overflow: hidden;
+}
+
+/* Imagen de fondo completa */
+.portal-login-bg {
+  position: fixed;
+  inset: 0;
+  background-image: url('/static/img/camion.jpg');
+  background-size: cover;
+  background-position: center right;
+  z-index: 0;
+}
+
+/* Overlay degradado: opaco a la izquierda, transparente a la derecha */
+.portal-login-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    rgba(10, 18, 30, 0.92) 0%,
+    rgba(10, 18, 30, 0.75) 38%,
+    rgba(10, 18, 30, 0.10) 70%,
+    rgba(10, 18, 30, 0.0) 100%
+  );
+}
+
+/* Columna izquierda: contiene el card */
+.portal-login-left {
+  position: relative;
+  z-index: 1;
+  width: 480px;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 48px;
+  flex-shrink: 0;
+}
+
+/* El resto de la pantalla es el camión (transparente) */
+.portal-login-right {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+}
+
+/* Card de login */
+.portal-login-card {
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 20px;
+  padding: 44px 44px;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 12px 50px rgba(0,0,0,0.55);
+  text-align: center;
+}
+
+.portal-login-logo {
+  max-width: 170px;
+  max-height: 80px;
+  object-fit: contain;
+  margin-bottom: 18px;
+}
+
+.portal-login-logo-placeholder {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #1a2636;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.portal-login-card h1 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #1a2636;
+  margin-bottom: 4px;
+}
+
+.portal-login-card .portal-login-sub {
+  font-size: 0.83rem;
+  color: #64748b;
+  margin-bottom: 26px;
+}
+
+.portal-login-card label {
+  display: block;
+  text-align: left;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 5px;
+  margin-top: 14px;
+}
+
+.portal-login-card input[type="email"],
+.portal-login-card input[type="text"],
+.portal-login-card input[type="password"] {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: #1a2636;
+  outline: none;
+  transition: border-color 0.2s;
+  background: #f9fafb;
+}
+
+.portal-login-card input:focus {
+  border-color: #2563eb;
+  background: #fff;
+}
+
+.portal-login-btn {
+  width: 100%;
+  margin-top: 24px;
+  padding: 12px;
+  background: #1a2636;
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.portal-login-btn:hover { background: #243447; }
+.portal-login-btn:active { transform: scale(0.98); }
+
+.portal-login-error {
+  margin-top: 12px;
+  color: #dc2626;
+  font-size: 0.85rem;
+  min-height: 20px;
+}
+
+.portal-login-footer {
+  margin-top: 24px;
+  font-size: 0.73rem;
+  color: #94a3b8;
+}
+
+/* Mobile: card centrada con fondo completo */
+@media (max-width: 640px) {
+  body.portal-login-body { align-items: center; justify-content: center; }
+  .portal-login-bg::after {
+    background: rgba(10, 18, 30, 0.78);
+  }
+  .portal-login-left {
+    width: 100%;
+    min-height: unset;
+    padding: 24px 20px;
+    justify-content: center;
+  }
+  .portal-login-right { display: none; }
+}

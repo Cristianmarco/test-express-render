@@ -198,6 +198,7 @@ app.use((err, req, res, next) => {
 // ============================
 
 const refactorRouter = require("./refactor/routes/refactor.js");
+const portalRouter = require("./refactor/routes/portal.js");
 
 // Configurar EJS para vistas dinámicas del refactor
 app.set("view engine", "ejs");
@@ -214,6 +215,9 @@ app.use(
   },
   express.static(path.join(__dirname, "refactor/public"))
 );
+
+// Portal de clientes (antes del refactor para capturar /portal/*)
+app.use("/portal", portalRouter);
 
 // ✅ El router refactor maneja su propia protección interna
 app.use("/refactor", refactorRouter);
