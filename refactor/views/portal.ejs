@@ -21,11 +21,9 @@
         <i class="fas fa-building"></i>
         <%= user.cliente_nombre || user.email %>
       </span>
-      <form action="/api/logout" method="post" style="display:inline;">
-        <button type="submit" class="portal-logout-btn">
-          <i class="fas fa-sign-out-alt"></i> Salir
-        </button>
-      </form>
+      <button type="button" class="portal-logout-btn" id="btn-portal-logout">
+        <i class="fas fa-sign-out-alt"></i> Salir
+      </button>
     </div>
   </header>
 

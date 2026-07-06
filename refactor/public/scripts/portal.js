@@ -198,3 +198,11 @@ tabs.addEventListener('click', (e) => {
 
 // Cargar tab inicial
 loadTab('reparaciones');
+
+// Logout
+document.getElementById('btn-portal-logout').addEventListener('click', async () => {
+  try {
+    await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+  } catch (_) {}
+  window.location.href = '/portal/login';
+});
