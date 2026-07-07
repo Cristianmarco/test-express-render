@@ -28,15 +28,29 @@ router.get('/', requireCliente, (req, res) => {
 
 // ── API del portal ─────────────────────────────────────────────────────────────
 
-// Equipos en reparación del cliente
+// Equipos en reparación del cliente (últimos 90 días, uno por id_reparacion)
 router.get('/api/reparaciones', requireCliente, async (req, res) => {
   const { cliente_codigo } = req.session.user;
   try {
     const { rows } = await db.query(
-      `SELECT codigo, tipo, modelo, estado, fecha_ingreso, fecha_entrega, garantia, descripcion
-       FROM reparaciones
-       WHERE cliente_codigo = $1
-       ORDER BY fecha_ingreso DESC`,
+      `SELECT DISTINCT ON (r.id_reparacion)
+         r.id_reparacion,
+         r.fecha::date        AS fecha,
+         r.trabajo,
+         r.observaciones,
+         r.garantia,
+         r.nro_pedido_ref,
+         f.descripcion        AS equipo,
+         f.codigo             AS codigo_equipo,
+         t.nombre             AS tecnico
+       FROM equipos_reparaciones r
+       LEFT JOIN familia  f ON f.id = r.familia_id
+       LEFT JOIN tecnicos t ON t.id = r.tecnico_id
+       LEFT JOIN clientes c ON c.id = r.cliente_id
+       WHERE c.codigo = $1
+         AND LOWER(COALESCE(r.cliente_tipo,'')) = 'externo'
+         AND r.fecha >= NOW() - INTERVAL '90 days'
+       ORDER BY r.id_reparacion, r.fecha DESC, r.id DESC`,
       [cliente_codigo]
     );
     res.json(rows);
@@ -46,15 +60,28 @@ router.get('/api/reparaciones', requireCliente, async (req, res) => {
   }
 });
 
-// Historial (equipos entregados)
+// Historial completo del cliente (todos los trabajos, uno por id_reparacion)
 router.get('/api/historial', requireCliente, async (req, res) => {
   const { cliente_codigo } = req.session.user;
   try {
     const { rows } = await db.query(
-      `SELECT codigo, tipo, modelo, fecha_entrega, garantia, descripcion
-       FROM entregadas
-       WHERE cliente_codigo = $1
-       ORDER BY fecha_entrega DESC`,
+      `SELECT DISTINCT ON (r.id_reparacion)
+         r.id_reparacion,
+         r.fecha::date        AS fecha,
+         r.trabajo,
+         r.observaciones,
+         r.garantia,
+         r.nro_pedido_ref,
+         f.descripcion        AS equipo,
+         f.codigo             AS codigo_equipo,
+         t.nombre             AS tecnico
+       FROM equipos_reparaciones r
+       LEFT JOIN familia  f ON f.id = r.familia_id
+       LEFT JOIN tecnicos t ON t.id = r.tecnico_id
+       LEFT JOIN clientes c ON c.id = r.cliente_id
+       WHERE c.codigo = $1
+         AND LOWER(COALESCE(r.cliente_tipo,'')) = 'externo'
+       ORDER BY r.id_reparacion, r.fecha DESC, r.id DESC`,
       [cliente_codigo]
     );
     res.json(rows);

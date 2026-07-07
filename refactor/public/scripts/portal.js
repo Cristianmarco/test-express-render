@@ -48,30 +48,30 @@ async function loadTab(tab) {
 }
 
 function reparaciones(data) {
-  if (!data.length) return empty('No tenés equipos en reparación actualmente.');
+  if (!data.length) return empty('No hay reparaciones registradas en los últimos 90 días.');
   return `
     <div class="portal-section-title"><i class="fas fa-tools"></i> Equipos en Reparación</div>
     <div class="portal-table-wrap">
       <table class="portal-table">
         <thead>
           <tr>
-            <th>Código</th>
-            <th>Tipo</th>
-            <th>Modelo</th>
-            <th>Estado</th>
-            <th>Ingreso</th>
-            <th>Descripción</th>
+            <th>N° Reparación</th>
+            <th>Equipo</th>
+            <th>Último trabajo</th>
+            <th>Técnico</th>
+            <th>Fecha</th>
+            <th>Garantía</th>
           </tr>
         </thead>
         <tbody>
           ${data.map(r => `
             <tr>
-              <td><b>${esc(r.codigo)}</b></td>
-              <td>${esc(r.tipo)}</td>
-              <td>${esc(r.modelo)}</td>
-              <td>${badge(r.estado)}</td>
-              <td>${fmt(r.fecha_ingreso)}</td>
-              <td>${esc(r.descripcion)}</td>
+              <td><b>${esc(r.id_reparacion)}</b></td>
+              <td>${esc(r.equipo)}</td>
+              <td>${esc(r.trabajo)}</td>
+              <td>${esc(r.tecnico)}</td>
+              <td>${fmt(r.fecha)}</td>
+              <td>${String(r.garantia||'').toLowerCase()==='si' ? '<span class="badge badge-naranja">Garantía</span>' : '<span class="badge badge-gris">No</span>'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -80,30 +80,30 @@ function reparaciones(data) {
 }
 
 function historial(data) {
-  if (!data.length) return empty('No hay equipos entregados en el historial.');
+  if (!data.length) return empty('No hay reparaciones en el historial.');
   return `
     <div class="portal-section-title"><i class="fas fa-history"></i> Historial de Reparaciones</div>
     <div class="portal-table-wrap">
       <table class="portal-table">
         <thead>
           <tr>
-            <th>Código</th>
-            <th>Tipo</th>
-            <th>Modelo</th>
-            <th>Fecha Entrega</th>
+            <th>N° Reparación</th>
+            <th>Equipo</th>
+            <th>Último trabajo</th>
+            <th>Técnico</th>
+            <th>Fecha</th>
             <th>Garantía</th>
-            <th>Descripción</th>
           </tr>
         </thead>
         <tbody>
           ${data.map(r => `
             <tr>
-              <td><b>${esc(r.codigo)}</b></td>
-              <td>${esc(r.tipo)}</td>
-              <td>${esc(r.modelo)}</td>
-              <td>${fmt(r.fecha_entrega)}</td>
-              <td>${r.garantia ? '<span class="badge badge-verde">Sí</span>' : '<span class="badge badge-gris">No</span>'}</td>
-              <td>${esc(r.descripcion)}</td>
+              <td><b>${esc(r.id_reparacion)}</b></td>
+              <td>${esc(r.equipo)}</td>
+              <td>${esc(r.trabajo)}</td>
+              <td>${esc(r.tecnico)}</td>
+              <td>${fmt(r.fecha)}</td>
+              <td>${String(r.garantia||'').toLowerCase()==='si' ? '<span class="badge badge-naranja">Garantía</span>' : '<span class="badge badge-gris">No</span>'}</td>
             </tr>
           `).join('')}
         </tbody>
