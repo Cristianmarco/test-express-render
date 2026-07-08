@@ -396,7 +396,7 @@
       if (meta.endpoint === '/api/reparaciones_dota') refreshDashboard();
     } catch (err) {
       console.error(err);
-      alert('No se pudo guardar');
+      alert('No se pudo guardar: ' + (err.message || 'Error desconocido'));
     }
   }
 
