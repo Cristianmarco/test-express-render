@@ -1211,6 +1211,8 @@ async function cargarGarantias() {
   garSeleccionMultiple.clear();
   garSeleccionAnchorIndex = null;
   garSeleccionada = null;
+  const filtroInput = document.getElementById('gar-filtro-equipo');
+  if (filtroInput) filtroInput.value = '';
   tbody.innerHTML = "<tr><td colspan='16' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
   window.showSpinner && window.showSpinner();
   try {
@@ -1309,6 +1311,16 @@ async function cargarGarantias() {
   } finally {
     window.hideSpinner && window.hideSpinner();
   }
+}
+
+function filtrarGarantiasPorEquipo(texto) {
+  const tbody = document.getElementById('tbody-garantias');
+  if (!tbody) return;
+  const q = (texto || '').trim().toLowerCase();
+  tbody.querySelectorAll('tr[data-id]').forEach(tr => {
+    const equipo = (tr.dataset.alt || '').toLowerCase();
+    tr.style.display = (!q || equipo.includes(q)) ? '' : 'none';
+  });
 }
 
 async function initGarantiaSelects() {

@@ -56,6 +56,13 @@
 
 
     <div id="gar-tab" class="lic-tab-pane" style="display:none;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+        <input type="text" id="gar-filtro-equipo" placeholder="Filtrar por equipo / modelo..."
+               style="flex:1; max-width:320px; padding:7px 12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:0.88rem; outline:none;"
+               oninput="filtrarGarantiasPorEquipo(this.value)" />
+        <button type="button" class="btn-secundario" onclick="filtrarGarantiasPorEquipo(''); document.getElementById('gar-filtro-equipo').value='';"
+                style="padding:6px 12px;">&#x2715; Limpiar</button>
+      </div>
       <div class="erp-table-card">
         <table class="tabla-erp tabla-erp-inputs tabla-garantias">
           <thead>
