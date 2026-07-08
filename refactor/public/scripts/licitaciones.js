@@ -855,6 +855,8 @@ function setupLicitacionesTabs(){
         if (panelGar) panelGar.style.display = which==='gar' ? 'flex' : 'none';
         if (btnVigRecalc) btnVigRecalc.style.display = which==='vig' ? 'inline-flex' : 'none';
         if (btnVigClear) btnVigClear.style.display = which==='vig' ? 'inline-flex' : 'none';
+        const garFiltroWrap = document.getElementById('gar-filtro-wrap');
+        if (garFiltroWrap) garFiltroWrap.style.display = which==='gar' ? 'flex' : 'none';
         if(which==='vig') cargarVigentes();
         if(which==='gar') cargarGarantias();
       };

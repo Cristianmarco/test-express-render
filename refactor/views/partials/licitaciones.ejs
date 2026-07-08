@@ -13,6 +13,14 @@
       <button class="btn-secundario" data-tab="gar">Garantias</button>
       <button id="btn-vig-recalcular" class="btn-secundario" style="margin-left:auto; display:none;">Recalcular pendientes</button>
       <button id="btn-vig-clear" class="btn-secundario" style="display:none;">Limpiar seleccion</button>
+      <div id="gar-filtro-wrap" style="margin-left:auto; display:none; position:relative;">
+        <input type="text" id="gar-filtro-equipo" placeholder="Filtrar por código o equipo..."
+               oninput="filtrarGarantiasPorEquipo(this.value)"
+               style="padding:5px 28px 5px 10px; border:1.5px solid #d1d5db; border-radius:7px; font-size:0.85rem; width:220px; outline:none;" />
+        <button type="button" onclick="filtrarGarantiasPorEquipo(''); document.getElementById('gar-filtro-equipo').value='';"
+                title="Limpiar filtro"
+                style="position:absolute; right:0; top:0; bottom:0; width:26px; border:none; background:transparent; cursor:pointer; color:#94a3b8; font-size:1rem; display:flex; align-items:center; justify-content:center; border-radius:0 7px 7px 0;">&#x2715;</button>
+      </div>
     </div>
 
     <div id="lic-tab" class="lic-tab-pane" style="display:block;">
@@ -56,13 +64,6 @@
 
 
     <div id="gar-tab" class="lic-tab-pane" style="display:none;">
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-        <input type="text" id="gar-filtro-equipo" placeholder="Filtrar por código o equipo..."
-               style="flex:1; max-width:320px; padding:7px 12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:0.88rem; outline:none;"
-               oninput="filtrarGarantiasPorEquipo(this.value)" />
-        <button type="button" class="btn-secundario" onclick="filtrarGarantiasPorEquipo(''); document.getElementById('gar-filtro-equipo').value='';"
-                style="padding:6px 12px;">&#x2715; Limpiar</button>
-      </div>
       <div class="erp-table-card">
         <table class="tabla-erp tabla-erp-inputs tabla-garantias">
           <thead>
