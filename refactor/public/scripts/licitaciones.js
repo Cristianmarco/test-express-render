@@ -1319,7 +1319,8 @@ function filtrarGarantiasPorEquipo(texto) {
   const q = (texto || '').trim().toLowerCase();
   tbody.querySelectorAll('tr[data-id]').forEach(tr => {
     const equipo = (tr.dataset.alt || '').toLowerCase();
-    tr.style.display = (!q || equipo.includes(q)) ? '' : 'none';
+    const codigo = (tr.dataset.codigo || '').toLowerCase();
+    tr.style.display = (!q || equipo.includes(q) || codigo.includes(q)) ? '' : 'none';
   });
 }
 
