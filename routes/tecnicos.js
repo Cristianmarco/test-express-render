@@ -42,6 +42,9 @@ router.post("/", async (req, res) => {
     res.status(201).json(tecnico);
   } catch (err) {
     console.error("Error creando técnico:", err);
+    if (err.code === '23505' && err.constraint === 'tecnicos_dni_key') {
+      return res.status(409).json({ error: 'Ya existe un técnico con ese DNI' });
+    }
     res.status(500).json({ error: err.message || "Error al crear técnico" });
   }
 });
