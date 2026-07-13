@@ -453,6 +453,29 @@ function bindLicitacionesPanel() {
       }catch{ alert('No se pudo cargar la licitacion.'); }
     }
   }); }
+  const btnCotizar = document.getElementById('btn-lic-cotizar');
+  if (btnCotizar && !btnCotizar._bound){ btnCotizar._bound = true; btnCotizar.addEventListener('click', ()=>{
+    if (!isVigenteActiveView()) return;
+    if (!vigSeleccionada){ alert('Seleccione un equipo vigente.'); return; }
+    const row = document.querySelector(`#tbody-vigentes tr[data-id="${vigSeleccionada}"]`);
+    if (!row){ alert('No se pudo localizar la fila.'); return; }
+    // Si ya tiene cotización, abrirla directamente
+    const cotId = row.querySelector('.btn-cot-icon')?.dataset?.cotId;
+    if (cotId) {
+      sessionStorage.setItem('cotizacionEditorId', cotId);
+      window.loadView && window.loadView('cotizaciones_nuevas');
+      return;
+    }
+    // Nueva cotización pre-completada desde el vigente
+    sessionStorage.setItem('cotizacionVigenteData', JSON.stringify({
+      vigente_id: Number(vigSeleccionada),
+      nro_pedido:  row.dataset.nro || '',
+      razon_social: row.dataset.razon || '',
+      descripcion:  row.dataset.descripcion || '',
+      codigo:       row.dataset.codigo || ''
+    }));
+    window.loadView && window.loadView('cotizaciones_nuevas');
+  }); }
   if (btnDel && !btnDel._bound){ btnDel._bound = true; btnDel.addEventListener('click', async ()=>{
     if (isVigenteActiveView()){
       if (!vigSeleccionada){ alert('Seleccione una reparación vigente.'); return; }
@@ -857,6 +880,8 @@ function setupLicitacionesTabs(){
         if (btnVigClear) btnVigClear.style.display = which==='vig' ? 'inline-flex' : 'none';
         const garFiltroWrap = document.getElementById('gar-filtro-wrap');
         if (garFiltroWrap) garFiltroWrap.style.display = which==='gar' ? 'flex' : 'none';
+        const btnCotizar = document.getElementById('btn-lic-cotizar');
+        if (btnCotizar) btnCotizar.style.display = which==='vig' ? 'inline-flex' : 'none';
         if(which==='vig') cargarVigentes();
         if(which==='gar') cargarGarantias();
       };
@@ -926,15 +951,19 @@ function setupLicitacionesTabs(){
 
 async function cargarVigentes(){
   const tb = document.getElementById('tbody-vigentes'); if(!tb) return;
-  tb.innerHTML = "<tr><td colspan='8' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
   window.showSpinner && window.showSpinner();
   try{
     const res = await fetch('/api/reparaciones_dota', { credentials:'include' });
     const data = await res.json();
     const lista = Array.isArray(data)? data : [];
-    if(lista.length===0){ tb.innerHTML = "<tr><td colspan='8' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
-    tb.innerHTML = lista.map(r=>`
-      <tr data-id="${r.id}" data-nro="${(r.nro_pedido||'').toString().replace(/\"/g,'&quot;')}" data-codigo="${(r.codigo||'').toString().replace(/\"/g,'&quot;')}" data-descripcion="${(r.descripcion||'').toString().replace(/\"/g,'&quot;')}" data-cantidad="${r.cantidad||''}" data-destino="${(r.destino||'').toString().replace(/\"/g,'&quot;')}" data-razon="${(r.razon_social||'').toString().replace(/\"/g,'&quot;')}" data-pendientes="${(r.pendientes!=null?r.pendientes:'')}" data-observaciones="${(r.observaciones||'').toString().replace(/\"/g,'&quot;')}">
+    if(lista.length===0){ tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
+    const attr = v => String(v==null?'':v).replace(/"/g,'&quot;');
+    tb.innerHTML = lista.map(r=>{
+      const cotIcon = r.cotizacion_id
+        ? `<button class="btn-cot-icon" data-cot-id="${r.cotizacion_id}" title="${attr(r.cotizacion_numero||'Ver cotización')} (${attr(r.cotizacion_estado||'')})" style="background:none;border:none;cursor:pointer;color:#2563eb;font-size:1.1rem;padding:2px 4px;border-radius:4px;" onclick="event.stopPropagation()"><i class="fas fa-file-invoice-dollar"></i></button>`
+        : `<span style="color:#cbd5e1;">—</span>`;
+      return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}">
         <td>${r.nro_pedido||'-'}</td>
         <td>${r.codigo||'-'}</td>
         <td>${r.descripcion||'-'}</td>
@@ -943,11 +972,23 @@ async function cargarVigentes(){
         <td>${r.razon_social||'-'}</td>
         <td>${r.pendientes!=null?r.pendientes:'-'}</td>
         <td>${r.observaciones||'-'}</td>
-      </tr>`).join('');
-    // selección de filas
+        <td style="text-align:center;">${cotIcon}</td>
+      </tr>`;
+    }).join('');
+    // selección de filas + click en icono cotización
     if (!tb._selBound){
       tb._selBound = true;
       tb.addEventListener('click', (e)=>{
+        // click en icono de cotización: abrir en la vista de cotizaciones
+        const cotBtn = e.target.closest('.btn-cot-icon');
+        if (cotBtn) {
+          const cotId = cotBtn.dataset.cotId;
+          if (cotId) {
+            sessionStorage.setItem('cotizacionEditorId', cotId);
+            window.loadView && window.loadView('cotizaciones_nuevas');
+          }
+          return;
+        }
         const tr = e.target.closest('tr'); if(!tr) return;
         vigSeleccionada = tr.dataset.id || null;
         tb.querySelectorAll('tr').forEach(x=> x.classList.remove('selected'));
@@ -973,7 +1014,7 @@ async function cargarVigentes(){
     }
   } catch(err) {
     console.error('vigentes load', err);
-    tb.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+    tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
   } finally {
     window.hideSpinner && window.hideSpinner();
   }

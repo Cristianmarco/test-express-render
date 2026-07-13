@@ -45,7 +45,8 @@ async function ensureTables() {
     `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS total NUMERIC(12,2) NOT NULL DEFAULT 0`,
     `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS cliente_nombre TEXT`,
     `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS mano_obra NUMERIC(12,2) NOT NULL DEFAULT 0`,
-    `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS observaciones TEXT`
+    `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS observaciones TEXT`,
+    `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS vigente_id INTEGER`
   ];
   for (const sql of alterStatements) await db.query(sql);
 
@@ -146,6 +147,7 @@ function sanitizePayload(body = {}) {
     recargo,
     total,
     estado: normalizeEstado(body.estado),
+    vigente_id: body.vigente_id ? (Number(body.vigente_id) || null) : null,
     items
   };
 }
@@ -437,6 +439,7 @@ router.get('/', async (req, res, next) => {
         c.recargo,
         c.total,
         c.estado,
+        c.vigente_id,
         COUNT(i.id)::int AS items_count,
         c.created_at,
         c.updated_at
@@ -485,7 +488,7 @@ router.get('/', async (req, res, next) => {
         c.id, c.numero, c.fecha, c.cliente_id, c.cliente_nombre, c.contacto, c.coche_numero,
         c.familia_id, f.codigo, f.descripcion, c.equipo_texto, c.falla_reportada, c.diagnostico,
         c.detalle_reparacion, c.observaciones, c.mano_obra, c.subtotal_productos, c.descuento,
-        c.recargo, c.total, c.estado, c.created_at, c.updated_at
+        c.recargo, c.total, c.estado, c.vigente_id, c.created_at, c.updated_at
       ORDER BY c.fecha DESC, c.id DESC
     `;
     const { rows } = await db.query(sql, params);
@@ -543,11 +546,11 @@ router.post('/', async (req, res, next) => {
         INSERT INTO cotizaciones_reparacion (
           fecha, cliente_id, cliente_nombre, contacto, coche_numero, familia_id, equipo_texto,
           falla_reportada, diagnostico, detalle_reparacion, observaciones,
-          mano_obra, subtotal_productos, descuento, recargo, total, estado, updated_at
+          mano_obra, subtotal_productos, descuento, recargo, total, estado, vigente_id, updated_at
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,
           $8,$9,$10,$11,
-          $12,$13,$14,$15,$16,$17,NOW()
+          $12,$13,$14,$15,$16,$17,$18,NOW()
         )
         RETURNING id
       `,
@@ -568,7 +571,8 @@ router.post('/', async (req, res, next) => {
         payload.descuento,
         payload.recargo,
         payload.total,
-        payload.estado
+        payload.estado,
+        payload.vigente_id
       ]
     );
 
@@ -615,8 +619,9 @@ router.put('/:id', async (req, res, next) => {
                recargo=$15,
                total=$16,
                estado=$17,
+               vigente_id=$18,
                updated_at=NOW()
-         WHERE id=$18
+         WHERE id=$19
          RETURNING id, numero
       `,
       [
@@ -637,6 +642,7 @@ router.put('/:id', async (req, res, next) => {
         payload.recargo,
         payload.total,
         payload.estado,
+        payload.vigente_id,
         Number(req.params.id)
       ]
     );

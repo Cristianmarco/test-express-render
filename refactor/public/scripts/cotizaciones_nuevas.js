@@ -40,6 +40,7 @@
       descuento: 0,
       recargo: 0,
       estado: 'borrador',
+      vigente_id: null,
       items: []
     };
   }
@@ -56,10 +57,32 @@
   }
 
   async function procesarPendiente(root = host()) {
+    // Abrir cotización existente por ID
     const pendingId = sessionStorage.getItem(EDIT_KEY);
-    if (!pendingId || !root) return;
-    sessionStorage.removeItem(EDIT_KEY);
-    await cargarCotizacion(Number(pendingId), root);
+    if (pendingId && root) {
+      sessionStorage.removeItem(EDIT_KEY);
+      await cargarCotizacion(Number(pendingId), root);
+      return;
+    }
+    // Pre-completar nueva cotización desde un vigente
+    const vigenteRaw = sessionStorage.getItem('cotizacionVigenteData');
+    if (vigenteRaw && root) {
+      sessionStorage.removeItem('cotizacionVigenteData');
+      try {
+        const v = JSON.parse(vigenteRaw);
+        state.draft.vigente_id   = v.vigente_id || null;
+        state.draft.cliente_nombre = v.razon_social || '';
+        state.draft.equipo_texto   = v.descripcion || '';
+        // Intentar auto-seleccionar el cliente por razon_social
+        if (v.razon_social) {
+          const match = state.clientes.find(c =>
+            resolveClienteNombre(c).toLowerCase() === v.razon_social.toLowerCase()
+          );
+          if (match) state.draft.cliente_id = Number(match.id);
+        }
+        applyDraftToForm(root);
+      } catch (_) {}
+    }
   }
 
   function bind(root) {
@@ -147,6 +170,7 @@
       descuento: moneyValue(data.descuento),
       recargo: moneyValue(data.recargo),
       estado: data.estado || 'borrador',
+      vigente_id: data.vigente_id ? Number(data.vigente_id) : null,
       items: Array.isArray(data.items) ? data.items.map(item => ({
         id: item.id ? Number(item.id) : null,
         producto_id: item.producto_id ? Number(item.producto_id) : null,

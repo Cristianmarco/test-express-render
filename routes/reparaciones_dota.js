@@ -42,9 +42,23 @@ router.post('/', async (req, res, next) => {
 // GET: listar reparaciones vigentes
 router.get('/', async (req, res, next) => {
   try {
-    const result = await db.query('SELECT * FROM reparaciones_dota ORDER BY id DESC');
+    const result = await db.query(`
+      SELECT r.*,
+             c.id     AS cotizacion_id,
+             c.numero AS cotizacion_numero,
+             c.estado AS cotizacion_estado
+      FROM reparaciones_dota r
+      LEFT JOIN cotizaciones_reparacion c ON c.vigente_id = r.id
+      ORDER BY r.id DESC
+    `);
     res.json(result.rows);
-  } catch (err) { next(err); }
+  } catch (err) {
+    // Si cotizaciones_reparacion aún no tiene la columna vigente_id, fallback simple
+    try {
+      const result = await db.query('SELECT * FROM reparaciones_dota ORDER BY id DESC');
+      res.json(result.rows);
+    } catch (err2) { next(err2); }
+  }
 });
 
 // POST: recalcular pendientes segun reparaciones ya registradas en planilla
