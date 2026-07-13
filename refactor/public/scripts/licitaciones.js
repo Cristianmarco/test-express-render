@@ -891,7 +891,9 @@ function setupLicitacionesTabs(){
         const which = b.getAttribute('data-tab');
         activate(which);
       });
-      activate('lic');
+      const gotoTab = sessionStorage.getItem('lic_tab_goto');
+      if (gotoTab) { sessionStorage.removeItem('lic_tab_goto'); activate(gotoTab); }
+      else { activate('lic'); }
       if (btnVigClear && !btnVigClear._bound){
         btnVigClear._bound = true;
         btnVigClear.addEventListener('click', ()=>{

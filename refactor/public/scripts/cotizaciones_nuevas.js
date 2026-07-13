@@ -333,6 +333,18 @@
       state.selectedId = Number(data.id);
       state.draft = normalizeDraftFromApi(data);
       applyDraftToForm(root);
+      // Si la cotización está vinculada a un vigente, volver a R.Vigentes
+      if (data.vigente_id) {
+        sessionStorage.setItem('lic_tab_goto', 'vig');
+        window.loadView && window.loadView('licitaciones');
+        // Si la vista ya estaba abierta loadView no reinicia los tabs → click directo
+        setTimeout(() => {
+          const vigBtn = document.querySelector('#lic-tabs button[data-tab="vig"]');
+          if (vigBtn) vigBtn.click();
+          sessionStorage.removeItem('lic_tab_goto');
+        }, 150);
+        return;
+      }
       alert('Cotización guardada.');
     } catch (err) {
       alert(err.message || 'No se pudo guardar la cotización.');
