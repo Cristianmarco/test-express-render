@@ -963,7 +963,7 @@ async function cargarVigentes(){
     const attr = v => String(v==null?'':v).replace(/"/g,'&quot;');
     tb.innerHTML = lista.map(r=>{
       const cotIcon = r.cotizacion_id
-        ? `<button class="btn-cot-icon" data-cot-id="${r.cotizacion_id}" title="${attr(r.cotizacion_numero||'Ver cotización')} (${attr(r.cotizacion_estado||'')})" style="background:none;border:none;cursor:pointer;color:#2563eb;font-size:1.1rem;padding:2px 4px;border-radius:4px;" onclick="event.stopPropagation()"><i class="fas fa-file-invoice-dollar"></i></button>`
+        ? `<button class="btn-cot-icon" data-cot-id="${r.cotizacion_id}" title="Ver cotización ${attr(r.cotizacion_numero||'')} · ${attr(r.cotizacion_estado||'')}" style="background:none;border:none;cursor:pointer;color:#2563eb;font-size:1.1rem;padding:2px 4px;border-radius:4px;"><i class="fas fa-file-invoice-dollar"></i></button>`
         : `<span style="color:#cbd5e1;">—</span>`;
       return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}">
         <td>${r.nro_pedido||'-'}</td>
@@ -981,14 +981,9 @@ async function cargarVigentes(){
     if (!tb._selBound){
       tb._selBound = true;
       tb.addEventListener('click', (e)=>{
-        // click en icono de cotización: abrir en la vista de cotizaciones
         const cotBtn = e.target.closest('.btn-cot-icon');
         if (cotBtn) {
-          const cotId = cotBtn.dataset.cotId;
-          if (cotId) {
-            sessionStorage.setItem('cotizacionEditorId', cotId);
-            window.loadView && window.loadView('cotizaciones_nuevas');
-          }
+          abrirModalCotizacionDetalle(cotBtn.dataset.cotId);
           return;
         }
         const tr = e.target.closest('tr'); if(!tr) return;
@@ -1019,6 +1014,107 @@ async function cargarVigentes(){
     tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
   } finally {
     window.hideSpinner && window.hideSpinner();
+  }
+}
+
+async function abrirModalCotizacionDetalle(cotId) {
+  if (!cotId) return;
+  // Crear o reusar modal
+  let modal = document.getElementById('modal-cot-detalle-vig');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-cot-detalle-vig';
+    modal.className = 'modal-refactor';
+    modal.style.cssText = 'display:none;';
+    modal.innerHTML = `
+      <div class="modal-contenido-refactor modal-erp-producto" style="max-width:780px;max-height:90vh;overflow-y:auto;">
+        <span class="cerrar" id="btn-cot-det-cerrar">&times;</span>
+        <h2 class="modal-titulo-principal"><i class="fas fa-file-invoice-dollar"></i> <span id="cot-det-titulo">Cotización</span></h2>
+        <div id="cot-det-body" style="padding:4px 0 8px;"></div>
+        <div style="text-align:right;margin-top:12px;">
+          <button id="btn-cot-det-editar" class="btn-guardar" style="background:#2563eb;">
+            <i class="fas fa-edit"></i> Abrir para editar
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('btn-cot-det-cerrar').addEventListener('click', () => { modal.style.display = 'none'; });
+    document.getElementById('btn-cot-det-editar').addEventListener('click', () => {
+      const id = modal.dataset.cotId;
+      if (!id) return;
+      modal.style.display = 'none';
+      sessionStorage.setItem('cotizacionEditorId', id);
+      window.loadView && window.loadView('cotizaciones_nuevas');
+    });
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+  }
+
+  modal.dataset.cotId = cotId;
+  const body = document.getElementById('cot-det-body');
+  body.innerHTML = '<div style="text-align:center;padding:20px;color:#888"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>';
+  modal.style.display = 'flex';
+
+  try {
+    const res = await fetch(`/api/cotizaciones_reparacion/${cotId}`, { credentials: 'include' });
+    const c = await res.json();
+    if (!res.ok) throw new Error(c.error || 'Error');
+
+    const esc = v => String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const fmtDate = v => v ? new Date(String(v).slice(0,10)+'T00:00:00').toLocaleDateString('es-AR') : '-';
+    const fmtMoney = v => Number(v||0).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+    const estadoBadge = {
+      borrador: 'background:#f1f5f9;color:#475569',
+      enviada:  'background:#dbeafe;color:#1d4ed8',
+      aprobada: 'background:#dcfce7;color:#166534',
+      rechazada:'background:#fee2e2;color:#991b1b'
+    }[c.estado] || 'background:#f1f5f9;color:#475569';
+
+    document.getElementById('cot-det-titulo').textContent = `${c.numero || `CT-${String(c.id).padStart(6,'0')}`}`;
+
+    const items = Array.isArray(c.items) ? c.items : [];
+    const itemsHtml = items.length
+      ? `<table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:4px;">
+          <thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+            <th style="text-align:left;padding:7px 8px;">Código</th>
+            <th style="text-align:left;padding:7px 8px;">Descripción</th>
+            <th style="text-align:center;padding:7px 8px;">Cant.</th>
+            <th style="text-align:right;padding:7px 8px;">Precio</th>
+            <th style="text-align:right;padding:7px 8px;">Importe</th>
+          </tr></thead>
+          <tbody>${items.map(i=>`
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:6px 8px;">${esc(i.codigo||'-')}</td>
+              <td style="padding:6px 8px;">${esc(i.descripcion)}</td>
+              <td style="padding:6px 8px;text-align:center;">${Number(i.cantidad||0).toLocaleString('es-AR')}</td>
+              <td style="padding:6px 8px;text-align:right;">$${fmtMoney(i.precio_unitario)}</td>
+              <td style="padding:6px 8px;text-align:right;">$${fmtMoney(i.importe)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`
+      : '<p style="color:#94a3b8;font-size:0.85rem;margin:4px 0;">Sin repuestos cargados.</p>';
+
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:14px;font-size:0.88rem;">
+        <div><b>Cliente:</b> ${esc(c.cliente_nombre||'-')}</div>
+        <div><b>Fecha:</b> ${fmtDate(c.fecha)}</div>
+        <div><b>Equipo:</b> ${esc(c.equipo_texto||c.equipo||'-')}</div>
+        <div><b>Estado:</b> <span style="padding:2px 10px;border-radius:99px;font-size:0.8rem;font-weight:600;${estadoBadge}">${esc(c.estado)}</span></div>
+        ${c.contacto ? `<div><b>Contacto:</b> ${esc(c.contacto)}</div>` : ''}
+        ${c.coche_numero ? `<div><b>Nº Coche:</b> ${esc(c.coche_numero)}</div>` : ''}
+      </div>
+      ${c.falla_reportada ? `<div style="margin-bottom:10px;font-size:0.88rem;"><b>Falla reportada:</b><br><span style="color:#475569;">${esc(c.falla_reportada)}</span></div>` : ''}
+      ${c.diagnostico ? `<div style="margin-bottom:10px;font-size:0.88rem;"><b>Diagnóstico:</b><br><span style="color:#475569;">${esc(c.diagnostico)}</span></div>` : ''}
+      <div style="margin-bottom:6px;font-size:0.88rem;font-weight:600;color:#1e293b;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">Repuestos</div>
+      ${itemsHtml}
+      <div style="margin-top:14px;display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:0.88rem;">
+        ${Number(c.mano_obra||0)>0 ? `<div style="color:#475569;">Mano de obra: <b>$${fmtMoney(c.mano_obra)}</b></div>` : ''}
+        ${Number(c.descuento||0)>0 ? `<div style="color:#475569;">Descuento: <b>-$${fmtMoney(c.descuento)}</b></div>` : ''}
+        ${Number(c.recargo||0)>0  ? `<div style="color:#475569;">Recargo: <b>+$${fmtMoney(c.recargo)}</b></div>` : ''}
+        <div style="font-size:1.05rem;font-weight:700;color:#0f172a;border-top:1px solid #e2e8f0;padding-top:6px;margin-top:3px;">Total: $${fmtMoney(c.total)}</div>
+      </div>`;
+  } catch (err) {
+    body.innerHTML = `<div style="color:#dc2626;padding:12px;">Error al cargar la cotización: ${err.message}</div>`;
   }
 }
 
