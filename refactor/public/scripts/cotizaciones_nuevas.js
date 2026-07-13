@@ -18,7 +18,7 @@
   function textValue(value) { return String(value ?? '').trim(); }
   function escapeHtml(value) { return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
   function escapeAttr(value) { return escapeHtml(value); }
-  function resolveClienteNombre(cliente) { return String(cliente?.fantasia || cliente?.razon_social || cliente?.nombre || `Cliente ${cliente?.id || ''}`).trim(); }
+  function resolveClienteNombre(cliente) { return String(cliente?.razon_social || cliente?.fantasia || cliente?.nombre || `Cliente ${cliente?.id || ''}`).trim(); }
   function productoLabel(prod) { return [textValue(prod?.codigo), textValue(prod?.descripcion)].filter(Boolean).join(' - '); }
 
   function createDraft() {
