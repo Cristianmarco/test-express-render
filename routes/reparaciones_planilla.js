@@ -1686,16 +1686,37 @@ router.put("/:id", async (req, res) => {
     if (licitacionData.error) {
       return res.status(400).json({ error: licitacionData.error });
     }
-    const duplicateData = await validateDuplicatePayload(
-      client,
-      {
-        id_reparacion,
-        fecha: req.body.fecha || reparacionAnterior.fecha,
-        garantia: garantiaData.garantia,
-        id_dota: garantiaData.id_dota
-      },
-      { currentRepairId: req.params.id }
-    );
+
+    const submittedIdRep = normalizeOptionalText(id_reparacion);
+    const storedIdRep = normalizeOptionalText(reparacionAnterior.id_reparacion);
+    const submittedFecha = normalizeOptionalText(req.body.fecha);
+    const storedFechaRaw = reparacionAnterior.fecha;
+    const storedFecha = storedFechaRaw
+      ? (storedFechaRaw instanceof Date
+          ? storedFechaRaw.toISOString().slice(0, 10)
+          : String(storedFechaRaw).slice(0, 10))
+      : null;
+    // Solo verificar duplicado si cambió id_reparacion o fecha; si nada cambió no puede haber un nuevo duplicado
+    const needsDuplicateCheck =
+      submittedIdRep !== storedIdRep ||
+      (submittedFecha && submittedFecha !== storedFecha);
+
+    const duplicateData = needsDuplicateCheck
+      ? await validateDuplicatePayload(
+          client,
+          {
+            id_reparacion,
+            fecha: req.body.fecha || reparacionAnterior.fecha,
+            garantia: garantiaData.garantia,
+            id_dota: garantiaData.id_dota
+          },
+          { currentRepairId: req.params.id }
+        )
+      : {
+          id_reparacion: storedIdRep,
+          fecha: storedFecha,
+          id_dota: normalizeOptionalText(garantiaData.id_dota)
+        };
     if (duplicateData.error) {
       return res.status(400).json({ error: duplicateData.error });
     }

@@ -403,9 +403,16 @@
   }
 
   if (document.querySelector(`.tab-content[data-view="${VIEW}"]`)) init();
-  document.addEventListener('view:changed', async (e) => {
+  document.addEventListener('view:changed', (e) => {
     if (e.detail !== VIEW) return;
-    init();
-    await procesarPendiente(host());
+    const root = host();
+    if (!root) return;
+    if (root.dataset.ready) {
+      // Pestaña ya inicializada (reactivada): solo procesar datos pendientes
+      procesarPendiente(root);
+    } else {
+      // Pestaña nueva: init() se encarga de llamar procesarPendiente después de resetDraft
+      init();
+    }
   });
 })();

@@ -1102,7 +1102,7 @@ function bindPlanillaActions() {
       cliente_tipo: fila.dataset.clienteTipo||'',
       // con nueva columna inicial '#'
       cliente: c[1]?.textContent.trim()||'-',
-      id_reparacion: c[2]?.textContent.trim()||'-',
+      id_reparacion: (v => (v && v !== '-') ? v : '')(c[2]?.textContent.trim()),
       coche: c[3]?.textContent.trim()||'-',
       equipo: c[4]?.textContent.trim()||'-',
       tecnico: c[5]?.textContent.trim()||'-',

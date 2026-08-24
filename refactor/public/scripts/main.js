@@ -58,12 +58,28 @@ async function loadView(view) {
 
   // Cargar HTML: primero del cache, si no hay hace fetch
   let html = getViewCache(view);
+  // Invalida cache si contiene texto de error en vez de HTML
+  if (html && !html.trim().startsWith('<')) {
+    sessionStorage.removeItem(`erp_view_${view}`);
+    html = null;
+  }
   if (!html) {
     window.showSpinner && window.showSpinner();
     try {
       const res = await fetch(`/refactor/view/${view}`);
       html = await res.text();
-      setViewCache(view, html);
+      if (!res.ok) {
+        if (res.status === 401) {
+          // Sesión expirada — limpiar tab recién creada y redirigir
+          openTabs.pop();
+          tab.remove();
+          window.location.href = '/refactor/login';
+          return;
+        }
+        // Otros errores: mostrar en tab pero NO cachear
+      } else {
+        setViewCache(view, html);
+      }
     } finally {
       window.hideSpinner && window.hideSpinner();
     }
@@ -81,6 +97,7 @@ async function loadView(view) {
 } 
 
 window.loadView = loadView;
+window.closeTab = closeTab;
 
   // === Activar pestaña
   function activateTab(view) {

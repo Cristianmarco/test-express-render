@@ -28,6 +28,13 @@ function actualizarCard(tipo, valores) {
   document.getElementById(`vencidos-${tipo}`).textContent = valores.vencidos;
   document.getElementById(`badge-${tipo}`).textContent =
     valores.vigentes + valores.garantias + valores.vencidos;
+
+  if (valores.desglose) {
+    for (const grupo of ["alternadores", "arranque", "bombas", "instalaciones", "otros"]) {
+      const el = document.getElementById(`${tipo}-desglose-${grupo}`);
+      if (el) el.textContent = valores.desglose[grupo] ?? 0;
+    }
+  }
 }
 
 function actualizarTotales(valores) {

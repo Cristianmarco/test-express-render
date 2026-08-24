@@ -172,6 +172,7 @@
   function editarSeleccion() {
     if (!state.selectedId) return alert('Selecciona una cotización.');
     sessionStorage.setItem(EDIT_KEY, String(state.selectedId));
+    window.closeTab && window.closeTab('cotizaciones_nuevas');
     if (typeof window.loadView === 'function') window.loadView('cotizaciones_nuevas');
   }
 

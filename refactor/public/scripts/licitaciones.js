@@ -463,17 +463,18 @@ function bindLicitacionesPanel() {
     const cotId = row.querySelector('.btn-cot-icon')?.dataset?.cotId;
     if (cotId) {
       sessionStorage.setItem('cotizacionEditorId', cotId);
-      window.loadView && window.loadView('cotizaciones_nuevas');
-      return;
+    } else {
+      // Nueva cotización pre-completada desde el vigente
+      sessionStorage.setItem('cotizacionVigenteData', JSON.stringify({
+        vigente_id: Number(vigSeleccionada),
+        nro_pedido:  row.dataset.nro || '',
+        razon_social: row.dataset.razon || '',
+        descripcion:  row.dataset.descripcion || '',
+        codigo:       row.dataset.codigo || ''
+      }));
     }
-    // Nueva cotización pre-completada desde el vigente
-    sessionStorage.setItem('cotizacionVigenteData', JSON.stringify({
-      vigente_id: Number(vigSeleccionada),
-      nro_pedido:  row.dataset.nro || '',
-      razon_social: row.dataset.razon || '',
-      descripcion:  row.dataset.descripcion || '',
-      codigo:       row.dataset.codigo || ''
-    }));
+    // Cerrar pestaña si ya estaba abierta para forzar re-init con los datos nuevos
+    window.closeTab && window.closeTab('cotizaciones_nuevas');
     window.loadView && window.loadView('cotizaciones_nuevas');
   }); }
   if (btnDel && !btnDel._bound){ btnDel._bound = true; btnDel.addEventListener('click', async ()=>{
@@ -1044,6 +1045,7 @@ async function abrirModalCotizacionDetalle(cotId) {
       if (!id) return;
       modal.style.display = 'none';
       sessionStorage.setItem('cotizacionEditorId', id);
+      window.closeTab && window.closeTab('cotizaciones_nuevas');
       window.loadView && window.loadView('cotizaciones_nuevas');
     });
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });

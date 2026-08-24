@@ -133,6 +133,42 @@
   vertical-align: middle;
 }
 
+/* --- Desglose de equipos en reparación --- */
+.stats-breakdown {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #e8edf5;
+  width: 100%;
+}
+
+.breakdown-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6d7b93;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+  color: #33465e;
+  padding: 3px 4px;
+}
+
+.breakdown-row .breakdown-label {
+  color: #6d7b93;
+}
+
+.breakdown-row span:last-child {
+  font-weight: 700;
+  color: #154872;
+}
+
 /* --- Números principales --- */
 .counter {
   font-size: 2.1rem;
