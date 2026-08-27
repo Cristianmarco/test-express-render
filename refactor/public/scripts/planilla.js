@@ -1199,7 +1199,7 @@ function bindPlanillaActions() {
     if (!seleccion) { alert('Selecciona una reparacion para modificar.'); return; }
     const modal = document.getElementById('modal-reparacion'); const form=document.getElementById('form-reparacion');
     if (modal) { modal.style.display='flex'; setTimeout(()=>{ try { if (form) form.scrollTop = 0; } catch(_){} }, 0); } if (form) form.dataset.id = seleccion.id||'';
-    const setVal = (sel,val)=>{ const el=document.querySelector(sel); if(el) el.value=val||''; };
+    const setVal = (sel,val)=>{ const el=form.querySelector(sel); if(el) el.value=val||''; };
     setVal("input[name='id_reparacion']", seleccion.id_reparacion);
     setVal("input[name='coche_numero']", seleccion.coche);
     setVal("textarea[name='observaciones']", seleccion.observaciones);
@@ -2381,6 +2381,12 @@ function bindClienteExternoToggle(forceApply){
     selCli.required = !!isExt;
     if(isExt && selCli.options.length <= 1){ prepararSelectClientes(); }
     else if(!isExt){ selCli.value=''; }
+    // El campo "ID DOTA" tambien sirve para cerrar garantias externas pendientes (por Nro de Garantia).
+    // Se usa un nombre bien distinto de "Nro Pedido (R.Vigente)" para no confundirlos.
+    const labelIdDota = document.getElementById('label-id-dota');
+    if (labelIdDota) labelIdDota.textContent = isExt ? 'Nro de Garantia (para cerrarla)' : 'ID DOTA';
+    const inputIdDota = document.getElementById('id_dota');
+    if (inputIdDota) inputIdDota.placeholder = isExt ? 'Mismo numero cargado en Garantias Externos' : 'Nro DOTA';
   };
   if(!sel._bound){ sel._bound=true; sel.addEventListener('change', apply); }
   if(forceApply || sel.value){ apply(); }

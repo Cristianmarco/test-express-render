@@ -62,6 +62,22 @@ async function ensurePlanillaGarantiaColumns(dbClient) {
   await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_informe_observaciones TEXT");
 }
 
+// Al cargar la reparacion real de una garantia externa (por su Nro de ID/Pedido),
+// se marca como resuelta poniendo pendiente en 0 (no se borra, a diferencia de Dota).
+async function cerrarGarantiaExternaPorNroId(dbClient, nroId) {
+  const nroTrim = normalizeOptionalText(nroId);
+  if (!nroTrim) return;
+  try {
+    await dbClient.query("ALTER TABLE garantias_externas ADD COLUMN IF NOT EXISTS pendiente INTEGER");
+    await dbClient.query(
+      `UPDATE garantias_externas SET pendiente = 0 WHERE btrim(nro_id) = $1 AND COALESCE(pendiente, 0) > 0`,
+      [nroTrim]
+    );
+  } catch (err) {
+    if (err.code !== '42P01') throw err; // ignora si la tabla no existe todavia
+  }
+}
+
 async function ensurePlanillaAuditTable(dbClient) {
   await dbClient.query(PLANILLA_AUDIT_TABLE_SQL);
 }
@@ -1524,47 +1540,51 @@ router.post("/", async (req, res) => {
     const reparacionRow = result.rows[0];
     const reparacionId = reparacionRow.id;
 
-    // Si esta reparación tiene ID DOTA, eliminar la garantía correspondiente (id_cliente)
+    // Si esta reparación tiene ID DOTA / Nro de ID-Pedido, cerrar la garantía pendiente correspondiente
     if (id_dota != null && id_dota !== '') {
-      const idCliente = String(id_dota).trim();
-      if (idCliente) {
-        try {
-          await ensureGarantiasArchiveTable(client);
-          const deleted = await client.query(
-            `DELETE FROM licitacion_garantias WHERE btrim(id_cliente) = $1 RETURNING *`,
-            [idCliente]
-          );
-          if (deleted.rowCount) {
-            const insertArchive = `
-              INSERT INTO licitacion_garantias_archive
-                (reparacion_id, garantia_original_id, id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
-              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-            `;
-            for (const row of deleted.rows) {
-              await client.query(insertArchive, [
-                reparacionId,
-                row.id,
-                row.id_cliente,
-                row.ingreso,
-                row.cabecera,
-                row.interno,
-                row.codigo,
-                row.alt,
-                row.cantidad,
-                row.notificacion,
-                row.notificado_en,
-                row.detalle,
-                row.recepcion,
-                row.cod_proveedor,
-                row.proveedor,
-                row.ref_proveedor,
-                row.ref_proveedor_alt,
-                row.resolucion
-              ]);
+      if (cliente_tipo === 'externo') {
+        await cerrarGarantiaExternaPorNroId(client, id_dota);
+      } else {
+        const idCliente = String(id_dota).trim();
+        if (idCliente) {
+          try {
+            await ensureGarantiasArchiveTable(client);
+            const deleted = await client.query(
+              `DELETE FROM licitacion_garantias WHERE btrim(id_cliente) = $1 RETURNING *`,
+              [idCliente]
+            );
+            if (deleted.rowCount) {
+              const insertArchive = `
+                INSERT INTO licitacion_garantias_archive
+                  (reparacion_id, garantia_original_id, id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+              `;
+              for (const row of deleted.rows) {
+                await client.query(insertArchive, [
+                  reparacionId,
+                  row.id,
+                  row.id_cliente,
+                  row.ingreso,
+                  row.cabecera,
+                  row.interno,
+                  row.codigo,
+                  row.alt,
+                  row.cantidad,
+                  row.notificacion,
+                  row.notificado_en,
+                  row.detalle,
+                  row.recepcion,
+                  row.cod_proveedor,
+                  row.proveedor,
+                  row.ref_proveedor,
+                  row.ref_proveedor_alt,
+                  row.resolucion
+                ]);
+              }
             }
+          } catch (garErr) {
+            if (garErr.code !== '42P01') throw garErr; // ignora si la tabla no existe
           }
-        } catch (garErr) {
-          if (garErr.code !== '42P01') throw garErr; // ignora si la tabla no existe
         }
       }
     }
@@ -1764,40 +1784,44 @@ router.put("/:id", async (req, res) => {
 
     const reparacionActualizada = result.rows[0];
     if (garantiaData.id_dota != null && garantiaData.id_dota !== '') {
-      const idCliente = String(garantiaData.id_dota).trim();
-      if (idCliente) {
-        await ensureGarantiasArchiveTable(client);
-        const deleted = await client.query(
-          `DELETE FROM licitacion_garantias WHERE btrim(id_cliente) = $1 RETURNING *`,
-          [idCliente]
-        );
-        if (deleted.rowCount) {
-          const insertArchive = `
-            INSERT INTO licitacion_garantias_archive
-              (reparacion_id, garantia_original_id, id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-          `;
-          for (const row of deleted.rows) {
-            await client.query(insertArchive, [
-              reparacionActualizada.id,
-              row.id,
-              row.id_cliente,
-              row.ingreso,
-              row.cabecera,
-              row.interno,
-              row.codigo,
-              row.alt,
-              row.cantidad,
-              row.notificacion,
-              row.notificado_en,
-              row.detalle,
-              row.recepcion,
-              row.cod_proveedor,
-              row.proveedor,
-              row.ref_proveedor,
-              row.ref_proveedor_alt,
-              row.resolucion
-            ]);
+      if (cliente_tipo === 'externo') {
+        await cerrarGarantiaExternaPorNroId(client, garantiaData.id_dota);
+      } else {
+        const idCliente = String(garantiaData.id_dota).trim();
+        if (idCliente) {
+          await ensureGarantiasArchiveTable(client);
+          const deleted = await client.query(
+            `DELETE FROM licitacion_garantias WHERE btrim(id_cliente) = $1 RETURNING *`,
+            [idCliente]
+          );
+          if (deleted.rowCount) {
+            const insertArchive = `
+              INSERT INTO licitacion_garantias_archive
+                (reparacion_id, garantia_original_id, id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
+              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+            `;
+            for (const row of deleted.rows) {
+              await client.query(insertArchive, [
+                reparacionActualizada.id,
+                row.id,
+                row.id_cliente,
+                row.ingreso,
+                row.cabecera,
+                row.interno,
+                row.codigo,
+                row.alt,
+                row.cantidad,
+                row.notificacion,
+                row.notificado_en,
+                row.detalle,
+                row.recepcion,
+                row.cod_proveedor,
+                row.proveedor,
+                row.ref_proveedor,
+                row.ref_proveedor_alt,
+                row.resolucion
+              ]);
+            }
           }
         }
       }

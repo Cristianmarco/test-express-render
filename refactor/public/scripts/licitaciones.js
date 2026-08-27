@@ -3,10 +3,52 @@
 let licSeleccionada = null; // selected licitacion number
 let licFamilias = []; // cache familias for datalist
 let vigSeleccionada = null; // id seleccionada en R.Vigentes
-let garSeleccionada = null; // item seleccionado en garantias
+let garSeleccionada = null; // item seleccionado en garantias (Dota)
+let garExtSeleccionada = null; // item seleccionado en garantias externas
 let vigRecalcBusy = false;
 const garSeleccionMultiple = new Set(); // ids marcados para eliminación múltiple
 let garSeleccionAnchorIndex = null; // último índice usado para selección por shift
+let licDetalleFechaCierre = null; // fecha_cierre de la licitacion cuyo detalle esta abierto (para default de fecha limite)
+
+function fechaLimiteToInputValue(value) {
+  if (!value) return '';
+  const s = String(value);
+  return s.length >= 10 ? s.slice(0, 10) : '';
+}
+
+// Dota: atrasado si quedan pendientes y estamos a 7 dias o menos de la fecha limite (o ya se paso)
+function esVigenteAtrasadoDota(fechaLimite, pendientes) {
+  const pend = Number(pendientes || 0);
+  if (pend <= 0) return false;
+  const iso = fechaLimiteToInputValue(fechaLimite);
+  if (!iso) return false;
+  const limite = new Date(iso + 'T00:00:00');
+  if (Number.isNaN(limite.getTime())) return false;
+  const aviso = new Date(limite);
+  aviso.setDate(aviso.getDate() - 7);
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  return hoy >= aviso;
+}
+
+// Externo (reparacion express): atrasado si quedan pendientes y pasaron mas de 72hs desde el ingreso
+function esVigenteAtrasadoExterno(fechaIngreso, pendientes) {
+  const pend = Number(pendientes || 0);
+  if (pend <= 0) return false;
+  const iso = fechaLimiteToInputValue(fechaIngreso);
+  if (!iso) return false;
+  const ingreso = new Date(iso + 'T00:00:00');
+  if (Number.isNaN(ingreso.getTime())) return false;
+  const horas = (Date.now() - ingreso.getTime()) / (1000 * 60 * 60);
+  return horas > 72;
+}
+
+// Determina si una fila de R.Vigentes esta atrasada segun su tipo de cliente
+function esVigenteAtrasado(row) {
+  const tipo = String(row.cliente_tipo || '').trim().toLowerCase();
+  if (tipo === 'dota') return esVigenteAtrasadoDota(row.fecha_limite_entrega, row.pendientes);
+  if (tipo === 'externo') return esVigenteAtrasadoExterno(row.fecha_ingreso, row.pendientes);
+  return false; // sin clasificar: no aplica ninguna regla todavia
+}
 
 function refreshInicioDashboard() {
   try {
@@ -145,6 +187,7 @@ async function verDetalleLicitacion(nro) {
     if (nEl) nEl.textContent = nro;
     if (fEl) fEl.textContent = fmt(data.fecha);
     if (cEl) cEl.textContent = fmt(data.fecha_cierre);
+    licDetalleFechaCierre = data.fecha_cierre || null;
     if (oEl) oEl.textContent = data.observacion || '-';
     if (aEl) aEl.innerHTML = 'Cargando auditoria...';
     let items = Array.isArray(data.items) ? data.items : [];
@@ -306,6 +349,12 @@ function ensureAceptarModal(){
             </select>
           </div>
         </div>
+        <div class="form-grid">
+          <div>
+            <label>Fecha límite de entrega</label>
+            <input type="date" id="acept-fecha-limite" />
+          </div>
+        </div>
         <div style="display:flex; justify-content:flex-end; gap:8px;">
           <button type="submit" class="btn-aceptar"><i class="fas fa-check"></i> Aceptar</button>
         </div>
@@ -324,7 +373,18 @@ function ensureAceptarModal(){
       cantidad: Number(ds.cantidad||'1')||1,
       nro_pedido: (document.getElementById('acept-nro').value||'').trim(),
       destino: document.getElementById('acept-destino').value.trim(),
-      razon_social: (document.getElementById('acept-razon').value || '').trim()
+      razon_social: (document.getElementById('acept-razon').value || '').trim(),
+      fecha_limite_entrega: document.getElementById('acept-fecha-limite').value || null,
+      // Los items aceptados desde una licitacion son siempre de Dota.
+      // Fecha de ingreso: dia posterior al cierre de la licitacion (regla de negocio).
+      cliente_tipo: 'dota',
+      fecha_ingreso: (() => {
+        if (!licDetalleFechaCierre) return null;
+        const d = new Date(licDetalleFechaCierre);
+        if (Number.isNaN(d.getTime())) return null;
+        d.setDate(d.getDate() + 1);
+        return d.toISOString().slice(0, 10);
+      })()
     };
     try{
       const res = await fetch('/api/reparaciones_dota', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
@@ -352,6 +412,17 @@ function abrirModalAceptarItem({ codigo, descripcion, cantidad, originBtn }){
     const nroInput = document.getElementById('acept-nro');
     if (nroInput) nroInput.value='';
     document.getElementById('acept-destino').value='Pompeya';
+    const fechaLimiteInput = document.getElementById('acept-fecha-limite');
+    if (fechaLimiteInput) {
+      // Por defecto: 3 semanas (21 dias) desde el cierre de la licitacion
+      const base = licDetalleFechaCierre ? new Date(licDetalleFechaCierre) : null;
+      if (base && !Number.isNaN(base.getTime())) {
+        base.setDate(base.getDate() + 21);
+        fechaLimiteInput.value = base.toISOString().slice(0, 10);
+      } else {
+        fechaLimiteInput.value = '';
+      }
+    }
     const sel = document.getElementById('acept-razon');
     if (sel) {
       sel.value = '';
@@ -441,7 +512,10 @@ function bindLicitacionesPanel() {
         destino: row.dataset.destino || '',
         razon_social: row.dataset.razon || '',
         pendientes: (row.dataset.pendientes!==undefined? Number(row.dataset.pendientes) : null),
-        observaciones: row.dataset.observaciones || ''
+        observaciones: row.dataset.observaciones || '',
+        fecha_limite_entrega: row.dataset.fechaLimite || '',
+        fecha_ingreso: row.dataset.fechaIngreso || '',
+        cliente_tipo: row.dataset.clienteTipo || ''
       };
       abrirModalVigenteABM(data);
     } else {
@@ -707,6 +781,26 @@ function ensureVigenteModal(){
         </div>
         <div class="form-grid">
           <div>
+            <label>Tipo</label>
+            <select id="vig-tipo">
+              <option value="">Sin clasificar</option>
+              <option value="externo">Externo</option>
+              <option value="dota">Dota</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid doble">
+          <div>
+            <label>Fecha de Ingreso</label>
+            <input type="date" id="vig-fecha-ingreso" />
+          </div>
+          <div>
+            <label>Fecha límite de entrega</label>
+            <input type="date" id="vig-fecha-limite" />
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
             <label>Observaciones</label>
             <textarea id="vig-observaciones" rows="3" style="resize:vertical;"></textarea>
           </div>
@@ -745,7 +839,10 @@ function ensureVigenteModal(){
       destino: document.getElementById('vig-destino').value.trim()||null,
       razon_social: document.getElementById('vig-razon').value.trim()||null,
       pendientes: (document.getElementById('vig-pendientes').value!==''? Number(document.getElementById('vig-pendientes').value) : undefined),
-      observaciones: document.getElementById('vig-observaciones').value.trim()||null
+      observaciones: document.getElementById('vig-observaciones').value.trim()||null,
+      fecha_limite_entrega: document.getElementById('vig-fecha-limite').value || null,
+      fecha_ingreso: document.getElementById('vig-fecha-ingreso').value || null,
+      cliente_tipo: document.getElementById('vig-tipo').value || null
     };
     if (!payload.codigo || !payload.descripcion){ alert('Seleccione un equipo'); return; }
     const method = id? 'PUT' : 'POST';
@@ -803,6 +900,9 @@ async function abrirModalVigenteABM(data){
     document.getElementById('vig-destino').value = data.destino||'';
     document.getElementById('vig-pendientes').value = (data.pendientes!=null? data.pendientes : '');
     document.getElementById('vig-observaciones').value = data.observaciones||'';
+    document.getElementById('vig-fecha-limite').value = fechaLimiteToInputValue(data.fecha_limite_entrega);
+    document.getElementById('vig-fecha-ingreso').value = fechaLimiteToInputValue(data.fecha_ingreso);
+    document.getElementById('vig-tipo').value = data.cliente_tipo || '';
     if (selRazon && data.razon_social) selRazon.value = data.razon_social;
     // Pre-seleccionar familia por código
     if (selEquipo && data.codigo) {
@@ -818,6 +918,10 @@ async function abrirModalVigenteABM(data){
     document.getElementById('vig-destino').value = '';
     document.getElementById('vig-pendientes').value = 1;
     document.getElementById('vig-observaciones').value = '';
+    document.getElementById('vig-fecha-limite').value = '';
+    // Alta manual: por defecto es un ingreso externo, con fecha de hoy.
+    document.getElementById('vig-fecha-ingreso').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('vig-tipo').value = 'externo';
     if (selEquipo) selEquipo.value = '';
   }
   m.style.display='flex';
@@ -880,12 +984,17 @@ function setupLicitacionesTabs(){
         if (btnVigRecalc) btnVigRecalc.style.display = which==='vig' ? 'inline-flex' : 'none';
         if (btnVigClear) btnVigClear.style.display = which==='vig' ? 'inline-flex' : 'none';
         const garFiltroWrap = document.getElementById('gar-filtro-wrap');
-        if (garFiltroWrap) garFiltroWrap.style.display = which==='gar' ? 'flex' : 'none';
+        const garExtFiltroWrap = document.getElementById('gar-ext-filtro-wrap');
+        const subActivo = garSubActivo();
+        if (garFiltroWrap) garFiltroWrap.style.display = (which==='gar' && subActivo==='dota') ? 'flex' : 'none';
+        if (garExtFiltroWrap) garExtFiltroWrap.style.display = (which==='gar' && subActivo==='externos') ? 'flex' : 'none';
         const btnCotizar = document.getElementById('btn-lic-cotizar');
         if (btnCotizar) btnCotizar.style.display = which==='vig' ? 'inline-flex' : 'none';
         if(which==='vig') cargarVigentes();
-        if(which==='gar') cargarGarantias();
+        if(which==='gar') { if (subActivo==='externos') cargarGarantiasExternos(); else cargarGarantias(); }
       };
+
+      bindGarSubTabs();
 
       tabsBar.addEventListener('click', (e)=>{
         const b = e.target.closest('button[data-tab]'); if(!b) return;
@@ -932,7 +1041,7 @@ function setupLicitacionesTabs(){
       <div class="erp-table-card">
         <table class="tabla-erp">
           <thead><tr>
-            <th>Nro Pedido</th><th>Código</th><th>Descripción</th><th>Cantidad</th><th>Destino</th><th>Razón Social</th><th>Pendientes</th><th>Observaciones</th>
+            <th>Nro Pedido</th><th>Código</th><th>Descripción</th><th>Cantidad</th><th>Destino</th><th>Razón Social</th><th>Tipo</th><th>Pendientes</th><th>Fecha Ingreso</th><th>Fecha Límite</th><th>Observaciones</th>
           </tr></thead>
           <tbody id="tbody-vigentes"></tbody>
         </table>
@@ -954,26 +1063,39 @@ function setupLicitacionesTabs(){
 
 async function cargarVigentes(){
   const tb = document.getElementById('tbody-vigentes'); if(!tb) return;
-  tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  tb.innerHTML = "<tr><td colspan='12' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
   window.showSpinner && window.showSpinner();
   try{
     const res = await fetch('/api/reparaciones_dota', { credentials:'include' });
     const data = await res.json();
     const lista = Array.isArray(data)? data : [];
-    if(lista.length===0){ tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
+    if(lista.length===0){ tb.innerHTML = "<tr><td colspan='12' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
     const attr = v => String(v==null?'':v).replace(/"/g,'&quot;');
     tb.innerHTML = lista.map(r=>{
       const cotIcon = r.cotizacion_id
         ? `<button class="btn-cot-icon" data-cot-id="${r.cotizacion_id}" title="Ver cotización ${attr(r.cotizacion_numero||'')} · ${attr(r.cotizacion_estado||'')}" style="background:none;border:none;cursor:pointer;color:#2563eb;font-size:1.1rem;padding:2px 4px;border-radius:4px;"><i class="fas fa-file-invoice-dollar"></i></button>`
         : `<span style="color:#cbd5e1;">—</span>`;
-      return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}">
+      const fechaLimiteIso = fechaLimiteToInputValue(r.fecha_limite_entrega);
+      const fechaIngresoIso = fechaLimiteToInputValue(r.fecha_ingreso);
+      const atrasado = esVigenteAtrasado(r);
+      const tipoTxt = r.cliente_tipo === 'dota' ? 'Dota' : r.cliente_tipo === 'externo' ? 'Externo' : '-';
+      const fechaLimiteTxt = fechaLimiteIso ? new Date(fechaLimiteIso + 'T00:00:00').toLocaleDateString('es-AR') : '-';
+      const fechaIngresoTxt = fechaIngresoIso ? new Date(fechaIngresoIso + 'T00:00:00').toLocaleDateString('es-AR') : '-';
+      const atrasadoTitle = r.cliente_tipo === 'dota'
+        ? 'Atrasado: entra en la ventana de aviso (7 dias antes) de la fecha limite'
+        : 'Atrasado: supera las 72hs desde el ingreso (reparacion express)';
+      const marcaAtraso = atrasado ? ` <i class="fas fa-triangle-exclamation" style="color:#c0392b;" title="${atrasadoTitle}"></i>` : '';
+      return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}" data-fecha-limite="${attr(fechaLimiteIso)}" data-fecha-ingreso="${attr(fechaIngresoIso)}" data-cliente-tipo="${attr(r.cliente_tipo)}" class="${atrasado ? 'fila-atrasada' : ''}">
         <td>${r.nro_pedido||'-'}</td>
         <td>${r.codigo||'-'}</td>
         <td>${r.descripcion||'-'}</td>
         <td>${r.cantidad||'-'}</td>
         <td>${r.destino||'-'}</td>
         <td>${r.razon_social||'-'}</td>
+        <td>${tipoTxt}</td>
         <td>${r.pendientes!=null?r.pendientes:'-'}</td>
+        <td>${fechaIngresoTxt}</td>
+        <td>${fechaLimiteTxt}${marcaAtraso}</td>
         <td>${r.observaciones||'-'}</td>
         <td style="text-align:center;">${cotIcon}</td>
       </tr>`;
@@ -1006,13 +1128,16 @@ async function cargarVigentes(){
           destino: tr.dataset.destino || '',
           razon_social: tr.dataset.razon || '',
           pendientes: tr.dataset.pendientes || '',
-          observaciones: tr.dataset.observaciones || ''
+          observaciones: tr.dataset.observaciones || '',
+          fecha_limite_entrega: tr.dataset.fechaLimite || '',
+          fecha_ingreso: tr.dataset.fechaIngreso || '',
+          cliente_tipo: tr.dataset.clienteTipo || ''
         });
       });
     }
   } catch(err) {
     console.error('vigentes load', err);
-    tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+    tb.innerHTML = "<tr><td colspan='12' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
   } finally {
     window.hideSpinner && window.hideSpinner();
   }
@@ -1138,7 +1263,10 @@ function ensureVigenteDetalleModal(){
         <div><label>Cantidad</label><span id="vig-det-cantidad">-</span></div>
         <div><label>Destino</label><span id="vig-det-destino">-</span></div>
         <div><label>Razon Social</label><span id="vig-det-razon">-</span></div>
+        <div><label>Tipo</label><span id="vig-det-tipo">-</span></div>
         <div><label>Pendientes</label><span id="vig-det-pendientes">-</span></div>
+        <div><label>Fecha Ingreso</label><span id="vig-det-fecha-ingreso">-</span></div>
+        <div><label>Fecha Limite</label><span id="vig-det-fecha-limite">-</span></div>
         <div><label>ID Registro</label><span id="vig-det-id">-</span></div>
         <div style="grid-column:span 2"><label>Observaciones</label><span id="vig-det-observaciones">-</span></div>
       </div>
@@ -1224,6 +1352,12 @@ async function cargarVigenteAuditoria(id){
 
 function abrirModalDetalleVigente(data){
   const modal = ensureVigenteDetalleModal();
+  const fechaLimiteIso = fechaLimiteToInputValue(data.fecha_limite_entrega);
+  const fechaLimiteTxt = fechaLimiteIso ? new Date(fechaLimiteIso + 'T00:00:00').toLocaleDateString('es-AR') : '-';
+  const fechaIngresoIso = fechaLimiteToInputValue(data.fecha_ingreso);
+  const fechaIngresoTxt = fechaIngresoIso ? new Date(fechaIngresoIso + 'T00:00:00').toLocaleDateString('es-AR') : '-';
+  const atrasado = esVigenteAtrasado(data);
+  const tipoTxt = data.cliente_tipo === 'dota' ? 'Dota' : data.cliente_tipo === 'externo' ? 'Externo' : 'Sin clasificar';
   const map = {
     'vig-det-nro': data.nro_pedido || '-',
     'vig-det-codigo': data.codigo || '-',
@@ -1231,7 +1365,10 @@ function abrirModalDetalleVigente(data){
     'vig-det-cantidad': data.cantidad || '-',
     'vig-det-destino': data.destino || '-',
     'vig-det-razon': data.razon_social || '-',
+    'vig-det-tipo': tipoTxt,
     'vig-det-pendientes': data.pendientes || '-',
+    'vig-det-fecha-ingreso': fechaIngresoTxt,
+    'vig-det-fecha-limite': fechaLimiteTxt + (atrasado ? ' (Atrasado)' : ''),
     'vig-det-id': data.id || '-',
     'vig-det-observaciones': data.observaciones || '-'
   };
@@ -1239,6 +1376,8 @@ function abrirModalDetalleVigente(data){
     const el = document.getElementById(id);
     if (el) el.textContent = value;
   });
+  const fechaLimiteEl = document.getElementById('vig-det-fecha-limite');
+  if (fechaLimiteEl) fechaLimiteEl.style.color = atrasado ? '#c0392b' : '';
   cargarVigenteAuditoria(data.id);
   modal.style.display = 'flex';
 }
@@ -1398,6 +1537,7 @@ async function cargarGarantias() {
           data-refprov2="${attr(g.ref_proveedor_alt || '')}"
           data-resolucion="${attr(g.resolucion || '')}"
           data-idreparacion="${attr(g.id_reparacion || '')}"
+          data-categoria-grupo="${attr(g.categoria_grupo || '')}"
         >
           <td>${html(numero)}</td>
           <td>${html(g.id_cliente || g.id || '')}</td>
@@ -1460,11 +1600,316 @@ function filtrarGarantiasPorEquipo(texto) {
   const tbody = document.getElementById('tbody-garantias');
   if (!tbody) return;
   const q = (texto || '').trim().toLowerCase();
+  const selCat = document.getElementById('gar-filtro-categoria');
+  const categoria = selCat ? selCat.value : '';
   tbody.querySelectorAll('tr[data-id]').forEach(tr => {
     const equipo = (tr.dataset.alt || '').toLowerCase();
     const codigo = (tr.dataset.codigo || '').toLowerCase();
-    tr.style.display = (!q || equipo.includes(q) || codigo.includes(q)) ? '' : 'none';
+    const coincideTexto = !q || equipo.includes(q) || codigo.includes(q);
+    const coincideCategoria = !categoria || tr.dataset.categoriaGrupo === categoria;
+    tr.style.display = (coincideTexto && coincideCategoria) ? '' : 'none';
   });
+}
+
+// -------- Sub-tabs Garantias: Dota / Externos --------
+function garSubActivo() {
+  return document.querySelector('#gar-sub-tabs button.tab-active')?.dataset.garSub || 'dota';
+}
+
+function bindGarSubTabs() {
+  const bar = document.getElementById('gar-sub-tabs');
+  if (!bar || bar._bound) return;
+  bar._bound = true;
+  bar.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-gar-sub]');
+    if (!btn) return;
+    const sub = btn.getAttribute('data-gar-sub');
+    bar.querySelectorAll('button[data-gar-sub]').forEach(b => b.classList.remove('tab-active'));
+    btn.classList.add('tab-active');
+    const panelDota = document.getElementById('gar-sub-dota');
+    const panelExt = document.getElementById('gar-sub-externos');
+    if (panelDota) panelDota.style.display = sub === 'dota' ? 'block' : 'none';
+    if (panelExt) panelExt.style.display = sub === 'externos' ? 'block' : 'none';
+    const garFiltroWrap = document.getElementById('gar-filtro-wrap');
+    const garExtFiltroWrap = document.getElementById('gar-ext-filtro-wrap');
+    if (garFiltroWrap) garFiltroWrap.style.display = sub === 'dota' ? 'flex' : 'none';
+    if (garExtFiltroWrap) garExtFiltroWrap.style.display = sub === 'externos' ? 'flex' : 'none';
+    // Actualizar/Importar solo aplican a la cola de Dota (licitacion_garantias);
+    // Agregar/Editar/Eliminar quedan disponibles en ambas sub-pestañas.
+    const btnRefresh = document.getElementById('btn-gar-actualizar');
+    const btnImp = document.getElementById('btn-gar-importar');
+    if (btnRefresh) btnRefresh.style.display = sub === 'externos' ? 'none' : '';
+    if (btnImp) btnImp.style.display = sub === 'externos' ? 'none' : '';
+    garSeleccionada = null;
+    garSeleccionMultiple.clear();
+    garExtSeleccionada = null;
+    if (sub === 'externos') cargarGarantiasExternos();
+    else cargarGarantias();
+  });
+}
+
+async function cargarClientesFiltroGarantiasExternos() {
+  const sel = document.getElementById('gar-ext-filtro-cliente');
+  if (!sel || sel._inited) return;
+  sel._inited = true;
+  try {
+    const res = await fetch('/api/clientes', { credentials: 'include' });
+    const clientes = await res.json();
+    const list = Array.isArray(clientes) ? clientes : [];
+    sel.innerHTML = '<option value="">Todos los clientes</option>' + list.map(c => {
+      const nombre = (c.fantasia || c.razon_social || `Cliente ${c.id}`).toString().replace(/"/g, '&quot;');
+      return `<option value="${c.id}">${nombre}</option>`;
+    }).join('');
+  } catch {
+    sel.innerHTML = '<option value="">Todos los clientes</option>';
+  }
+}
+
+function attrGarExt(v) { return (v == null ? '' : String(v)).replace(/"/g, '&quot;'); }
+
+function aplicarSeleccionGarantiaExterna(tb) {
+  tb.querySelectorAll('tr[data-id]').forEach(tr => {
+    tr.classList.toggle('selected', !!garExtSeleccionada && String(garExtSeleccionada.id) === tr.dataset.id);
+  });
+}
+
+async function cargarGarantiasExternos() {
+  const tb = document.getElementById('tbody-garantias-externos');
+  if (!tb) return;
+  await cargarClientesFiltroGarantiasExternos();
+  garExtSeleccionada = null;
+  const clienteId = document.getElementById('gar-ext-filtro-cliente')?.value || '';
+  const desde = document.getElementById('gar-ext-desde')?.value || '';
+  const hasta = document.getElementById('gar-ext-hasta')?.value || '';
+  const params = new URLSearchParams();
+  if (clienteId) params.set('cliente_id', clienteId);
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  window.showSpinner && window.showSpinner();
+  try {
+    const qs = params.toString();
+    const res = await fetch(`/api/garantias_externas${qs ? '?' + qs : ''}`, { credentials: 'include' });
+    const data = await res.json();
+    const lista = Array.isArray(data) ? data : [];
+    if (!lista.length) {
+      tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:#666'>Sin garantias de externos.</td></tr>";
+      return;
+    }
+    const fmt = (d) => {
+      const iso = fechaLimiteToInputValue(d);
+      if (!iso) return '-';
+      try { return new Date(iso + 'T00:00:00').toLocaleDateString('es-AR'); } catch { return iso; }
+    };
+    tb.innerHTML = lista.map(r => `
+      <tr data-id="${r.id}"
+          data-cliente-id="${attrGarExt(r.cliente_id)}"
+          data-cliente="${attrGarExt(r.cliente)}"
+          data-ingreso="${attrGarExt(r.ingreso)}"
+          data-nro-id="${attrGarExt(r.nro_id)}"
+          data-interno="${attrGarExt(r.interno)}"
+          data-codigo="${attrGarExt(r.codigo)}"
+          data-equipo="${attrGarExt(r.equipo)}"
+          data-cantidad="${attrGarExt(r.cantidad)}"
+          data-pendiente="${attrGarExt(r.pendiente)}"
+          data-observaciones="${attrGarExt(r.observaciones)}"
+          class="${Number(r.pendiente) <= 0 ? 'fila-resuelta' : ''}">
+        <td>${r.cliente || '-'}</td>
+        <td>${fmt(r.ingreso)}</td>
+        <td>${r.nro_id || '-'}</td>
+        <td>${r.interno || '-'}</td>
+        <td>${r.codigo || '-'}</td>
+        <td>${r.equipo || '-'}</td>
+        <td>${r.cantidad ?? '-'}</td>
+        <td>${r.pendiente ?? '-'}</td>
+        <td>${r.observaciones || '-'}</td>
+      </tr>
+    `).join('');
+    if (!tb._extSelBound) {
+      tb._extSelBound = true;
+      tb.addEventListener('click', (e) => {
+        const tr = e.target.closest('tr[data-id]');
+        if (!tr) return;
+        garExtSeleccionada = {
+          id: tr.dataset.id,
+          cliente_id: tr.dataset.clienteId,
+          cliente: tr.dataset.cliente,
+          ingreso: tr.dataset.ingreso,
+          nro_id: tr.dataset.nroId,
+          interno: tr.dataset.interno,
+          codigo: tr.dataset.codigo,
+          equipo: tr.dataset.equipo,
+          cantidad: tr.dataset.cantidad,
+          pendiente: tr.dataset.pendiente,
+          observaciones: tr.dataset.observaciones
+        };
+        aplicarSeleccionGarantiaExterna(tb);
+      });
+    } else {
+      aplicarSeleccionGarantiaExterna(tb);
+    }
+  } catch (err) {
+    console.error('garantias externos load', err);
+    tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+  } finally {
+    window.hideSpinner && window.hideSpinner();
+  }
+}
+
+async function initGarantiaExternaSelects() {
+  const selCliente = document.getElementById('sel-gar-ext-cliente');
+  if (selCliente && !selCliente._inited) {
+    selCliente._inited = true;
+    try {
+      const res = await fetch('/api/clientes', { credentials: 'include' });
+      const clientes = await res.json();
+      const list = Array.isArray(clientes) ? clientes : [];
+      selCliente.innerHTML = '<option value="">Seleccione cliente</option>' + list.map(c => {
+        const nombre = (c.fantasia || c.razon_social || `Cliente ${c.id}`).toString().replace(/"/g, '&quot;');
+        return `<option value="${c.id}">${nombre}</option>`;
+      }).join('');
+    } catch (e) { console.error('Error cargando clientes para garantia externa:', e); }
+  }
+
+  const selCodigo = document.getElementById('sel-gar-ext-codigo');
+  if (selCodigo && !selCodigo._inited) {
+    selCodigo._inited = true;
+    try {
+      const res = await fetch('/api/familias', { credentials: 'include' });
+      const familias = await res.json();
+      if (Array.isArray(familias)) {
+        familias.forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f.codigo;
+          opt.textContent = `${f.codigo} - ${f.descripcion}`;
+          opt.dataset.descripcion = f.descripcion;
+          selCodigo.appendChild(opt);
+        });
+      }
+    } catch (e) { console.error('Error cargando familias para garantia externa:', e); }
+    selCodigo.addEventListener('change', () => {
+      const opt = selCodigo.options[selCodigo.selectedIndex];
+      const equipoInput = document.querySelector('#form-garantia-externa [name="equipo"]');
+      if (equipoInput && opt?.dataset.descripcion) equipoInput.value = opt.dataset.descripcion;
+    });
+  }
+
+  // Al ingresar, pendiente = cantidad (igual que en R.Vigentes)
+  const cantInput = document.getElementById('gar-ext-cantidad');
+  const pendInput = document.getElementById('gar-ext-pendiente');
+  if (cantInput && pendInput && !cantInput._pendienteBound) {
+    cantInput._pendienteBound = true;
+    cantInput.addEventListener('input', () => { pendInput.value = cantInput.value; });
+  }
+}
+
+function openGarantiaExternaModal(edit = false) {
+  const modal = document.getElementById('modal-garantia-externa');
+  const form = document.getElementById('form-garantia-externa');
+  if (!modal || !form) return;
+  if (edit && !garExtSeleccionada) {
+    alert('Seleccione una garantia.');
+    return;
+  }
+  form.reset();
+  form.dataset.mode = edit ? 'edit' : 'create';
+  if (edit && garExtSeleccionada) {
+    form.querySelector('[name="cliente_id"]').value = garExtSeleccionada.cliente_id || '';
+    const ingresoInput = form.querySelector('[name="ingreso"]');
+    if (ingresoInput) ingresoInput.value = fechaLimiteToInputValue(garExtSeleccionada.ingreso);
+    form.querySelector('[name="nro_id"]').value = garExtSeleccionada.nro_id || '';
+    form.querySelector('[name="interno"]').value = garExtSeleccionada.interno || '';
+    form.querySelector('[name="codigo"]').value = garExtSeleccionada.codigo || '';
+    form.querySelector('[name="equipo"]').value = garExtSeleccionada.equipo || '';
+    form.querySelector('[name="cantidad"]').value = garExtSeleccionada.cantidad || 1;
+    form.querySelector('[name="pendiente"]').value = (garExtSeleccionada.pendiente != null && garExtSeleccionada.pendiente !== '') ? garExtSeleccionada.pendiente : (garExtSeleccionada.cantidad || 1);
+    form.querySelector('[name="observaciones"]').value = garExtSeleccionada.observaciones || '';
+  } else {
+    // Alta nueva: fecha de ingreso = hoy, pendiente arranca igual a cantidad
+    const ingresoInput = form.querySelector('[name="ingreso"]');
+    if (ingresoInput) ingresoInput.value = new Date().toISOString().slice(0, 10);
+    const pendInput = form.querySelector('[name="pendiente"]');
+    if (pendInput) pendInput.value = form.querySelector('[name="cantidad"]').value || 1;
+  }
+  if (!form._bound) {
+    form._bound = true;
+    form.addEventListener('submit', guardarGarantiaExterna);
+  }
+  const title = document.getElementById('gar-ext-modal-title');
+  if (title) title.textContent = edit ? 'Editar garantia externa' : 'Nueva garantia externa';
+  modal.style.display = 'flex';
+}
+
+async function guardarGarantiaExterna(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const payload = {
+    cliente_id: data.cliente_id || null,
+    ingreso: data.ingreso || null,
+    nro_id: data.nro_id || null,
+    interno: data.interno || null,
+    codigo: data.codigo || null,
+    equipo: data.equipo || null,
+    cantidad: Number(data.cantidad) || 1,
+    pendiente: data.pendiente !== '' ? Number(data.pendiente) : Number(data.cantidad) || 1,
+    observaciones: data.observaciones || null
+  };
+  const isEdit = form.dataset.mode === 'edit' && garExtSeleccionada && garExtSeleccionada.id;
+  const url = isEdit ? `/api/garantias_externas/${garExtSeleccionada.id}` : '/api/garantias_externas';
+  const method = isEdit ? 'PUT' : 'POST';
+  try {
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Error al guardar');
+    document.getElementById('modal-garantia-externa').style.display = 'none';
+    garExtSeleccionada = null;
+    cargarGarantiasExternos();
+    refreshInicioDashboard();
+  } catch (err) {
+    console.error('guardar garantia externa', err);
+    alert(err.message || 'No se pudo guardar la garantia externa');
+  }
+}
+
+async function eliminarGarantiaExterna() {
+  if (!garExtSeleccionada || !garExtSeleccionada.id) {
+    alert('Seleccione una garantia.');
+    return;
+  }
+  if (!confirm('Eliminar garantia externa seleccionada?')) return;
+  try {
+    const res = await fetch(`/api/garantias_externas/${garExtSeleccionada.id}`, { method: 'DELETE', credentials: 'include' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Error al eliminar');
+    garExtSeleccionada = null;
+    cargarGarantiasExternos();
+    refreshInicioDashboard();
+  } catch (err) {
+    console.error('eliminar garantia externa', err);
+    alert(err.message || 'No se pudo eliminar la garantia externa');
+  }
+}
+
+function bindGarantiasExternosFiltro() {
+  const btnFiltrar = document.getElementById('btn-gar-ext-filtrar');
+  const btnLimpiar = document.getElementById('btn-gar-ext-limpiar');
+  if (btnFiltrar && !btnFiltrar._bound) {
+    btnFiltrar._bound = true;
+    btnFiltrar.addEventListener('click', () => cargarGarantiasExternos());
+  }
+  if (btnLimpiar && !btnLimpiar._bound) {
+    btnLimpiar._bound = true;
+    btnLimpiar.addEventListener('click', () => {
+      const sel = document.getElementById('gar-ext-filtro-cliente');
+      const desde = document.getElementById('gar-ext-desde');
+      const hasta = document.getElementById('gar-ext-hasta');
+      if (sel) sel.value = '';
+      if (desde) desde.value = '';
+      if (hasta) hasta.value = '';
+      cargarGarantiasExternos();
+    });
+  }
 }
 
 async function initGarantiaSelects() {
@@ -1664,16 +2109,28 @@ async function actualizarGarantias() {
 
 function bindGarantiasPanel() {
   initGarantiaSelects();
+  initGarantiaExternaSelects();
+  bindGarSubTabs();
+  bindGarantiasExternosFiltro();
   const btnAdd = document.getElementById('btn-gar-agregar');
   const btnRefresh = document.getElementById('btn-gar-actualizar');
   const btnEdit = document.getElementById('btn-gar-modificar');
   const btnDel = document.getElementById('btn-gar-eliminar');
   const btnImp = document.getElementById('btn-gar-importar');
   const inputFile = document.getElementById('gar-import-file');
-  if (btnAdd && !btnAdd._bound) { btnAdd._bound = true; btnAdd.addEventListener('click', () => openGarantiaModal(false)); }
+  if (btnAdd && !btnAdd._bound) {
+    btnAdd._bound = true;
+    btnAdd.addEventListener('click', () => garSubActivo() === 'externos' ? openGarantiaExternaModal(false) : openGarantiaModal(false));
+  }
   if (btnRefresh && !btnRefresh._bound) { btnRefresh._bound = true; btnRefresh.addEventListener('click', actualizarGarantias); }
-  if (btnEdit && !btnEdit._bound) { btnEdit._bound = true; btnEdit.addEventListener('click', () => openGarantiaModal(true)); }
-  if (btnDel && !btnDel._bound) { btnDel._bound = true; btnDel.addEventListener('click', eliminarGarantia); }
+  if (btnEdit && !btnEdit._bound) {
+    btnEdit._bound = true;
+    btnEdit.addEventListener('click', () => garSubActivo() === 'externos' ? openGarantiaExternaModal(true) : openGarantiaModal(true));
+  }
+  if (btnDel && !btnDel._bound) {
+    btnDel._bound = true;
+    btnDel.addEventListener('click', () => garSubActivo() === 'externos' ? eliminarGarantiaExterna() : eliminarGarantia());
+  }
   if (btnImp && !btnImp._bound) {
     btnImp._bound = true;
     btnImp.addEventListener('click', () => {

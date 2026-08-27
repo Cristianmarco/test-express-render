@@ -123,6 +123,7 @@ app.use('/api/historial', requireLogin, historialRouter);
 app.use('/api/estadisticas', requireLogin, estadisticasRouter);
 app.use('/api/licitaciones', requireLogin, licitacionesRouter);
 app.use('/api/reparaciones_dota', requireLogin, require('./routes/reparaciones_dota'));
+app.use('/api/garantias_externas', requireLogin, require('./routes/garantias_externas'));
 app.use('/api/garantias_dota', requireLogin, garantiasDotaRouter);
 app.use('/api/garantias/report', requireLogin, garantiaReportRouter);
 app.use('/api/dashboard', requireLogin, dashboardRouter);

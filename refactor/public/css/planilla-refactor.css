@@ -384,6 +384,21 @@
   background-color: rgba(255, 59, 59, 0.12);
 }
 
+/* Garantia externa ya resuelta (pendiente = 0, se conserva en el listado como historial) */
+.tabla-erp tbody tr.fila-resuelta {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Fila de R.Vigentes atrasada (dentro de la ventana de 7 dias antes de la fecha limite) */
+.tabla-erp tbody tr.fila-atrasada {
+  background-color: rgba(192, 57, 43, 0.08);
+  border-left: 4px solid #c0392b;
+}
+.tabla-erp tbody tr.fila-atrasada.selected {
+  background-color: rgba(192, 57, 43, 0.16) !important;
+}
+
 /* === PANEL FLOTANTE === */
 .erp-panel-flotante {
   position: static; /* por defecto dentro del contenedor */

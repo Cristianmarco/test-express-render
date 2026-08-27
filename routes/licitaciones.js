@@ -339,11 +339,21 @@ router.use('/garantias', async (req, res, next) => {
 router.get('/garantias', async (req, res, next) => {
   try {
     const { rows } = await db.query(
-      `SELECT * FROM licitacion_garantias
+      `SELECT lg.*,
+         CASE
+           WHEN cat.descripcion ILIKE '%alternador%' THEN 'alternadores'
+           WHEN cat.descripcion ILIKE '%arranque%' THEN 'arranque'
+           WHEN cat.descripcion ILIKE '%bomba%' THEN 'bombas'
+           WHEN cat.descripcion ILIKE '%instalaci%' THEN 'instalaciones'
+           ELSE 'otros'
+         END AS categoria_grupo
+       FROM licitacion_garantias lg
+       LEFT JOIN familia f ON btrim(COALESCE(f.codigo, '')) = btrim(COALESCE(lg.codigo, ''))
+       LEFT JOIN categoria cat ON cat.id = f.categoria_id
        ORDER BY
-         LENGTH(COALESCE(NULLIF(regexp_replace(id_cliente, '[^0-9]', '', 'g'), ''),'0')),
-         COALESCE(NULLIF(regexp_replace(id_cliente, '[^0-9]', '', 'g'), ''),'0'),
-         id`
+         LENGTH(COALESCE(NULLIF(regexp_replace(lg.id_cliente, '[^0-9]', '', 'g'), ''),'0')),
+         COALESCE(NULLIF(regexp_replace(lg.id_cliente, '[^0-9]', '', 'g'), ''),'0'),
+         lg.id`
     );
     res.json(rows);
   } catch (err) {

@@ -10,21 +10,39 @@ const {
 
 const AUDIT_DOMAIN = 'reparaciones_dota';
 
+function normalizeFechaLimite(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function normalizeClienteTipo(value) {
+  const text = String(value ?? '').trim().toLowerCase();
+  return (text === 'dota' || text === 'externo') ? text : null;
+}
+
+async function ensureNuevasColumnas(dbClient) {
+  await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS observaciones TEXT');
+  await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS fecha_limite_entrega DATE');
+  await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS fecha_ingreso DATE');
+  await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS cliente_tipo TEXT');
+}
+
 // POST: crear reparación vigente
 router.post('/', async (req, res, next) => {
   const client = await db.connect();
   try {
-    const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones } = req.body;
+    const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo } = req.body;
     if (!codigo || !descripcion || !cantidad) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
-    await client.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS observaciones TEXT');
+    await ensureNuevasColumnas(client);
     await client.query('BEGIN');
     const q = await client.query(
-      `INSERT INTO reparaciones_dota (nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO reparaciones_dota (nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *`,
-      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, pendientes || cantidad, observaciones || null]
+      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, pendientes || cantidad, observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo)]
     );
     await insertDomainAudit(client, req, AUDIT_DOMAIN, q.rows[0].id, 'create', {
       snapshot: q.rows[0]
@@ -157,10 +175,10 @@ router.patch('/:id', async (req, res, next) => {
 // PUT: actualizar todos los campos de una reparación
 router.put('/:id', async (req, res, next) => {
   const id = req.params.id;
-  const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones } = req.body;
+  const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo } = req.body;
   const client = await db.connect();
   try {
-    await client.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS observaciones TEXT');
+    await ensureNuevasColumnas(client);
     await client.query('BEGIN');
     const before = await client.query('SELECT * FROM reparaciones_dota WHERE id=$1', [id]);
     if (!before.rowCount) {
@@ -169,9 +187,9 @@ router.put('/:id', async (req, res, next) => {
     }
     const q = await client.query(
       `UPDATE reparaciones_dota
-       SET nro_pedido=$1, codigo=$2, descripcion=$3, cantidad=$4, destino=$5, razon_social=$6, pendientes=$7, observaciones=$8
-       WHERE id=$9 RETURNING *`,
-      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, (pendientes ?? cantidad), observaciones || null, id]
+       SET nro_pedido=$1, codigo=$2, descripcion=$3, cantidad=$4, destino=$5, razon_social=$6, pendientes=$7, observaciones=$8, fecha_limite_entrega=$9, fecha_ingreso=$10, cliente_tipo=$11
+       WHERE id=$12 RETURNING *`,
+      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, (pendientes ?? cantidad), observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo), id]
     );
     await insertDomainAudit(client, req, AUDIT_DOMAIN, id, 'update', {
       changes: buildAuditChanges(before.rows[0], q.rows[0])
