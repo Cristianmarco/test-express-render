@@ -2,8 +2,62 @@
 // Avoids encoding issues and restores calendar + planilla flow
 
 console.log('planilla.js loaded');
-// Track scanned items to auto-revert stock when removed from textarea
-const _repuestosTrack = new Map(); // code -> { id: number, count: number }
+// Repuestos estructurados del formulario actual (se envian al guardar; el stock
+// se descuenta/repone en el backend, no en vivo).
+let repuestosForm = []; // [{ producto_id, codigo, descripcion, cantidad }]
+
+function renderRepuestosForm() {
+  const tbody = document.getElementById('tbody-repuestos-form');
+  if (!tbody) return;
+  if (!repuestosForm.length) {
+    tbody.innerHTML = '<tr class="repuestos-form-vacio"><td colspan="4" style="text-align:center; color:#888;">Sin repuestos agregados.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = repuestosForm.map((r, idx) => `
+    <tr data-idx="${idx}">
+      <td>${r.codigo || '-'}</td>
+      <td>${r.descripcion || '-'}</td>
+      <td><input type="number" min="1" step="1" value="${r.cantidad}" class="repuesto-form-cantidad" data-idx="${idx}" style="width:70px;" /></td>
+      <td><button type="button" class="icon-button-erp eliminar repuesto-form-quitar" data-idx="${idx}" title="Quitar"><i class="fas fa-trash"></i></button></td>
+    </tr>
+  `).join('');
+}
+
+function agregarRepuestoForm(producto) {
+  if (!producto || !producto.id) return;
+  const existente = repuestosForm.find(r => String(r.producto_id) === String(producto.id));
+  if (existente) {
+    existente.cantidad = (Number(existente.cantidad) || 0) + 1;
+  } else {
+    repuestosForm.push({
+      producto_id: producto.id,
+      codigo: producto.codigo || '',
+      descripcion: producto.descripcion || '',
+      cantidad: 1
+    });
+  }
+  renderRepuestosForm();
+}
+
+function bindRepuestosFormTabla() {
+  const tbody = document.getElementById('tbody-repuestos-form');
+  if (!tbody || tbody._bound) return;
+  tbody._bound = true;
+  tbody.addEventListener('click', (e) => {
+    const btn = e.target.closest('.repuesto-form-quitar');
+    if (!btn) return;
+    const idx = Number(btn.dataset.idx);
+    repuestosForm.splice(idx, 1);
+    renderRepuestosForm();
+  });
+  tbody.addEventListener('input', (e) => {
+    const input = e.target.closest('.repuesto-form-cantidad');
+    if (!input) return;
+    const idx = Number(input.dataset.idx);
+    const val = Math.max(1, parseInt(input.value, 10) || 1);
+    if (repuestosForm[idx]) repuestosForm[idx].cantidad = val;
+  });
+}
 const GARANTIA_TEMPLATES = {
   funciona_ok: {
     label: 'Funciona OK',
@@ -956,22 +1010,6 @@ async function abrirModalPlanilla(fechaTxt) {
   }
 }
 
-// ---------- Productos: selección en cascada (Familia -> Grupo -> Productos) ----------
-function bindProductoSelectorCascada(){
-  const btn = document.getElementById('btn-seleccionar-repuesto');
-  if(!btn) return; if(btn._bound_casc) return; btn._bound_casc = true;
-  btn.addEventListener('click', async ()=>{
-    const famSel = document.getElementById('familia_id');
-    const familiaId = famSel && famSel.value ? String(famSel.value) : '';
-    if(!familiaId){ alert('Seleccione primero una Familia/Equipo.'); return; }
-
-    const gIdEl = document.getElementById('grupo_id_seleccionado');
-    const selectedGrupoId = gIdEl && gIdEl.value ? String(gIdEl.value) : '';
-    if (selectedGrupoId) return abrirProductosFiltrados(selectedGrupoId, familiaId);
-    abrirGruposParaFamilia(familiaId, async (gid)=>{ await abrirProductosFiltrados(gid, familiaId); });
-  });
-}
-
 function abrirGruposParaFamilia(familiaId, onSelect){
   const modalG = document.getElementById('modal-grupos');
   const tbodyG = document.getElementById('tbody-grupos');
@@ -1119,7 +1157,8 @@ function bindPlanillaActions() {
       garantia_prueba_banco: fila.querySelector('.col-gar-prueba')?.textContent.trim()||'',
       garantia_desarme: fila.querySelector('.col-gar-desarme')?.textContent.trim()||'',
       garantia_informe_trabajo: fila.querySelector('.col-gar-inf-trabajo')?.textContent.trim()||'',
-      garantia_informe_observaciones: fila.querySelector('.col-gar-inf-observaciones')?.textContent.trim()||''
+      garantia_informe_observaciones: fila.querySelector('.col-gar-inf-observaciones')?.textContent.trim()||'',
+      repuestos: (Array.isArray(planillaData) ? planillaData.find(r => String(r.id) === String(fila.dataset.id))?.repuestos : null) || []
     };
   };
 
@@ -1142,6 +1181,15 @@ function bindPlanillaActions() {
       'detalle-nro-pedido': seleccion.nro_pedido_ref||'-'
     };
     Object.entries(map).forEach(([id,val])=>{ const el=document.getElementById(id); if(el) el.textContent=val; });
+    const repuestosEl = document.getElementById('detalle-repuestos');
+    if (repuestosEl) {
+      const lista = Array.isArray(seleccion.repuestos) ? seleccion.repuestos : [];
+      repuestosEl.innerHTML = lista.length
+        ? '<ul style="margin:0; padding-left:18px;">' + lista.map(r =>
+            `<li>${r.cantidad} x (${r.codigo || '-'}) ${r.descripcion || ''}</li>`
+          ).join('') + '</ul>'
+        : 'Sin repuestos registrados.';
+    }
     cargarAuditoriaDetalleRefactor(seleccion);
     const modal = document.getElementById('modal-detalle'); if (modal) modal.style.display='flex';
   };
@@ -1172,7 +1220,8 @@ function bindPlanillaActions() {
           }
         }
       } catch {}
-      try{ _repuestosTrack.clear(); }catch(_){ }
+      repuestosForm = [];
+      renderRepuestosForm();
       const selGar = document.getElementById('garantia'); if (selGar) selGar.value = 'no';
       const extra = document.getElementById('garantia-extra-fields'); if (extra) extra.style.display = 'none';
       const tpl = document.getElementById('garantia_template'); if (tpl) tpl.value = '';
@@ -1206,6 +1255,15 @@ function bindPlanillaActions() {
     setVal("input[name='hora_inicio']", seleccion.hora_inicio);
     setVal("input[name='hora_fin']", seleccion.hora_fin);
     setVal("textarea[name='trabajo']", seleccion.trabajo);
+    repuestosForm = Array.isArray(seleccion.repuestos)
+      ? seleccion.repuestos.map(r => ({
+          producto_id: r.producto_id,
+          codigo: r.codigo || '',
+          descripcion: r.descripcion || '',
+          cantidad: Number(r.cantidad) || 1
+        }))
+      : [];
+    renderRepuestosForm();
     const tplSel = document.getElementById('garantia_template'); if (tplSel) tplSel.value = '';
     // Cliente tipo/id
     const selTipo = document.getElementById('cliente_tipo');
@@ -1297,6 +1355,7 @@ function bindPlanillaActions() {
       } else {
         datos.cliente_id = '';
       }
+      datos.repuestos = repuestosForm.map(r => ({ producto_id: r.producto_id, cantidad: r.cantidad }));
 
       let url = '/api/reparaciones_planilla';
       let method = 'POST';
@@ -1641,44 +1700,6 @@ document.addEventListener('click', (e)=>{
   }
 });
 
-// Watch textarea to revert stock when scanned items are removed
-function bindTrabajoWatcher(){
-  const area = document.getElementById('trabajo');
-  if(!area || area._watchBound) return; area._watchBound = true;
-  const getCounts = (text)=>{
-    const counts = new Map();
-    const re = /\(([^)]+)\)/g; // matches (CODE)
-    let m;
-    while((m = re.exec(text||''))){
-      const code = (m[1]||'').trim();
-      if(_repuestosTrack.has(code)){
-        counts.set(code, (counts.get(code)||0)+1);
-      }
-    }
-    return counts;
-  };
-  let _watcherTimer;
-  area.addEventListener('input', ()=>{
-    clearTimeout(_watcherTimer);
-    _watcherTimer = setTimeout(async ()=>{
-      try{
-        const current = getCounts(area.value||'');
-        for(const [code, data] of _repuestosTrack){
-          const prev = data.count||0;
-          const now = current.get(code)||0;
-          if(now < prev){
-            const diff = prev - now;
-            try{ await aumentarStockProducto(data.id, diff, `Reversion (${code})`); }catch(e){ console.warn('No se pudo revertir stock:', e); }
-            data.count = now;
-          } else if(now > prev){
-            data.count = prev;
-          }
-        }
-      }catch(err){ console.warn('Watcher trabajo error:', err); }
-    }, 400);
-  });
-}
-
 // --- Texto predictivo para textarea 'trabajo' ---
 const DEFAULT_TRABAJO_TERMS = [
   'impulsor','rulemanes','correa','bomba','limpieza','ajuste','cambio','cableado','conector',
@@ -1843,198 +1864,16 @@ function bindProductoSelectorSimple(){
     tbodyP.onclick = (evt)=>{
       const add = evt.target.closest('.btn-add-producto');
       if(!add) return;
-      const codigo = add.getAttribute('data-codigo')||'';
-      const desc = add.getAttribute('data-desc')||'';
-      const area = document.getElementById('trabajo');
-      if(area){
-        const prefix = area.value && !area.value.endsWith('\n') ? '\n' : '';
-        const label = desc ? `(${codigo}) - ${desc}` : `(${codigo})`;
-        area.value = (area.value||'') + prefix + label;
-        area.dispatchEvent(new Event('input', { bubbles:true }));
-      }
+      agregarRepuestoForm({
+        id: add.getAttribute('data-id'),
+        codigo: add.getAttribute('data-codigo')||'',
+        descripcion: add.getAttribute('data-desc')||''
+      });
       cerrarModalProductos();
     };
   });
 }
 
-// ---------- Productos (seleccion en cascada: familia -> grupos -> productos) ----------
-function bindProductoSelectorCascada(){
-  const btn = document.getElementById('btn-seleccionar-repuesto');
-  if(!btn) return;
-  if(btn._bound) return; btn._bound = true;
-
-  btn.addEventListener('click', async ()=>{
-    const famSel = document.getElementById('familia_id');
-    const familiaId = famSel && famSel.value ? String(famSel.value) : '';
-    if(!familiaId){ alert('Seleccione primero una Familia/Equipo.'); return; }
-
-    // 1) Modal de grupos filtrados por familia
-    const modalG = document.getElementById('modal-grupos');
-    const tbodyG = document.getElementById('tbody-grupos');
-    if(!modalG || !tbodyG) return;
-    modalG.style.display = 'flex';
-    tbodyG.innerHTML = "<tr><td colspan='2' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando grupos...</td></tr>";
-
-    try{
-      const resG = await fetch(`/api/grupo/by_familia/${encodeURIComponent(familiaId)}`, { credentials:'include' });
-      const grupos = await resG.json();
-      const listaG = Array.isArray(grupos)? grupos : [];
-      if(listaG.length===0){
-        tbodyG.innerHTML = "<tr><td colspan='2' style='text-align:center; padding:10px; color:#666'>Sin grupos para esta familia.</td></tr>";
-      } else {
-        tbodyG.innerHTML = listaG.map(g=>
-          `<tr>
-            <td><button type="button" class="btn-secundario btn-elegir-grupo" data-id="${g.id}"><i class='fas fa-check'></i> Elegir</button></td>
-            <td>${g.descripcion || g.codigo || ('Grupo '+g.id)}</td>
-          </tr>`
-        ).join('');
-      }
-
-      // Delegar click en tabla grupos
-      tbodyG.onclick = async (ev)=>{
-        const b = ev.target.closest('.btn-elegir-grupo');
-        if(!b) return;
-        const grupoId = b.getAttribute('data-id');
-        cerrarModalGrupos();
-
-        // 2) Modal de productos filtrados por grupo+familia
-        const modalP = document.getElementById('modal-productos');
-        const tbodyP = document.getElementById('tbody-productos');
-        if(!modalP || !tbodyP) return;
-        modalP.style.display = 'flex';
-        tbodyP.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando productos...</td></tr>";
-        try{
-          const resP = await fetch(`/api/productos?grupo_id=${encodeURIComponent(grupoId)}&familia_id=${encodeURIComponent(familiaId)}`, { credentials:'include' });
-          const prods = await resP.json();
-          const lista = Array.isArray(prods)? prods : [];
-          if(lista.length===0){
-            tbodyP.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:10px; color:#666'>Sin productos.</td></tr>";
-          } else {
-            tbodyP.innerHTML = lista.map(p=>
-              `<tr>
-                <td><button type="button" class="btn-secundario btn-add-producto" data-id="${p.id}" data-codigo="${(p.codigo||'').replace(/\"/g,'&quot;')}"><i class='fas fa-plus'></i> Agregar</button></td>
-                <td>${p.descripcion||'-'}</td>
-                <td>${p.codigo||'-'}</td>
-                <td>${p.stock_total!=null? p.stock_total : '-'}</td>
-              </tr>`
-            ).join('');
-          }
-
-          // Delegar click en tabla productos
-          tbodyP.onclick = async (evt)=>{
-            const add = evt.target.closest('.btn-add-producto');
-            if(!add) return;
-            const codigo = add.getAttribute('data-codigo')||'';
-            const desc = add.getAttribute('data-desc')||'';
-            const prodId = add.getAttribute('data-id');
-            const area = document.getElementById('trabajo');
-            if(area){
-              const prefix = area.value && !area.value.endsWith('\n') ? '\n' : '';
-              const label = desc ? `(${codigo}) - ${desc}` : `(${codigo})`;
-              area.value = (area.value||'') + prefix + label;
-              area.dispatchEvent(new Event('input', { bubbles:true }));
-            }
-            try{
-              if (prodId && confirm(`Descontar 1 unidad del stock de ${codigo}?`)) {
-                await descontarStockProducto(prodId, `Seleccion directa (${codigo})`);
-              }
-            }catch(err){ console.warn('No se pudo descontar stock ahora:', err); }
-            cerrarModalProductos();
-          };
-        }catch(err){
-          console.error('Error cargando productos:', err);
-          tbodyP.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:10px; color:red'>Error al cargar productos.</td></tr>";
-        }
-      };
-    }catch(err){
-      console.error('Error cargando grupos:', err);
-      tbodyG.innerHTML = "<tr><td colspan='2' style='text-align:center; padding:10px; color:red'>Error al cargar grupos.</td></tr>";
-    }
-  });
-}
-
-async function descontarStockProducto(productoId, observacion){
-  try{
-    const res = await fetch(`/api/stock/${encodeURIComponent(productoId)}`, { credentials:'include' });
-    const depos = await res.json();
-    const arr = Array.isArray(depos)? depos : [];
-    let deposito = 1, max = -Infinity;
-    arr.forEach(d=>{ const cant = typeof d.cantidad==='number'? d.cantidad : parseInt(d.cantidad||'0',10); if(cant>max){ max=cant; deposito=d.deposito_id; } });
-    const payload = { producto_id: Number(productoId), deposito_id: Number(deposito), tipo: 'SALIDA', cantidad: 1, observacion: observacion||'Seleccion planilla' };
-    const resMv = await fetch('/api/stock/movimiento', { method:'POST', headers:{ 'Content-Type':'application/json' }, credentials:'include', body: JSON.stringify(payload) });
-    if(!resMv.ok){ const e=await resMv.json().catch(()=>({})); throw new Error(e && e.error || 'movimiento_failed'); }
-    return true;
-  } catch(err){ throw err; }
-}
-// Incrementar stock (ENTRADA) para reversion al borrar linea del trabajo
-async function aumentarStockProducto(productoId, cantidad, observacion){
-  try{
-    const res = await fetch(`/api/stock/${encodeURIComponent(productoId)}`, { credentials:'include' });
-    const depos = await res.json();
-    const arr = Array.isArray(depos)? depos : [];
-    let deposito = 1, max = -Infinity;
-    arr.forEach(d=>{ const cant = typeof d.cantidad==='number'? d.cantidad : parseInt(d.cantidad||'0',10); if(cant>max){ max=cant; deposito=d.deposito_id; } });
-    const payload = { producto_id: Number(productoId), deposito_id: Number(deposito), tipo: 'ENTRADA', cantidad: Math.max(1, Number(cantidad)||1), observacion: observacion||'Reversion planilla' };
-    const resMv = await fetch('/api/stock/movimiento', { method:'POST', headers:{ 'Content-Type':'application/json' }, credentials:'include', body: JSON.stringify(payload) });
-    if(!resMv.ok){ const e=await resMv.json().catch(()=>({})); throw new Error(e && e.error || 'movimiento_failed'); }
-    return true;
-  } catch(err){ throw err; }
-}
-
-// ---------- Productos (selección para trabajo) ----------
-function bindProductoSelector(){
-  const btn = document.getElementById('btn-seleccionar-repuesto');
-  if(!btn) return;
-
-  // evitar doble binding
-  if(btn._bound) return; btn._bound = true;
-
-  btn.addEventListener('click', async ()=>{
-    const modal = document.getElementById('modal-productos');
-    const tbody = document.getElementById('tbody-productos');
-    if(!modal || !tbody) return;
-    modal.style.display = 'flex';
-    tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando productos...</td></tr>";
-
-    try{
-      const res = await fetch('/api/productos', { credentials:'include' });
-      const data = await res.json();
-      const lista = Array.isArray(data)? data : [];
-      if(lista.length===0){
-        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:10px; color:#666'>Sin productos.</td></tr>";
-      } else {
-        const rows = lista.map(p=>
-          `<tr>
-            <td><button type="button" class="btn-secundario btn-add-producto" data-codigo="${(p.codigo||'').replace(/\"/g,'&quot;')}" data-desc="${(p.descripcion||'').replace(/\"/g,'&quot;')}"><i class='fas fa-plus'></i> Agregar</button></td>
-            <td>${p.descripcion||'-'}</td>
-            <td>${p.codigo||'-'}</td>
-            <td>${p.stock_total!=null? p.stock_total : '-'}</td>
-          </tr>`
-        ).join('');
-        tbody.innerHTML = rows;
-      }
-
-      // delegate click para agregar al textarea
-      tbody.onclick = (ev)=>{
-        const btnAdd = ev.target.closest('.btn-add-producto');
-        if(!btnAdd) return;
-        const codigo = btnAdd.getAttribute('data-codigo')||'';
-        const desc = btnAdd.getAttribute('data-desc')||'';
-        const area = document.getElementById('trabajo');
-        if(area){
-          const prefix = area.value && !area.value.endsWith('\n') ? '\n' : '';
-          const label = desc ? `(${codigo}) - ${desc}` : `(${codigo})`;
-          area.value = (area.value||'') + prefix + label;
-          area.dispatchEvent(new Event('input', { bubbles:true }));
-        }
-        cerrarModalProductos();
-      };
-    } catch(err){
-      console.error('Error cargando productos:', err);
-      tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:10px; color:red'>Error al cargar productos.</td></tr>";
-    }
-  });
-}
 
 // ----- Historial: buscador + render -----
 function bindHistorialSearch(){
@@ -2106,7 +1945,7 @@ function initPlanilla(){
   prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
   bindPedidoFamiliaAutofill();
   bindCodigoRepuestoEnter();
-  bindTrabajoWatcher();
+  bindRepuestosFormTabla();
   bindTrabajoAutocomplete();
 }
 
@@ -2115,7 +1954,7 @@ if (document.getElementById('calendarGrid')) {
   bindGarantiaToggle(true);
 } else {
   document.addEventListener('view:changed', (e)=>{
-    if(e.detail==='planilla') setTimeout(()=>{ initPlanilla(); bindGarantiaToggle(true); bindCodigoRepuestoEnter(); bindTrabajoWatcher(); bindTrabajoAutocomplete(); },100);
+    if(e.detail==='planilla') setTimeout(()=>{ initPlanilla(); bindGarantiaToggle(true); bindCodigoRepuestoEnter(); bindRepuestosFormTabla(); bindTrabajoAutocomplete(); },100);
   });
 
   // Capturar Enter en el input para evitar submit + validación del formulario
@@ -2213,20 +2052,8 @@ if (document.getElementById('calendarGrid')) {
         const stripZeros = (s)=> String(s||'').replace(/^0+/, '');
         return (c === code.toLowerCase() || bLower === code.toLowerCase() || stripZeros(b) === stripZeros(code));
       });
-      const area = document.getElementById('trabajo');
       if(prod){
-        const prefix = area && area.value && !area.value.endsWith('\n') ? '\n' : '';
-        const label = `(${prod.codigo}) - ${prod.descripcion||''}`;
-        if(area){ area.value = (area.value||'') + prefix + label; area.dispatchEvent(new Event('input',{bubbles:true})); }
-        // descuento automático al agregar por código
-        try{
-          await descontarStockProducto(prod.id, `Codigo (${prod.codigo})`);
-        }catch(_){ }
-        // registrar para posible reversión si el usuario borra la línea
-        try{
-          const info = _repuestosTrack.get(prod.codigo) || { id: prod.id, count: 0 };
-          info.id = prod.id; info.count = (info.count||0) + 1; _repuestosTrack.set(prod.codigo, info);
-        }catch(_){ }
+        agregarRepuestoForm({ id: prod.id, codigo: prod.codigo, descripcion: prod.descripcion });
         cerrarModalScanner();
       } else {
         alert('No se encontró producto con código: ' + code);

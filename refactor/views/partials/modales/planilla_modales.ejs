@@ -295,10 +295,16 @@
 
       <div class="form-grid">
         <div>
-          <label>Trabajo realizado / Repuestos *</label>
+          <label>Trabajo realizado *</label>
           <textarea name="trabajo" id="trabajo" rows="3" required></textarea>
           <!-- Sugerencias para texto predictivo del campo trabajo -->
           <div id="trabajo-suggest" class="suggest-box" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div>
+          <label>Repuestos</label>
           <div class="repuestos-actions">
             <input type="text" id="scan-codigo-repuesto" placeholder="Escanear o escribir código de producto y Enter" />
             <div class="repuestos-buttons">
@@ -306,6 +312,19 @@
               <button type="button" id="btn-scan-repuesto" class="btn-secundario"><i class="fas fa-barcode"></i> Escanear Código</button>
             </div>
           </div>
+          <table class="tabla-erp" id="tabla-repuestos-form" style="margin-top:10px;">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th style="width:90px;">Cantidad</th>
+                <th style="width:50px;"></th>
+              </tr>
+            </thead>
+            <tbody id="tbody-repuestos-form">
+              <tr class="repuestos-form-vacio"><td colspan="4" style="text-align:center; color:#888;">Sin repuestos agregados.</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -483,8 +502,13 @@
       </div>
 
       <section class="detalle-card detalle-textos">
-        <h3><i class="fas fa-tools"></i> Trabajo y repuestos</h3>
+        <h3><i class="fas fa-tools"></i> Trabajo realizado</h3>
         <div id="detalle-trabajo" class="detalle-texto"></div>
+      </section>
+
+      <section class="detalle-card detalle-textos">
+        <h3><i class="fas fa-cubes"></i> Repuestos</h3>
+        <div id="detalle-repuestos" class="detalle-texto">Sin repuestos registrados.</div>
       </section>
 
       <section class="detalle-card detalle-textos">

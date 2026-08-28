@@ -360,6 +360,104 @@ async function safeInsertStockAudit(dbClient, req, movementRow, detail = {}) {
   }
 }
 
+async function ensureReparacionRepuestosTable(dbClient) {
+  await dbClient.query(`
+    CREATE TABLE IF NOT EXISTS reparacion_repuestos (
+      id SERIAL PRIMARY KEY,
+      reparacion_id INTEGER NOT NULL REFERENCES equipos_reparaciones(id) ON DELETE CASCADE,
+      producto_id INTEGER NOT NULL,
+      codigo TEXT,
+      descripcion TEXT,
+      cantidad INTEGER NOT NULL DEFAULT 1,
+      deposito_id INTEGER,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+}
+
+// Descuenta stock y registra cada repuesto estructurado de una reparacion.
+// repuestos: [{ producto_id, cantidad }]
+async function aplicarRepuestos(client, req, reparacionId, repuestos) {
+  const items = Array.isArray(repuestos) ? repuestos : [];
+  if (!items.length) return;
+  await ensureReparacionRepuestosTable(client);
+
+  for (const item of items) {
+    const productoId = Number(item.producto_id);
+    const cantidad = Number(item.cantidad);
+    if (!Number.isInteger(productoId) || productoId <= 0) continue;
+    if (!Number.isFinite(cantidad) || cantidad <= 0) continue;
+
+    const prod = await client.query(
+      `SELECT codigo, descripcion FROM productos WHERE id = $1`,
+      [productoId]
+    );
+    const codigo = prod.rows[0]?.codigo ?? null;
+    const descripcion = prod.rows[0]?.descripcion ?? null;
+
+    const stockRes = await client.query(
+      `SELECT deposito_id FROM stock WHERE producto_id = $1 ORDER BY cantidad DESC LIMIT 1`,
+      [productoId]
+    );
+    const depositoId = stockRes.rowCount > 0 ? stockRes.rows[0].deposito_id : 1;
+
+    await client.query(
+      `INSERT INTO stock (producto_id, deposito_id, cantidad)
+       VALUES ($1,$2,$3)
+       ON CONFLICT (producto_id, deposito_id)
+       DO UPDATE SET cantidad = stock.cantidad + EXCLUDED.cantidad`,
+      [productoId, depositoId, -cantidad]
+    );
+
+    const movResult = await client.query(
+      `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, observacion, reparacion_id)
+       VALUES ($1,$2,'SALIDA',$3,$4,$5)
+       RETURNING *`,
+      [productoId, depositoId, cantidad, `Usado en reparación ID ${reparacionId}`, String(reparacionId)]
+    );
+    await safeInsertStockAudit(client, req, movResult.rows[0], {
+      origen: 'planilla_reparacion',
+      reparacion_id: reparacionId
+    });
+
+    await client.query(
+      `INSERT INTO reparacion_repuestos (reparacion_id, producto_id, codigo, descripcion, cantidad, deposito_id)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [reparacionId, productoId, codigo, descripcion, cantidad, depositoId]
+    );
+  }
+}
+
+// Repone el stock de todos los repuestos ya aplicados a una reparacion y borra el detalle.
+// Se usa antes de re-aplicar en un PUT (editar) y antes de un DELETE.
+async function revertirRepuestos(client, req, reparacionId) {
+  await ensureReparacionRepuestosTable(client);
+  const existentes = await client.query(
+    `SELECT * FROM reparacion_repuestos WHERE reparacion_id = $1`,
+    [reparacionId]
+  );
+  for (const row of existentes.rows) {
+    await client.query(
+      `INSERT INTO stock (producto_id, deposito_id, cantidad)
+       VALUES ($1,$2,$3)
+       ON CONFLICT (producto_id, deposito_id)
+       DO UPDATE SET cantidad = stock.cantidad + EXCLUDED.cantidad`,
+      [row.producto_id, row.deposito_id, row.cantidad]
+    );
+    const movResult = await client.query(
+      `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, observacion, reparacion_id)
+       VALUES ($1,$2,'ENTRADA',$3,$4,$5)
+       RETURNING *`,
+      [row.producto_id, row.deposito_id, row.cantidad, `Reversión reparación ID ${reparacionId}`, String(reparacionId)]
+    );
+    await safeInsertStockAudit(client, req, movResult.rows[0], {
+      origen: 'planilla_reparacion_reversion',
+      reparacion_id: reparacionId
+    });
+  }
+  await client.query(`DELETE FROM reparacion_repuestos WHERE reparacion_id = $1`, [reparacionId]);
+}
+
 function extractRepuestosFromTrabajo(trabajo) {
   const items = [];
   if (!trabajo) return items;
@@ -398,8 +496,9 @@ router.get("/historial/:id_reparacion", async (req, res) => {
 
   try {
     await ensurePlanillaGarantiaColumns(pool);
+    await ensureReparacionRepuestosTable(pool);
     const query = `
-      SELECT 
+      SELECT
         r.id,
         r.id_reparacion,
         r.coche_numero,
@@ -417,7 +516,16 @@ router.get("/historial/:id_reparacion", async (req, res) => {
         r.garantia_desarme,
         f.descripcion AS equipo,
         t.nombre AS tecnico,
-        COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente
+        COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
+        COALESCE((
+          SELECT json_agg(json_build_object(
+            'producto_id', rr.producto_id,
+            'codigo', rr.codigo,
+            'descripcion', rr.descripcion,
+            'cantidad', rr.cantidad
+          ) ORDER BY rr.id)
+          FROM reparacion_repuestos rr WHERE rr.reparacion_id = r.id
+        ), '[]'::json) AS repuestos
       FROM equipos_reparaciones r
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
@@ -724,8 +832,9 @@ router.get("/repuestos/listado", async (req, res) => {
   }
   try {
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
+    await ensureReparacionRepuestosTable(pool);
     let sql = `
-      SELECT r.trabajo
+      SELECT r.id, r.trabajo
       FROM equipos_reparaciones r
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
@@ -765,15 +874,38 @@ router.get("/repuestos/listado", async (req, res) => {
     }
     const { rows } = await pool.query(sql, params);
     const map = new Map();
+    const addToMap = (codigoRaw, descripcionRaw, cantidad) => {
+      const codigo = codigoRaw || "";
+      const descripcion = descripcionRaw || "";
+      const key = `${codigo}||${descripcion}`;
+      const prev = map.get(key) || { codigo, descripcion, cantidad: 0 };
+      prev.cantidad += cantidad;
+      map.set(key, prev);
+    };
+
+    // Repuestos estructurados: fuente de verdad para las reparaciones que ya la tienen.
+    const reparacionIds = rows.map(r => r.id).filter(id => Number.isInteger(id));
+    const conDatosEstructurados = new Set();
+    if (reparacionIds.length) {
+      const estructurados = await pool.query(
+        `SELECT reparacion_id, codigo, descripcion, cantidad
+         FROM reparacion_repuestos
+         WHERE reparacion_id = ANY($1::int[])`,
+        [reparacionIds]
+      );
+      for (const row of estructurados.rows) {
+        conDatosEstructurados.add(row.reparacion_id);
+        addToMap(row.codigo, row.descripcion, Number(row.cantidad) || 0);
+      }
+    }
+
+    // Fallback: reparaciones creadas antes de tener datos estructurados (se sigue
+    // parseando el texto libre de "trabajo", igual que siempre).
     for (const row of rows) {
+      if (conDatosEstructurados.has(row.id)) continue;
       const items = extractRepuestosFromTrabajo(row.trabajo);
       for (const item of items) {
-        const codigo = item.codigo || "";
-        const descripcion = item.descripcion || "";
-        const key = `${codigo}||${descripcion}`;
-        const prev = map.get(key) || { codigo, descripcion, cantidad: 0 };
-        prev.cantidad += 1;
-        map.set(key, prev);
+        addToMap(item.codigo, item.descripcion, 1);
       }
     }
     const listado = Array.from(map.values()).map(r => ({
@@ -824,8 +956,9 @@ router.get("/", async (req, res) => {
   try {
     // Asegurar columna auxiliar si aún no existe
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
+    await ensureReparacionRepuestosTable(pool);
     const query = `
-      SELECT 
+      SELECT
         r.id,
         r.id_reparacion,
         r.coche_numero,
@@ -849,7 +982,16 @@ router.get("/", async (req, res) => {
         r.garantia_prueba_banco,
         r.garantia_desarme,
         r.garantia_informe_trabajo,
-        r.garantia_informe_observaciones
+        r.garantia_informe_observaciones,
+        COALESCE((
+          SELECT json_agg(json_build_object(
+            'producto_id', rr.producto_id,
+            'codigo', rr.codigo,
+            'descripcion', rr.descripcion,
+            'cantidad', rr.cantidad
+          ) ORDER BY rr.id)
+          FROM reparacion_repuestos rr WHERE rr.reparacion_id = r.id
+        ), '[]'::json) AS repuestos
       FROM equipos_reparaciones r
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
@@ -1589,49 +1731,8 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // 🔍 Detectar productos usados
-    const productosUsados = [];
-    if (trabajo) {
-      const regex = /\((.*?)\)/g;
-      let match;
-      while ((match = regex.exec(trabajo)) !== null) {
-        productosUsados.push(match[1]);
-      }
-    }
-
-    // 📦 Descontar stock y registrar movimiento
-    for (const codigoRaw of productosUsados) {
-      const codigo = codigoRaw.trim().replace(/\s+/g, "");
-      const prod = await client.query(
-        `SELECT id FROM productos WHERE REPLACE(codigo, ' ', '') = $1 LIMIT 1`,
-        [codigo]
-      );
-      if (prod.rowCount === 0) continue;
-
-      const productoId = prod.rows[0].id;
-      const stockRes = await client.query(
-        `SELECT deposito_id FROM stock WHERE producto_id = $1 ORDER BY cantidad DESC LIMIT 1`,
-        [productoId]
-      );
-      const depositoId = stockRes.rowCount > 0 ? stockRes.rows[0].deposito_id : 1;
-
-      await client.query(
-        `UPDATE stock SET cantidad = GREATEST(cantidad - 1, 0)
-         WHERE producto_id = $1 AND deposito_id = $2`,
-        [productoId, depositoId]
-      );
-
-      const movResult = await client.query(
-        `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, fecha, observacion)
-         VALUES ($1, $2, 'SALIDA', 1, NOW(), $3)
-         RETURNING *`,
-        [productoId, depositoId, `Usado en reparación ID ${reparacionId}`]
-      );
-      await safeInsertStockAudit(client, req, movResult.rows[0], {
-        origen: 'planilla_reparacion',
-        reparacion_id: reparacionId
-      });
-    }
+    // 📦 Repuestos estructurados: descuenta stock y registra movimiento
+    await aplicarRepuestos(client, req, reparacionId, req.body.repuestos);
 
     await recalculatePedidoPendientes(client, licitacionData.nro_pedido_ref);
     await safeInsertPlanillaAudit(client, req, 'create', reparacionRow, {
@@ -1744,6 +1845,9 @@ router.put("/:id", async (req, res) => {
     // Asegura columna
     await client.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
     await client.query("BEGIN");
+    // Repone el stock de los repuestos que tenia antes de editar; se vuelven a
+    // aplicar los nuevos mas abajo. Evita tener que calcular un diff fino.
+    await revertirRepuestos(client, req, req.params.id);
     const result = await client.query(
       `UPDATE equipos_reparaciones
        SET cliente_tipo=$1, cliente_id=$2, id_reparacion=$3, coche_numero=$4,
@@ -1783,6 +1887,7 @@ router.put("/:id", async (req, res) => {
     }
 
     const reparacionActualizada = result.rows[0];
+    await aplicarRepuestos(client, req, reparacionActualizada.id, req.body.repuestos);
     if (garantiaData.id_dota != null && garantiaData.id_dota !== '') {
       if (cliente_tipo === 'externo') {
         await cerrarGarantiaExternaPorNroId(client, garantiaData.id_dota);
@@ -1856,6 +1961,9 @@ router.delete("/:id", async (req, res) => {
 
   try {
     await client.query("BEGIN");
+    // Repone stock de los repuestos de esta reparacion antes de borrarla
+    // (el borrado de equipos_reparaciones arrastra reparacion_repuestos por CASCADE).
+    await revertirRepuestos(client, req, id);
     const result = await client.query(
       `DELETE FROM equipos_reparaciones WHERE id=$1 RETURNING *`,
       [id]
