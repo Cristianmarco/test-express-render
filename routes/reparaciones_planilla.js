@@ -60,6 +60,7 @@ async function ensurePlanillaGarantiaColumns(dbClient) {
   await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_desarme TEXT");
   await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_informe_trabajo TEXT");
   await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_informe_observaciones TEXT");
+  await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_falla TEXT");
 }
 
 // Al cargar la reparacion real de una garantia externa (por su Nro de ID/Pedido),
@@ -103,7 +104,8 @@ function sanitizeGarantiaPayload(payload) {
     garantia_prueba_banco: normalizeOptionalText(payload.garantia_prueba_banco),
     garantia_desarme: normalizeOptionalText(payload.garantia_desarme),
     garantia_informe_trabajo: normalizeOptionalText(payload.garantia_informe_trabajo),
-    garantia_informe_observaciones: normalizeOptionalText(payload.garantia_informe_observaciones)
+    garantia_informe_observaciones: normalizeOptionalText(payload.garantia_informe_observaciones),
+    garantia_falla: normalizeOptionalText(payload.garantia_falla)
   };
 
   if (cleaned.garantia !== 'si') {
@@ -114,6 +116,7 @@ function sanitizeGarantiaPayload(payload) {
     cleaned.garantia_desarme = null;
     cleaned.garantia_informe_trabajo = null;
     cleaned.garantia_informe_observaciones = null;
+    cleaned.garantia_falla = null;
     return cleaned;
   }
 
@@ -304,7 +307,8 @@ function pickAuditSnapshot(row) {
     garantia_prueba_banco: row.garantia_prueba_banco ?? null,
     garantia_desarme: row.garantia_desarme ?? null,
     garantia_informe_trabajo: row.garantia_informe_trabajo ?? null,
-    garantia_informe_observaciones: row.garantia_informe_observaciones ?? null
+    garantia_informe_observaciones: row.garantia_informe_observaciones ?? null,
+    garantia_falla: row.garantia_falla ?? null
   };
 }
 
@@ -983,6 +987,7 @@ router.get("/", async (req, res) => {
         r.garantia_desarme,
         r.garantia_informe_trabajo,
         r.garantia_informe_observaciones,
+        r.garantia_falla,
         COALESCE((
           SELECT json_agg(json_build_object(
             'producto_id', rr.producto_id,
@@ -1597,7 +1602,8 @@ router.post("/", async (req, res) => {
       garantia_prueba_banco,
       garantia_desarme,
       garantia_informe_trabajo,
-      garantia_informe_observaciones
+      garantia_informe_observaciones,
+      garantia_falla
     } = req.body;
 
     const garantiaData = sanitizeGarantiaPayload({
@@ -1608,7 +1614,8 @@ router.post("/", async (req, res) => {
       garantia_prueba_banco,
       garantia_desarme,
       garantia_informe_trabajo,
-      garantia_informe_observaciones
+      garantia_informe_observaciones,
+      garantia_falla
     });
     if (garantiaData.error) {
       return res.status(400).json({ error: garantiaData.error });
@@ -1640,6 +1647,7 @@ router.post("/", async (req, res) => {
     garantia_desarme = garantiaData.garantia_desarme;
     garantia_informe_trabajo = garantiaData.garantia_informe_trabajo;
     garantia_informe_observaciones = garantiaData.garantia_informe_observaciones;
+    garantia_falla = garantiaData.garantia_falla;
     garantia = garantiaData.garantia;
 
     await client.query("BEGIN");
@@ -1651,8 +1659,8 @@ router.post("/", async (req, res) => {
       INSERT INTO equipos_reparaciones
         (id_reparacion, cliente_id, cliente_tipo, tecnico_id, trabajo, observaciones, fecha, garantia,
          id_dota, ultimo_reparador, resolucion, coche_numero, familia_id, hora_inicio, hora_fin, nro_pedido_ref,
-         garantia_prueba_banco, garantia_desarme, garantia_informe_trabajo, garantia_informe_observaciones)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+         garantia_prueba_banco, garantia_desarme, garantia_informe_trabajo, garantia_informe_observaciones, garantia_falla)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
       RETURNING *;
     `,
       [
@@ -1675,7 +1683,8 @@ router.post("/", async (req, res) => {
         garantia_prueba_banco,
         garantia_desarme,
         garantia_informe_trabajo,
-        garantia_informe_observaciones
+        garantia_informe_observaciones,
+        garantia_falla
       ]
     );
 
@@ -1783,7 +1792,8 @@ router.put("/:id", async (req, res) => {
       garantia_prueba_banco: req.body.garantia_prueba_banco,
       garantia_desarme: req.body.garantia_desarme,
       garantia_informe_trabajo: req.body.garantia_informe_trabajo,
-      garantia_informe_observaciones: req.body.garantia_informe_observaciones
+      garantia_informe_observaciones: req.body.garantia_informe_observaciones,
+      garantia_falla: req.body.garantia_falla
     });
     if (garantiaData.error) {
       return res.status(400).json({ error: garantiaData.error });
@@ -1854,8 +1864,8 @@ router.put("/:id", async (req, res) => {
            familia_id=$5, tecnico_id=$6, hora_inicio=$7, hora_fin=$8, trabajo=$9,
            garantia=$10, observaciones=$11, id_dota=$12, ultimo_reparador=$13, resolucion=$14,
            nro_pedido_ref=$15, garantia_prueba_banco=$16, garantia_desarme=$17,
-           garantia_informe_trabajo=$18, garantia_informe_observaciones=$19
-       WHERE id=$20
+           garantia_informe_trabajo=$18, garantia_informe_observaciones=$19, garantia_falla=$20
+       WHERE id=$21
        RETURNING *`,
       [
         cliente_tipo,
@@ -1877,6 +1887,7 @@ router.put("/:id", async (req, res) => {
         garantiaData.garantia_desarme,
         garantiaData.garantia_informe_trabajo,
         garantiaData.garantia_informe_observaciones,
+        garantiaData.garantia_falla,
         req.params.id
       ]
     );

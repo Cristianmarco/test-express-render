@@ -164,6 +164,68 @@ router.get('/planilla/garantias-por-resolucion-reparador', async (req, res, next
   } catch (e) { next(e); }
 });
 
+// Garantias agrupadas por equipo (modelo) y por falla, con desglose de resolucion
+router.get('/planilla/garantias-por-equipo', async (req, res, next) => {
+  const inicio = normDate(req.query.inicio);
+  const fin = normDate(req.query.fin);
+  if(!inicio || !fin) return res.status(400).json({ error: 'Faltan parametros inicio/fin' });
+  try {
+    await db.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_falla TEXT");
+    const whereGarantia = "LOWER(COALESCE(r.garantia::text,'')) IN ('si','true','t','1')";
+    const params = [inicio, fin];
+
+    const totSql = `
+      SELECT COUNT(*)::int AS total,
+             SUM(CASE WHEN ${garantiaAceptadaSql('r.resolucion')} THEN 1 ELSE 0 END)::int AS aceptada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_repuestos' THEN 1 ELSE 0 END)::int AS aceptada_repuestos,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_tecnica' THEN 1 ELSE 0 END)::int AS aceptada_tecnica,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='rechazada' THEN 1 ELSE 0 END)::int AS rechazada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='funciona_ok' THEN 1 ELSE 0 END)::int AS funciona_ok
+        FROM equipos_reparaciones r
+       WHERE DATE(r.fecha) BETWEEN $1 AND $2
+         AND ${whereGarantia};`;
+
+    const byEquipoSql = `
+      SELECT COALESCE(f.descripcion,'(Sin equipo)') AS equipo,
+             COUNT(*)::int AS total,
+             SUM(CASE WHEN ${garantiaAceptadaSql('r.resolucion')} THEN 1 ELSE 0 END)::int AS aceptada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_repuestos' THEN 1 ELSE 0 END)::int AS aceptada_repuestos,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_tecnica' THEN 1 ELSE 0 END)::int AS aceptada_tecnica,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='rechazada' THEN 1 ELSE 0 END)::int AS rechazada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='funciona_ok' THEN 1 ELSE 0 END)::int AS funciona_ok
+        FROM equipos_reparaciones r
+        LEFT JOIN familia f ON f.id = r.familia_id
+       WHERE DATE(r.fecha) BETWEEN $1 AND $2
+         AND ${whereGarantia}
+       GROUP BY equipo
+       ORDER BY total DESC, equipo ASC;`;
+
+    const byFallaSql = `
+      SELECT COALESCE(NULLIF(BTRIM(r.garantia_falla),''),'(Sin falla)') AS falla,
+             COUNT(*)::int AS total,
+             SUM(CASE WHEN ${garantiaAceptadaSql('r.resolucion')} THEN 1 ELSE 0 END)::int AS aceptada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_repuestos' THEN 1 ELSE 0 END)::int AS aceptada_repuestos,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_tecnica' THEN 1 ELSE 0 END)::int AS aceptada_tecnica,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='rechazada' THEN 1 ELSE 0 END)::int AS rechazada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='funciona_ok' THEN 1 ELSE 0 END)::int AS funciona_ok
+        FROM equipos_reparaciones r
+       WHERE DATE(r.fecha) BETWEEN $1 AND $2
+         AND ${whereGarantia}
+       GROUP BY falla
+       ORDER BY total DESC, falla ASC;`;
+
+    const total = await db.query(totSql, params);
+    const porEquipo = await db.query(byEquipoSql, params);
+    const porFalla = await db.query(byFallaSql, params);
+    res.json({
+      rango: { inicio, fin },
+      total: total.rows[0] || { total: 0, aceptada: 0, aceptada_repuestos: 0, aceptada_tecnica: 0, rechazada: 0, funciona_ok: 0 },
+      porEquipo: porEquipo.rows,
+      porFalla: porFalla.rows
+    });
+  } catch (e) { next(e); }
+});
+
 router.get('/planilla/tiempo-reparacion-promedio-por-equipo', async (req, res, next) => {
   const inicio = normDate(req.query.inicio);
   const fin = normDate(req.query.fin);

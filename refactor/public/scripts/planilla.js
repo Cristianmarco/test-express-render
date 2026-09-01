@@ -943,6 +943,7 @@ function renderPlanillaTable(data) {
       <td style="display:none" class="col-gar-desarme">${esc(rep.garantia_desarme)}</td>
       <td style="display:none" class="col-gar-inf-trabajo">${esc(rep.garantia_informe_trabajo)}</td>
       <td style="display:none" class="col-gar-inf-observaciones">${esc(rep.garantia_informe_observaciones)}</td>
+      <td style="display:none" class="col-gar-falla">${esc(rep.garantia_falla)}</td>
       <td style="display:none" class="col-familia-id">${rep.familia_id || ''}</td>
         <td style="display:none" class="col-tecnico-id">${rep.tecnico_id || ''}</td>
         <td style="display:none" class="col-cliente-id">${rep.cliente_id || ''}</td>
@@ -1167,6 +1168,7 @@ function bindPlanillaActions() {
       garantia_desarme: fila.querySelector('.col-gar-desarme')?.textContent.trim()||'',
       garantia_informe_trabajo: fila.querySelector('.col-gar-inf-trabajo')?.textContent.trim()||'',
       garantia_informe_observaciones: fila.querySelector('.col-gar-inf-observaciones')?.textContent.trim()||'',
+      garantia_falla: fila.querySelector('.col-gar-falla')?.textContent.trim()||'',
       repuestos: (Array.isArray(planillaData) ? planillaData.find(r => String(r.id) === String(fila.dataset.id))?.repuestos : null) || []
     };
   };
@@ -1236,6 +1238,7 @@ function bindPlanillaActions() {
       const tpl = document.getElementById('garantia_template'); if (tpl) tpl.value = '';
       const infTrabajo = document.getElementById('garantia_informe_trabajo'); if (infTrabajo) infTrabajo.value = '';
       const infObs = document.getElementById('garantia_informe_observaciones'); if (infObs) infObs.value = '';
+      const fallaInput = document.getElementById('garantia_falla'); if (fallaInput) fallaInput.value = '';
       limpiarFichaTecnicaSugerida();
     }
     prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
@@ -1299,6 +1302,7 @@ function bindPlanillaActions() {
     setVal("textarea[name='garantia_desarme']", seleccion.garantia_desarme);
     setVal("#garantia_informe_trabajo", seleccion.garantia_informe_trabajo);
     setVal("#garantia_informe_observaciones", seleccion.garantia_informe_observaciones);
+    setVal("#garantia_falla", seleccion.garantia_falla);
     await prepararSelectTecnicos();
     const tec=document.getElementById('tecnico_id'); if(tec && seleccion.tecnico_id) tec.value=String(seleccion.tecnico_id);
     const ult=document.getElementById('ultimo_reparador'); if(ult && seleccion.ultimo_reparador) ult.value=String(seleccion.ultimo_reparador);
@@ -1570,6 +1574,8 @@ function toggleGarantiaExtra(){
     const infObs = document.getElementById('garantia_informe_observaciones');
     if (infTrabajo) infTrabajo.value = '';
     if (infObs) infObs.value = '';
+    const fallaInput = document.getElementById('garantia_falla');
+    if (fallaInput) fallaInput.value = '';
   }
 }
 
@@ -1618,7 +1624,11 @@ function refreshGarantiaTemplateOptions(){
 }
 
 function applyGarantiaTemplate(key){
-  if (!key) return;
+  const fallaInput = document.getElementById('garantia_falla');
+  if (!key) {
+    if (fallaInput) fallaInput.value = '';
+    return;
+  }
   const select = document.getElementById('garantia_template');
   if (!select) return;
   let tpl = GARANTIA_TEMPLATES[key];
@@ -1637,12 +1647,16 @@ function applyGarantiaTemplate(key){
     }
   }
   if (!tpl) return;
+
+  // La falla queda etiquetada apenas se elige la plantilla, independientemente
+  // de si despues se cancela el reemplazo del texto del informe (abajo).
+  if (fallaInput) fallaInput.value = (familyTemplate ? familyTemplate.nombre : tpl.label) || '';
+
   const banco = document.getElementById('garantia_prueba_banco');
   const desarme = document.getElementById('garantia_desarme');
   const informeTrabajo = document.getElementById('garantia_informe_trabajo');
   const informeObservaciones = document.getElementById('garantia_informe_observaciones');
   if ((banco?.value || desarme?.value || informeTrabajo?.value || informeObservaciones?.value) && !confirm('Reemplazar el texto actual del informe con la plantilla seleccionada?')){
-    select.value = '';
     return;
   }
   const ctx = getGarantiaTemplateContext();

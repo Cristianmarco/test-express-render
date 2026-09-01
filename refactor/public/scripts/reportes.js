@@ -5,6 +5,14 @@
     catch { return String(d).slice(0, 10); }
   };
 
+  const esc = (v) => {
+    if (v == null) return '';
+    return String(v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  };
+
   let tipo = 'planilla-resumen';
 
   async function cargar(){
@@ -35,6 +43,8 @@
       await cargarPromedioPorTecnico(di, df);
     } else if (tipo === 'garantias-por-resolucion-reparador') {
       await cargarGarantiasPorResolucionYReparador(di, df);
+    } else if (tipo === 'garantias-por-equipo') {
+      await cargarGarantiasPorEquipo(di, df);
     } else if (tipo === 'tiempo-reparacion-promedio-por-equipo') {
       await cargarPromedioTiempo(di, df);
     }
@@ -62,6 +72,7 @@
           <ul id="rep-menu" class="rep-menu" aria-hidden="true">
             <li class="${tipo==='planilla-resumen' ? 'activo' : ''}" data-report="planilla-resumen">Resumen planilla</li>
             <li data-report="garantias-por-resolucion-reparador">Garantias por resolucion / ultimo reparador</li>
+            <li data-report="garantias-por-equipo">Garantias por equipo / falla</li>
             <li data-report="equipos-por-tecnico-promedio-diario">Promedio diario de equipos por tecnico</li>
             <li data-report="tiempo-reparacion-promedio-por-equipo">Promedio de tiempo de reparacion por equipo</li>
           </ul>`;
@@ -199,6 +210,68 @@
       <table class="tabla-erp">
         <thead><tr><th>Tecnico (ultimo reparador)</th><th>Total</th><th>Aceptadas</th><th>Acep. repuestos</th><th>Acep. tecnica</th><th>Rechazadas</th><th>Funciona OK</th></tr></thead>
         <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  async function cargarGarantiasPorEquipo(di, df){
+    const cont = document.getElementById('rep-dynamic-content');
+    if (!cont) return;
+    cont.innerHTML = 'Cargando...';
+    const res = await fetch(`/api/reportes/planilla/garantias-por-equipo?inicio=${encodeURIComponent(di)}&fin=${encodeURIComponent(df)}`, { credentials:'include' });
+    const data = await res.json();
+    if (!res.ok) {
+      cont.textContent = data.error || 'Error al cargar.';
+      return;
+    }
+
+    const t = data.total || { total: 0, aceptada: 0, aceptada_repuestos: 0, aceptada_tecnica: 0, rechazada: 0, funciona_ok: 0 };
+    const hdr = `
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin:0 0 10px 0;">
+        <div class="rep-badge" style="background:#1f6fd4;">Total: ${t.total}</div>
+        <div class="rep-badge" style="background:#1a9956;">Aceptadas (total): ${t.aceptada}</div>
+        <div class="rep-badge" style="background:#0f766e;">Aceptada (Falla repuestos): ${t.aceptada_repuestos}</div>
+        <div class="rep-badge" style="background:#0d9488;">Aceptada (Falla tecnica): ${t.aceptada_tecnica}</div>
+        <div class="rep-badge" style="background:#c0392b;">Rechazadas: ${t.rechazada}</div>
+        <div class="rep-badge" style="background:#8e44ad;">Funciona OK: ${t.funciona_ok}</div>
+      </div>`;
+
+    const rowsEquipo = (data.porEquipo || []).map(r => `
+      <tr>
+        <td>${esc(r.equipo)}</td>
+        <td>${r.total}</td>
+        <td>${r.aceptada}</td>
+        <td>${r.aceptada_repuestos}</td>
+        <td>${r.aceptada_tecnica}</td>
+        <td>${r.rechazada}</td>
+        <td>${r.funciona_ok}</td>
+      </tr>`).join('') || '<tr><td colspan="7">Sin datos</td></tr>';
+
+    const rowsFalla = (data.porFalla || []).map(r => `
+      <tr>
+        <td>${esc(r.falla)}</td>
+        <td>${r.total}</td>
+        <td>${r.aceptada}</td>
+        <td>${r.aceptada_repuestos}</td>
+        <td>${r.aceptada_tecnica}</td>
+        <td>${r.rechazada}</td>
+        <td>${r.funciona_ok}</td>
+      </tr>`).join('') || '<tr><td colspan="7">Sin datos</td></tr>';
+
+    cont.innerHTML = `
+      <h3 style="margin-top:0;color:#2176bd;">Garantias por equipo / falla</h3>
+      ${hdr}
+      <p style="margin:0 0 10px 0; color:#4b5563; font-size:12px;">
+        "Falla" se toma de la plantilla rapida usada al cargar el informe de garantia. Los registros sin plantilla aplicada figuran como "(Sin falla)".
+      </p>
+      <h4 style="margin:8px 0;">Por modelo</h4>
+      <table class="tabla-erp">
+        <thead><tr><th>Equipo (modelo)</th><th>Total</th><th>Aceptadas</th><th>Acep. repuestos</th><th>Acep. tecnica</th><th>Rechazadas</th><th>Funciona OK</th></tr></thead>
+        <tbody>${rowsEquipo}</tbody>
+      </table>
+      <h4 style="margin:18px 0 8px 0;">Por falla</h4>
+      <table class="tabla-erp">
+        <thead><tr><th>Falla</th><th>Total</th><th>Aceptadas</th><th>Acep. repuestos</th><th>Acep. tecnica</th><th>Rechazadas</th><th>Funciona OK</th></tr></thead>
+        <tbody>${rowsFalla}</tbody>
       </table>`;
   }
 
