@@ -9,6 +9,33 @@ const {
 function normDate(s){ return String(s||'').slice(0,10); }
 const garantiaCase = alias => `LOWER(COALESCE(${alias ? alias + '.' : ''}garantia::text,'')) IN ('si','true','t','1')`;
 
+// Garantias cargadas antes de que existiera la columna garantia_falla no tienen ese
+// dato estructurado, pero el texto del informe (banco/desarme) casi siempre viene de
+// alguna "plantilla rapida" pegada tal cual (ver GARANTIA_TEMPLATES en planilla.js).
+// Como respaldo solo para esos registros viejos, se infiere la falla buscando una
+// frase distintiva de cada plantilla en ese texto.
+const FALLA_INFERIDA_SQL = `
+  CASE
+    WHEN r.garantia_prueba_banco ILIKE '%NUNCA FUE REPARADO EN AMORIM%' THEN 'Nunca vino'
+    WHEN r.garantia_desarme ILIKE '%SE ARMA Y ENTREGA FUNCIONANDO CORRECTAMENTE%' THEN 'Funciona OK'
+    WHEN r.garantia_desarme ILIKE '%SE PRUEBA EL IMPULSOR (MANUAL Y CON FRENO)%' THEN 'Funciona OK Arranques'
+    WHEN r.garantia_desarme ILIKE '%RULEMANES RUIDOSOS%' THEN 'Rulemanes'
+    WHEN r.garantia_desarme ILIKE '%BOBINA CENTRIFUGADA%' THEN 'Centrifugado'
+    WHEN r.garantia_desarme ILIKE '%FALLA DEL IMPULSOR%' THEN 'Impulsor'
+    WHEN r.garantia_desarme ILIKE '%FALLA DE SOLENOIDE%' THEN 'Solenoide'
+    WHEN r.garantia_desarme ILIKE '%FALLA DE ROTOR%' THEN 'Rotor'
+    WHEN r.garantia_desarme ILIKE '%FALLA DE REGULADOR%' THEN 'Regulador'
+    WHEN r.garantia_desarme ILIKE '%FALLA DE ESTATOR%' THEN 'Estator'
+    WHEN r.garantia_desarme ILIKE '%FALLA DE BOBINA%' THEN 'Bobina'
+    WHEN r.garantia_desarme ILIKE '%FALLA DE AUXILIAR%' THEN 'Auxiliar'
+    WHEN r.garantia_desarme ILIKE '%TAPA TRASERA ROTA%' THEN 'Tapa Trasera Arr'
+    WHEN r.garantia_desarme ILIKE '%PIÑON ORIGINAL PARTIDO%' THEN 'Piñon'
+    WHEN r.garantia_desarme ILIKE '%CARBONES DESOLDADOS%' THEN 'Portacarbon'
+    WHEN r.garantia_desarme ILIKE '%PLAQUETA RECTIFICADORA%' THEN 'Plaqueta'
+    ELSE NULL
+  END`;
+const FALLA_EXPR_SQL = `COALESCE(NULLIF(BTRIM(r.garantia_falla),''), ${FALLA_INFERIDA_SQL}, '(Sin falla)')`;
+
 // GET /api/reportes/planilla/resumen?inicio=YYYY-MM-DD&fin=YYYY-MM-DD
 router.get('/planilla/resumen', async (req, res, next) => {
   const inicio = normDate(req.query.inicio);
@@ -201,7 +228,7 @@ router.get('/planilla/garantias-por-equipo', async (req, res, next) => {
        ORDER BY total DESC, equipo ASC;`;
 
     const byFallaSql = `
-      SELECT COALESCE(NULLIF(BTRIM(r.garantia_falla),''),'(Sin falla)') AS falla,
+      SELECT ${FALLA_EXPR_SQL} AS falla,
              COUNT(*)::int AS total,
              SUM(CASE WHEN ${garantiaAceptadaSql('r.resolucion')} THEN 1 ELSE 0 END)::int AS aceptada,
              SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_repuestos' THEN 1 ELSE 0 END)::int AS aceptada_repuestos,
@@ -214,14 +241,32 @@ router.get('/planilla/garantias-por-equipo', async (req, res, next) => {
        GROUP BY falla
        ORDER BY total DESC, falla ASC;`;
 
+    const byEquipoFallaSql = `
+      SELECT COALESCE(f.descripcion,'(Sin equipo)') AS equipo,
+             ${FALLA_EXPR_SQL} AS falla,
+             COUNT(*)::int AS total,
+             SUM(CASE WHEN ${garantiaAceptadaSql('r.resolucion')} THEN 1 ELSE 0 END)::int AS aceptada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_repuestos' THEN 1 ELSE 0 END)::int AS aceptada_repuestos,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='aceptada_tecnica' THEN 1 ELSE 0 END)::int AS aceptada_tecnica,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='rechazada' THEN 1 ELSE 0 END)::int AS rechazada,
+             SUM(CASE WHEN LOWER(COALESCE(r.resolucion,''))='funciona_ok' THEN 1 ELSE 0 END)::int AS funciona_ok
+        FROM equipos_reparaciones r
+        LEFT JOIN familia f ON f.id = r.familia_id
+       WHERE DATE(r.fecha) BETWEEN $1 AND $2
+         AND ${whereGarantia}
+       GROUP BY equipo, falla
+       ORDER BY equipo ASC, total DESC, falla ASC;`;
+
     const total = await db.query(totSql, params);
     const porEquipo = await db.query(byEquipoSql, params);
     const porFalla = await db.query(byFallaSql, params);
+    const porEquipoFalla = await db.query(byEquipoFallaSql, params);
     res.json({
       rango: { inicio, fin },
       total: total.rows[0] || { total: 0, aceptada: 0, aceptada_repuestos: 0, aceptada_tecnica: 0, rechazada: 0, funciona_ok: 0 },
       porEquipo: porEquipo.rows,
-      porFalla: porFalla.rows
+      porFalla: porFalla.rows,
+      porEquipoFalla: porEquipoFalla.rows
     });
   } catch (e) { next(e); }
 });

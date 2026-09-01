@@ -257,21 +257,49 @@
         <td>${r.funciona_ok}</td>
       </tr>`).join('') || '<tr><td colspan="7">Sin datos</td></tr>';
 
+    // Agrupa el detalle equipo+falla en secciones por equipo (viene ordenado del
+    // backend por equipo, asi que alcanza con detectar el cambio de grupo).
+    const porEquipoFalla = data.porEquipoFalla || [];
+    let rowsEquipoFalla = '';
+    let equipoActual = null;
+    for (const r of porEquipoFalla) {
+      if (r.equipo !== equipoActual) {
+        equipoActual = r.equipo;
+        rowsEquipoFalla += `<tr class="rep-grupo-fila"><td colspan="7" style="background:#eef4fb; font-weight:700; color:#0f2e63;">${esc(equipoActual)}</td></tr>`;
+      }
+      rowsEquipoFalla += `
+        <tr>
+          <td style="padding-left:24px;">${esc(r.falla)}</td>
+          <td>${r.total}</td>
+          <td>${r.aceptada}</td>
+          <td>${r.aceptada_repuestos}</td>
+          <td>${r.aceptada_tecnica}</td>
+          <td>${r.rechazada}</td>
+          <td>${r.funciona_ok}</td>
+        </tr>`;
+    }
+    if (!rowsEquipoFalla) rowsEquipoFalla = '<tr><td colspan="7">Sin datos</td></tr>';
+
     cont.innerHTML = `
       <h3 style="margin-top:0;color:#2176bd;">Garantias por equipo / falla</h3>
       ${hdr}
       <p style="margin:0 0 10px 0; color:#4b5563; font-size:12px;">
-        "Falla" se toma de la plantilla rapida usada al cargar el informe de garantia. Los registros sin plantilla aplicada figuran como "(Sin falla)".
+        "Falla" se toma de la plantilla rapida usada al cargar el informe de garantia. En garantias cargadas antes de este reporte, se infiere leyendo el texto del informe (banco/desarme); si no se reconoce ninguna plantilla figura como "(Sin falla)".
       </p>
       <h4 style="margin:8px 0;">Por modelo</h4>
       <table class="tabla-erp">
         <thead><tr><th>Equipo (modelo)</th><th>Total</th><th>Aceptadas</th><th>Acep. repuestos</th><th>Acep. tecnica</th><th>Rechazadas</th><th>Funciona OK</th></tr></thead>
         <tbody>${rowsEquipo}</tbody>
       </table>
-      <h4 style="margin:18px 0 8px 0;">Por falla</h4>
+      <h4 style="margin:18px 0 8px 0;">Por falla (todos los modelos)</h4>
       <table class="tabla-erp">
         <thead><tr><th>Falla</th><th>Total</th><th>Aceptadas</th><th>Acep. repuestos</th><th>Acep. tecnica</th><th>Rechazadas</th><th>Funciona OK</th></tr></thead>
         <tbody>${rowsFalla}</tbody>
+      </table>
+      <h4 style="margin:18px 0 8px 0;">Por modelo, desglosado por falla</h4>
+      <table class="tabla-erp">
+        <thead><tr><th>Falla</th><th>Total</th><th>Aceptadas</th><th>Acep. repuestos</th><th>Acep. tecnica</th><th>Rechazadas</th><th>Funciona OK</th></tr></thead>
+        <tbody>${rowsEquipoFalla}</tbody>
       </table>`;
   }
 
