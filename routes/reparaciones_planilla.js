@@ -783,7 +783,10 @@ router.get("/repuestos", async (req, res) => {
     const params = [];
     if (nro) {
       params.push(`%${nro}%`);
-      sql += ` AND COALESCE(r.nro_pedido_ref, '') ILIKE $${params.length}`;
+      sql += ` AND (
+        COALESCE(r.nro_pedido_ref, '') ILIKE $${params.length}
+        OR CAST(r.id_reparacion AS TEXT) ILIKE $${params.length}
+      )`;
     }
     if (familia) {
       params.push(`%${familia}%`);
@@ -847,7 +850,10 @@ router.get("/repuestos/listado", async (req, res) => {
     const params = [];
     if (nro) {
       params.push(`%${nro}%`);
-      sql += ` AND COALESCE(r.nro_pedido_ref, '') ILIKE $${params.length}`;
+      sql += ` AND (
+        COALESCE(r.nro_pedido_ref, '') ILIKE $${params.length}
+        OR CAST(r.id_reparacion AS TEXT) ILIKE $${params.length}
+      )`;
     }
     if (familia) {
       params.push(`%${familia}%`);
