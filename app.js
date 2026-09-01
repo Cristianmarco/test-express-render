@@ -97,6 +97,15 @@ function requireLogin(req, res, next) {
   return res.redirect("/login");
 }
 
+// Requiere ademas un rol especifico (usar siempre despues de requireLogin).
+function requireRol(...rolesPermitidos) {
+  return (req, res, next) => {
+    const rol = req.session?.user?.rol;
+    if (rolesPermitidos.includes(rol)) return next();
+    return res.status(403).json({ error: "No tiene permisos para esta accion" });
+  };
+}
+
 
 // ============================
 // Middlewares generales
@@ -118,7 +127,7 @@ app.use('/api/login', loginRouter);
 app.use('/api/clientes', requireLogin, clientesRouter);
 app.use('/api/reparaciones', requireLogin, reparacionesRouter);
 app.use('/api/entregadas', requireLogin, entregadasRouter);
-app.use('/api/usuarios', requireLogin, usuariosRouter);
+app.use('/api/usuarios', requireLogin, requireRol('admin'), usuariosRouter);
 app.use('/api/historial', requireLogin, historialRouter);
 app.use('/api/estadisticas', requireLogin, estadisticasRouter);
 app.use('/api/licitaciones', requireLogin, licitacionesRouter);
@@ -127,24 +136,17 @@ app.use('/api/garantias_externas', requireLogin, require('./routes/garantias_ext
 app.use('/api/garantias_dota', requireLogin, garantiasDotaRouter);
 app.use('/api/garantias/report', requireLogin, garantiaReportRouter);
 app.use('/api/dashboard', requireLogin, dashboardRouter);
-//app.use('/api/productos', requireLogin, productosRouter);//
-app.use('/api/productos', productosRouter);
-//app.use("/api/familias", requireLogin, require("./routes/familia"));//
-app.use("/api/familias", require("./routes/familia"));
-//app.use("/api/grupo", requireLogin, require("./routes/grupo"));//
-//app.use("/api/marca", requireLogin, require("./routes/marca"));
-//app.use("/api/categoria", requireLogin, require("./routes/categoria"));//
-app.use("/api/grupo", require("./routes/grupo"));
-app.use("/api/marca", require("./routes/marca"));
-app.use("/api/categoria", require("./routes/categoria"));
-//app.use("/api/proveedores", requireLogin, proveedoresRouter);//
-app.use("/api/proveedores", proveedoresRouter);
-//app.use("/api/depositos", requireLogin, depositosRouter);//
-app.use("/api/depositos", depositosRouter);
+app.use('/api/productos', requireLogin, productosRouter);
+app.use("/api/familias", requireLogin, require("./routes/familia"));
+app.use("/api/grupo", requireLogin, require("./routes/grupo"));
+app.use("/api/marca", requireLogin, require("./routes/marca"));
+app.use("/api/categoria", requireLogin, require("./routes/categoria"));
+app.use("/api/proveedores", requireLogin, proveedoresRouter);
+app.use("/api/depositos", requireLogin, depositosRouter);
 app.use("/api/equipos", requireLogin, equiposRoutes);
 app.use("/api/tecnicos", requireLogin, tecnicosRouter);
 app.use("/api/reparaciones_planilla", requireLogin, reparacionesPlanillaRouter);
-app.use("/api/stock", stockRouter);
+app.use("/api/stock", requireLogin, stockRouter);
 app.use('/api/reportes', requireLogin, reportesRouter);
 app.use('/api/fichas', requireLogin, fichasRouter);
 app.use('/api/cotizaciones_reparacion', requireLogin, cotizacionesReparacionRouter);
