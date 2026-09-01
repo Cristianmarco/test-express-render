@@ -10,6 +10,18 @@ const garSeleccionMultiple = new Set(); // ids marcados para eliminación múlti
 let garSeleccionAnchorIndex = null; // último índice usado para selección por shift
 let licDetalleFechaCierre = null; // fecha_cierre de la licitacion cuyo detalle esta abierto (para default de fecha limite)
 
+// Escapa HTML antes de insertar texto de la base de datos en innerHTML (evita XSS
+// almacenado desde campos de texto libre como observaciones/detalle/etc.)
+function esc(v) {
+  if (v == null) return '';
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function fechaLimiteToInputValue(value) {
   if (!value) return '';
   const s = String(value);
@@ -126,14 +138,14 @@ async function cargarLicitaciones() {
     }
     const fmt = (d)=>{ if(!d) return '-'; try { return new Date(d).toLocaleDateString('es-AR'); } catch { return String(d); } };
     tbody.innerHTML = lista.map(l => `
-      <tr data-nro="${l.nro_licitacion}">
-        <td>${l.cliente_razon || l.cliente_codigo || '-'}</td>
-        <td>${l.nro_licitacion}</td>
+      <tr data-nro="${esc(l.nro_licitacion)}">
+        <td>${esc(l.cliente_razon || l.cliente_codigo) || '-'}</td>
+        <td>${esc(l.nro_licitacion)}</td>
         <td>${fmt(l.fecha)}</td>
         <td>${fmt(l.fecha_cierre)}</td>
-        <td>${l.observacion || '-'}</td>
+        <td>${esc(l.observacion) || '-'}</td>
         <td>
-          <button class="icon-button-erp visualizar btn-ver-licitacion" data-nro="${l.nro_licitacion}" title="Ver">
+          <button class="icon-button-erp visualizar btn-ver-licitacion" data-nro="${esc(l.nro_licitacion)}" title="Ver">
             <i class="fas fa-sign-in-alt"></i>
           </button>
         </td>
@@ -203,11 +215,11 @@ async function verDetalleLicitacion(nro) {
     } else {
       tBody.innerHTML = items.map(it => `
         <tr>
-          <td>${it.codigo || '-'}</td>
-          <td>${it.descripcion || '-'}</td>
+          <td>${esc(it.codigo) || '-'}</td>
+          <td>${esc(it.descripcion) || '-'}</td>
           <td>${it.cantidad || '-'}</td>
-          <td>${it.estado || '-'}</td>
-          <td><button type="button" class="btn-aceptar btn-aceptar-item" data-codigo="${(it.codigo||'').replace(/\"/g,'&quot;')}" data-desc="${(it.descripcion||'').replace(/\"/g,'&quot;')}" data-cant="${it.cantidad||''}">Aceptado</button></td>
+          <td>${esc(it.estado) || '-'}</td>
+          <td><button type="button" class="btn-aceptar btn-aceptar-item" data-codigo="${esc(it.codigo)}" data-desc="${esc(it.descripcion)}" data-cant="${it.cantidad||''}">Aceptado</button></td>
         </tr>
       `).join('');
       tBody.querySelectorAll('.btn-aceptar-item').forEach(btn => {
@@ -704,8 +716,8 @@ function addItemRowFromData(it){
   const titems = document.getElementById('tbody-lic-items'); if(!titems) return;
   const tr = document.createElement('tr');
   tr.innerHTML = `
-    <td><input class="input-codigo" placeholder="Codigo" value="${it.codigo||''}" list="lic-familias-dl"></td>
-    <td><input class="input-desc" placeholder="Descripcion" value="${(it.descripcion||'').replace(/\"/g,'&quot;')}"></td>
+    <td><input class="input-codigo" placeholder="Codigo" value="${esc(it.codigo)}" list="lic-familias-dl"></td>
+    <td><input class="input-desc" placeholder="Descripcion" value="${esc(it.descripcion)}"></td>
     <td><input class="input-cant" type="number" min="0" step="1" value="${it.cantidad||''}"></td>
     <td>
       <select class="input-estado">
@@ -1105,17 +1117,17 @@ async function cargarVigentes(){
         : 'Atrasado: supera las 72hs desde el ingreso (reparacion express)';
       const marcaAtraso = atrasado ? ` <i class="fas fa-triangle-exclamation" style="color:#c0392b;" title="${atrasadoTitle}"></i>` : '';
       return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-cliente-id="${attr(r.cliente_id)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}" data-fecha-limite="${attr(fechaLimiteIso)}" data-fecha-ingreso="${attr(fechaIngresoIso)}" data-cliente-tipo="${attr(r.cliente_tipo)}" class="${atrasado ? 'fila-atrasada' : ''}">
-        <td>${r.nro_pedido||'-'}</td>
-        <td>${r.codigo||'-'}</td>
-        <td>${r.descripcion||'-'}</td>
+        <td>${esc(r.nro_pedido) || '-'}</td>
+        <td>${esc(r.codigo) || '-'}</td>
+        <td>${esc(r.descripcion) || '-'}</td>
         <td>${r.cantidad||'-'}</td>
-        <td>${r.destino||'-'}</td>
-        <td>${r.razon_social||'-'}</td>
+        <td>${esc(r.destino) || '-'}</td>
+        <td>${esc(r.razon_social) || '-'}</td>
         <td>${tipoTxt}</td>
         <td>${r.pendientes!=null?r.pendientes:'-'}</td>
         <td>${fechaIngresoTxt}</td>
         <td>${fechaLimiteTxt}${marcaAtraso}</td>
-        <td>${r.observaciones||'-'}</td>
+        <td>${esc(r.observaciones) || '-'}</td>
         <td style="text-align:center;">${cotIcon}</td>
       </tr>`;
     }).join('');
@@ -1733,15 +1745,15 @@ async function cargarGarantiasExternos() {
           data-pendiente="${attrGarExt(r.pendiente)}"
           data-observaciones="${attrGarExt(r.observaciones)}"
           class="${Number(r.pendiente) <= 0 ? 'fila-resuelta' : ''}">
-        <td>${r.cliente || '-'}</td>
+        <td>${esc(r.cliente) || '-'}</td>
         <td>${fmt(r.ingreso)}</td>
-        <td>${r.nro_id || '-'}</td>
-        <td>${r.interno || '-'}</td>
-        <td>${r.codigo || '-'}</td>
-        <td>${r.equipo || '-'}</td>
+        <td>${esc(r.nro_id) || '-'}</td>
+        <td>${esc(r.interno) || '-'}</td>
+        <td>${esc(r.codigo) || '-'}</td>
+        <td>${esc(r.equipo) || '-'}</td>
         <td>${r.cantidad ?? '-'}</td>
         <td>${r.pendiente ?? '-'}</td>
-        <td>${r.observaciones || '-'}</td>
+        <td>${esc(r.observaciones) || '-'}</td>
       </tr>
     `).join('');
     if (!tb._extSelBound) {

@@ -86,6 +86,8 @@ router.use(async (req, res, next) => {
   }
 });
 
+const EXTENSIONES_PERMITIDAS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf']);
+
 // Subida simple (base64) a public/uploads/fichas
 router.post('/upload', async (req, res, next) => {
   try {
@@ -93,6 +95,10 @@ router.post('/upload', async (req, res, next) => {
     if (!filename || !data) return res.status(400).json({ error: 'Falta archivo' });
 
     const safeName = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const ext = path.extname(safeName).toLowerCase();
+    if (!EXTENSIONES_PERMITIDAS.has(ext)) {
+      return res.status(400).json({ error: 'Tipo de archivo no permitido. Solo se aceptan imágenes o PDF.' });
+    }
     const uploadDir = path.join(__dirname, '..', 'public', 'uploads', 'fichas');
     fs.mkdirSync(uploadDir, { recursive: true });
 

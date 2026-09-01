@@ -2,6 +2,19 @@
 // Avoids encoding issues and restores calendar + planilla flow
 
 console.log('planilla.js loaded');
+
+// Escapa HTML antes de insertar texto de la base de datos en innerHTML (evita XSS
+// almacenado desde campos de texto libre como observaciones/trabajo/etc.)
+function esc(v) {
+  if (v == null) return '';
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Repuestos estructurados del formulario actual (se envian al guardar; el stock
 // se descuenta/repone en el backend, no en vivo).
 let repuestosForm = []; // [{ producto_id, codigo, descripcion, cantidad }]
@@ -15,8 +28,8 @@ function renderRepuestosForm() {
   }
   tbody.innerHTML = repuestosForm.map((r, idx) => `
     <tr data-idx="${idx}">
-      <td>${r.codigo || '-'}</td>
-      <td>${r.descripcion || '-'}</td>
+      <td>${esc(r.codigo) || '-'}</td>
+      <td>${esc(r.descripcion) || '-'}</td>
       <td><input type="number" min="1" step="1" value="${r.cantidad}" class="repuesto-form-cantidad" data-idx="${idx}" style="width:70px;" /></td>
       <td><button type="button" class="icon-button-erp eliminar repuesto-form-quitar" data-idx="${idx}" title="Quitar"><i class="fas fa-trash"></i></button></td>
     </tr>
@@ -259,18 +272,18 @@ function renderHistorialResultados(list) {
   setHistorialInfo(null);
   const rows = (Array.isArray(list) ? list : []).map(r => {
     const meta = [];
-    if (r.id_dota) meta.push(`ID DOTA: ${r.id_dota}`);
-    if (r.nro_pedido_ref) meta.push(`Pedido: ${r.nro_pedido_ref}`);
+    if (r.id_dota) meta.push(`ID DOTA: ${esc(r.id_dota)}`);
+    if (r.nro_pedido_ref) meta.push(`Pedido: ${esc(r.nro_pedido_ref)}`);
     const metaHtml = meta.length ? `<div class="hist-meta">${meta.map(t => `<span>${t}</span>`).join('')}</div>` : '';
     return `
-      <tr class="resultado-clickable historial-select-row" data-id="${r.id_reparacion}">
+      <tr class="resultado-clickable historial-select-row" data-id="${esc(r.id_reparacion)}">
         <td class="historial-id-cell">
-          <div class="hist-id">${r.id_reparacion || '-'}</div>
+          <div class="hist-id">${esc(r.id_reparacion) || '-'}</div>
           ${metaHtml}
         </td>
-        <td>${r.cliente || '-'}</td>
-        <td>${r.equipo || '-'}</td>
-        <td>${r.coche_numero || '-'}</td>
+        <td>${esc(r.cliente) || '-'}</td>
+        <td>${esc(r.equipo) || '-'}</td>
+        <td>${esc(r.coche_numero) || '-'}</td>
         <td class="hist-ver">Ver</td>
       </tr>`;
   }).join('');
@@ -384,11 +397,11 @@ function renderReparacionesRepuestos(list) {
     <tr>
       <td><input type="checkbox" class="repuestos-check" data-id="${r.id || ''}" /></td>
       <td>${fmtFechaCorta(r.fecha)}</td>
-      <td>${r.id_reparacion || '-'}</td>
-      <td>${r.cliente || '-'}</td>
-      <td>${r.equipo || '-'}</td>
-      <td>${r.tecnico || '-'}</td>
-      <td>${r.nro_pedido_ref || '-'}</td>
+      <td>${esc(r.id_reparacion) || '-'}</td>
+      <td>${esc(r.cliente) || '-'}</td>
+      <td>${esc(r.equipo) || '-'}</td>
+      <td>${esc(r.tecnico) || '-'}</td>
+      <td>${esc(r.nro_pedido_ref) || '-'}</td>
     </tr>
   `).join('');
 }
@@ -402,8 +415,8 @@ function renderListadoRepuestos(list) {
   }
   tbody.innerHTML = list.map(r => `
     <tr>
-      <td>${r.codigo || '-'}</td>
-      <td>${r.descripcion || '-'}</td>
+      <td>${esc(r.codigo) || '-'}</td>
+      <td>${esc(r.descripcion) || '-'}</td>
       <td>${r.cantidad || 0}</td>
     </tr>
   `).join('');
@@ -621,10 +634,6 @@ function imprimirDetallePlanilla() {
     const el = document.getElementById(id);
     return (el && el.textContent ? el.textContent : '-').trim() || '-';
   };
-  const esc = (v) => String(v == null ? '' : v)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 
   const data = {
     cliente: getTxt('detalle-cliente'),
@@ -912,32 +921,32 @@ function renderPlanillaTable(data) {
           data-familia-id="${rep.familia_id || ''}"
           data-tecnico-id="${rep.tecnico_id || ''}"
           data-cliente-id="${rep.cliente_id || ''}"
-          data-cliente-tipo="${rep.cliente_tipo || ''}"
-          data-nro-pedido-ref="${rep.nro_pedido_ref || ''}">
+          data-cliente-tipo="${esc(rep.cliente_tipo)}"
+          data-nro-pedido-ref="${esc(rep.nro_pedido_ref)}">
         <td>${idx + 1}</td>
-        <td>${rep.cliente || '-'}</td>
-        <td>${rep.id_reparacion || '-'}</td>
-        <td>${rep.coche_numero || '-'}</td>
-        <td>${rep.equipo || '-'}</td>
-        <td>${rep.tecnico || '-'}</td>
+        <td>${esc(rep.cliente) || '-'}</td>
+        <td>${esc(rep.id_reparacion) || '-'}</td>
+        <td>${esc(rep.coche_numero) || '-'}</td>
+        <td>${esc(rep.equipo) || '-'}</td>
+        <td>${esc(rep.tecnico) || '-'}</td>
         <td class="${garClass}">${garTxt}</td>
-        <td>${rep.nro_pedido_ref || '-'}</td>
-        <td>${rep.observaciones || '-'}</td>
-        <td style="display:none" class="col-hora-inicio">${rep.hora_inicio || ''}</td>
-        <td style="display:none" class="col-hora-fin">${rep.hora_fin || ''}</td>
-        <td style="display:none" class="col-trabajo">${rep.trabajo || ''}</td>
-        <td style="display:none" class="col-id-dota">${rep.id_dota || ''}</td>
-        <td style="display:none" class="col-ultimo-reparador-nombre">${rep.ultimo_reparador_nombre || ''}</td>
-        <td style="display:none" class="col-ultimo-reparador-id">${rep.ultimo_reparador || ''}</td>
-      <td style="display:none" class="col-resolucion">${rep.resolucion || ''}</td>
-      <td style="display:none" class="col-gar-prueba">${rep.garantia_prueba_banco || ''}</td>
-      <td style="display:none" class="col-gar-desarme">${rep.garantia_desarme || ''}</td>
-      <td style="display:none" class="col-gar-inf-trabajo">${rep.garantia_informe_trabajo || ''}</td>
-      <td style="display:none" class="col-gar-inf-observaciones">${rep.garantia_informe_observaciones || ''}</td>
+        <td>${esc(rep.nro_pedido_ref) || '-'}</td>
+        <td>${esc(rep.observaciones) || '-'}</td>
+        <td style="display:none" class="col-hora-inicio">${esc(rep.hora_inicio)}</td>
+        <td style="display:none" class="col-hora-fin">${esc(rep.hora_fin)}</td>
+        <td style="display:none" class="col-trabajo">${esc(rep.trabajo)}</td>
+        <td style="display:none" class="col-id-dota">${esc(rep.id_dota)}</td>
+        <td style="display:none" class="col-ultimo-reparador-nombre">${esc(rep.ultimo_reparador_nombre)}</td>
+        <td style="display:none" class="col-ultimo-reparador-id">${esc(rep.ultimo_reparador)}</td>
+      <td style="display:none" class="col-resolucion">${esc(rep.resolucion)}</td>
+      <td style="display:none" class="col-gar-prueba">${esc(rep.garantia_prueba_banco)}</td>
+      <td style="display:none" class="col-gar-desarme">${esc(rep.garantia_desarme)}</td>
+      <td style="display:none" class="col-gar-inf-trabajo">${esc(rep.garantia_informe_trabajo)}</td>
+      <td style="display:none" class="col-gar-inf-observaciones">${esc(rep.garantia_informe_observaciones)}</td>
       <td style="display:none" class="col-familia-id">${rep.familia_id || ''}</td>
         <td style="display:none" class="col-tecnico-id">${rep.tecnico_id || ''}</td>
         <td style="display:none" class="col-cliente-id">${rep.cliente_id || ''}</td>
-        <td style="display:none" class="col-cliente-tipo">${rep.cliente_tipo || ''}</td>
+        <td style="display:none" class="col-cliente-tipo">${esc(rep.cliente_tipo)}</td>
       </tr>`;
   }).join('');
 }
@@ -1025,8 +1034,8 @@ function abrirGruposParaFamilia(familiaId, onSelect){
       } else {
         tbodyG.innerHTML = lista.map(g=>
           `<tr>
-            <td><button type="button" class="btn-secundario btn-elegir-grupo" data-id="${g.id}" data-nombre="${(g.descripcion||g.codigo||('Grupo '+g.id)).replace(/\"/g,'&quot;')}"><i class='fas fa-check'></i> Elegir</button></td>
-            <td>${g.descripcion || g.codigo || ('Grupo '+g.id)}</td>
+            <td><button type="button" class="btn-secundario btn-elegir-grupo" data-id="${g.id}" data-nombre="${esc(g.descripcion||g.codigo||('Grupo '+g.id))}"><i class='fas fa-check'></i> Elegir</button></td>
+            <td>${esc(g.descripcion || g.codigo || ('Grupo '+g.id))}</td>
           </tr>`
         ).join('');
       }
@@ -1060,9 +1069,9 @@ async function abrirProductosFiltrados(grupoId, familiaId){
     } else {
       tbodyP.innerHTML = lista.map(p=>
         `<tr>
-          <td><button type="button" class="btn-secundario btn-add-producto" data-id="${p.id}" data-codigo="${(p.codigo||'').replace(/\"/g,'&quot;')}" data-desc="${(p.descripcion||'').replace(/\"/g,'&quot;')}"><i class='fas fa-plus'></i> Agregar</button></td>
-          <td>${p.descripcion||'-'}</td>
-          <td>${p.codigo||'-'}</td>
+          <td><button type="button" class="btn-secundario btn-add-producto" data-id="${p.id}" data-codigo="${esc(p.codigo)}" data-desc="${esc(p.descripcion)}"><i class='fas fa-plus'></i> Agregar</button></td>
+          <td>${esc(p.descripcion) || '-'}</td>
+          <td>${esc(p.codigo) || '-'}</td>
           <td>${p.stock_total!=null? p.stock_total : '-'}</td>
         </tr>`
       ).join('');
@@ -1186,7 +1195,7 @@ function bindPlanillaActions() {
       const lista = Array.isArray(seleccion.repuestos) ? seleccion.repuestos : [];
       repuestosEl.innerHTML = lista.length
         ? '<ul style="margin:0; padding-left:18px;">' + lista.map(r =>
-            `<li>${r.cantidad} x (${r.codigo || '-'}) ${r.descripcion || ''}</li>`
+            `<li>${esc(r.cantidad)} x (${esc(r.codigo) || '-'}) ${esc(r.descripcion)}</li>`
           ).join('') + '</ul>'
         : 'Sin repuestos registrados.';
     }
@@ -1845,9 +1854,9 @@ function bindProductoSelectorSimple(){
       if(!list.length){ tbodyP.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:10px; color:#666'>Sin productos.</td></tr>"; return; }
       tbodyP.innerHTML = list.map(p=>
         `<tr>
-          <td><button type=\"button\" class=\"btn-secundario btn-add-producto\" data-id=\"${p.id}\" data-codigo=\"${(p.codigo||'').replace(/\\\"/g,'&quot;')}\" data-desc=\"${(p.descripcion||'').replace(/\\\"/g,'&quot;')}\"><i class='fas fa-plus'></i> Agregar</button></td>
-          <td>${p.descripcion||'-'}</td>
-          <td>${p.codigo||'-'}</td>
+          <td><button type=\"button\" class=\"btn-secundario btn-add-producto\" data-id=\"${p.id}\" data-codigo=\"${esc(p.codigo)}\" data-desc=\"${esc(p.descripcion)}\"><i class='fas fa-plus'></i> Agregar</button></td>
+          <td>${esc(p.descripcion) || '-'}</td>
+          <td>${esc(p.codigo) || '-'}</td>
           <td>${p.stock_total!=null? p.stock_total : '-'}</td>
         </tr>`).join('');
     }
@@ -2168,11 +2177,11 @@ async function cargarHistorial(id){
     };
     const rows = (Array.isArray(data)?data:[]).map(r => {
       const fecha = fmtFecha(r.fecha);
-      const coche = fmt(r.coche_numero);
+      const coche = escHtml(fmt(r.coche_numero));
       const trabajo = fmtTrabajoHistorial(r.trabajo);
       const hi = fmtHora(r.hora_inicio);
       const hf = fmtHora(r.hora_fin);
-      const tec = fmt(r.tecnico);
+      const tec = escHtml(fmt(r.tecnico));
       const gar = r.garantia === 'si' ? 'Si' : 'No';
       return `<tr><td>${fecha}</td><td>${coche}</td><td class="historial-trabajo-cell">${trabajo}</td><td>${hi}</td><td>${hf}</td><td>${tec}</td><td>${gar}</td></tr>`;
     }).join('');
