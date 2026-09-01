@@ -48,30 +48,30 @@ async function loadTab(tab) {
 }
 
 function reparaciones(data) {
-  if (!data.length) return empty('No hay reparaciones registradas en los últimos 90 días.');
+  if (!data.length) return empty('No tenés equipos en reparación pendientes.');
   return `
     <div class="portal-section-title"><i class="fas fa-tools"></i> Equipos en Reparación</div>
     <div class="portal-table-wrap">
       <table class="portal-table">
         <thead>
           <tr>
-            <th>N° Reparación</th>
+            <th>Nro Pedido</th>
             <th>Equipo</th>
-            <th>Último trabajo</th>
-            <th>Técnico</th>
-            <th>Fecha</th>
-            <th>Garantía</th>
+            <th>Pendiente</th>
+            <th>Ingreso</th>
+            <th>Fecha límite</th>
+            <th>Estado</th>
           </tr>
         </thead>
         <tbody>
           ${data.map(r => `
             <tr>
-              <td><b>${esc(r.id_reparacion)}</b></td>
-              <td>${esc(r.equipo)}</td>
-              <td>${esc(r.trabajo)}</td>
-              <td>${esc(r.tecnico)}</td>
-              <td>${fmt(r.fecha)}</td>
-              <td>${String(r.garantia||'').toLowerCase()==='si' ? '<span class="badge badge-naranja">Garantía</span>' : '<span class="badge badge-gris">No</span>'}</td>
+              <td><b>${esc(r.nro_pedido)}</b></td>
+              <td>${esc(r.descripcion)}</td>
+              <td>${r.pendientes ?? '-'} / ${r.cantidad ?? '-'}</td>
+              <td>${fmt(r.fecha_ingreso)}</td>
+              <td>${fmt(r.fecha_limite_entrega)}</td>
+              <td>${r.atrasado ? '<span class="badge badge-rojo">Atrasado</span>' : '<span class="badge badge-azul">En reparación</span>'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -80,9 +80,7 @@ function reparaciones(data) {
 }
 
 function historial(data) {
-  if (!data.length) return empty('No hay reparaciones en el historial.');
-  return `
-    <div class="portal-section-title"><i class="fas fa-history"></i> Historial de Reparaciones</div>
+  const tabla = (lista) => lista.length ? `
     <div class="portal-table-wrap">
       <table class="portal-table">
         <thead>
@@ -90,25 +88,47 @@ function historial(data) {
             <th>N° Reparación</th>
             <th>Equipo</th>
             <th>Último trabajo</th>
-            <th>Técnico</th>
             <th>Fecha</th>
             <th>Garantía</th>
           </tr>
         </thead>
         <tbody>
-          ${data.map(r => `
+          ${lista.map(r => `
             <tr>
               <td><b>${esc(r.id_reparacion)}</b></td>
               <td>${esc(r.equipo)}</td>
               <td>${esc(r.trabajo)}</td>
-              <td>${esc(r.tecnico)}</td>
               <td>${fmt(r.fecha)}</td>
               <td>${String(r.garantia||'').toLowerCase()==='si' ? '<span class="badge badge-naranja">Garantía</span>' : '<span class="badge badge-gris">No</span>'}</td>
             </tr>
           `).join('')}
         </tbody>
       </table>
-    </div>`;
+    </div>` : empty('No se encontraron reparaciones con ese criterio.');
+
+  if (!data.length) return `
+    <div class="portal-section-title"><i class="fas fa-history"></i> Historial de Reparaciones</div>
+    ${empty('No hay reparaciones en el historial.')}`;
+
+  setTimeout(() => {
+    const input = document.getElementById('portal-historial-buscar');
+    const wrap = document.getElementById('portal-historial-tabla');
+    if (!input || !wrap) return;
+    input.addEventListener('input', () => {
+      const q = input.value.trim().toLowerCase();
+      const filtrado = !q ? data : data.filter(r =>
+        [r.id_reparacion, r.equipo, r.trabajo].some(v => String(v||'').toLowerCase().includes(q))
+      );
+      wrap.innerHTML = tabla(filtrado);
+    });
+  }, 0);
+
+  return `
+    <div class="portal-section-title"><i class="fas fa-history"></i> Historial de Reparaciones</div>
+    <div class="portal-buscador">
+      <input type="text" id="portal-historial-buscar" placeholder="Buscar por N° reparación, equipo o trabajo..." />
+    </div>
+    <div id="portal-historial-tabla">${tabla(data)}</div>`;
 }
 
 function garantias(data) {
@@ -123,10 +143,10 @@ function garantias(data) {
             <th>Ingreso</th>
             <th>Código</th>
             <th>Equipo</th>
+            <th>Interno</th>
             <th>Cantidad</th>
-            <th>Colocado</th>
-            <th>Detalle</th>
-            <th>Resolución</th>
+            <th>Observaciones</th>
+            <th>Estado</th>
           </tr>
         </thead>
         <tbody>
@@ -135,11 +155,11 @@ function garantias(data) {
               <td>${i + 1}</td>
               <td>${fmt(g.ingreso)}</td>
               <td>${esc(g.codigo)}</td>
-              <td>${esc(g.alt)}</td>
+              <td>${esc(g.equipo)}</td>
+              <td>${esc(g.interno)}</td>
               <td>${g.cantidad ?? '-'}</td>
-              <td>${fmt(g.notificacion)}</td>
-              <td>${esc(g.detalle)}</td>
-              <td>${badge(g.resolucion)}</td>
+              <td>${esc(g.observaciones)}</td>
+              <td>${Number(g.pendiente) > 0 ? '<span class="badge badge-naranja">Pendiente</span>' : '<span class="badge badge-verde">Resuelta</span>'}</td>
             </tr>
           `).join('')}
         </tbody>

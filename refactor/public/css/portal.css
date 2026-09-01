@@ -111,6 +111,24 @@ body.portal-body {
   gap: 8px;
 }
 
+.portal-buscador {
+  margin-bottom: 14px;
+}
+
+.portal-buscador input {
+  width: 100%;
+  max-width: 420px;
+  padding: 10px 14px;
+  border: 1px solid #d7dee6;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.portal-buscador input:focus {
+  border-color: #2563eb;
+}
+
 /* ── Tabla ──────────────────────────────────────────────────────────────── */
 .portal-table-wrap {
   background: #fff;

@@ -28,29 +28,33 @@ router.get('/', requireCliente, (req, res) => {
 
 // ── API del portal ─────────────────────────────────────────────────────────────
 
-// Equipos en reparación del cliente (últimos 90 días, uno por id_reparacion)
+// Equipos en reparación pendientes del cliente (R.Vigentes, no terminados)
 router.get('/api/reparaciones', requireCliente, async (req, res) => {
   const { cliente_codigo } = req.session.user;
   try {
+    await db.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS cliente_id INTEGER');
     const { rows } = await db.query(
-      `SELECT DISTINCT ON (r.id_reparacion)
-         r.id_reparacion,
-         r.fecha::date        AS fecha,
-         r.trabajo,
-         r.observaciones,
-         r.garantia,
-         r.nro_pedido_ref,
-         f.descripcion        AS equipo,
-         f.codigo             AS codigo_equipo,
-         t.nombre             AS tecnico
-       FROM equipos_reparaciones r
-       LEFT JOIN familia  f ON f.id = r.familia_id
-       LEFT JOIN tecnicos t ON t.id = r.tecnico_id
-       LEFT JOIN clientes c ON c.id = r.cliente_id
+      `SELECT
+         rd.id,
+         rd.nro_pedido,
+         rd.codigo,
+         rd.descripcion,
+         rd.cantidad,
+         rd.pendientes,
+         rd.destino,
+         rd.fecha_ingreso,
+         rd.fecha_limite_entrega,
+         rd.observaciones,
+         (
+           rd.pendientes > 0
+           AND rd.fecha_ingreso IS NOT NULL
+           AND NOW() - rd.fecha_ingreso::timestamp > INTERVAL '72 hours'
+         ) AS atrasado
+       FROM reparaciones_dota rd
+       JOIN clientes c ON c.id = rd.cliente_id
        WHERE c.codigo = $1
-         AND LOWER(COALESCE(r.cliente_tipo,'')) = 'externo'
-         AND r.fecha >= NOW() - INTERVAL '90 days'
-       ORDER BY r.id_reparacion, r.fecha DESC, r.id DESC`,
+         AND rd.pendientes > 0
+       ORDER BY rd.fecha_ingreso DESC NULLS LAST, rd.id DESC`,
       [cliente_codigo]
     );
     res.json(rows);
@@ -73,11 +77,9 @@ router.get('/api/historial', requireCliente, async (req, res) => {
          r.garantia,
          r.nro_pedido_ref,
          f.descripcion        AS equipo,
-         f.codigo             AS codigo_equipo,
-         t.nombre             AS tecnico
+         f.codigo             AS codigo_equipo
        FROM equipos_reparaciones r
        LEFT JOIN familia  f ON f.id = r.familia_id
-       LEFT JOIN tecnicos t ON t.id = r.tecnico_id
        LEFT JOIN clientes c ON c.id = r.cliente_id
        WHERE c.codigo = $1
          AND LOWER(COALESCE(r.cliente_tipo,'')) = 'externo'
@@ -91,17 +93,33 @@ router.get('/api/historial', requireCliente, async (req, res) => {
   }
 });
 
-// Garantías del cliente (filtrado por cabecera = razon_social del cliente)
+// Garantías del cliente (garantias_externas, vinculadas por cliente_id real)
 router.get('/api/garantias', requireCliente, async (req, res) => {
-  const { cliente_nombre } = req.session.user;
-  if (!cliente_nombre) return res.json([]);
+  const { cliente_codigo } = req.session.user;
   try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS garantias_externas (
+        id SERIAL PRIMARY KEY,
+        cliente_id INTEGER,
+        ingreso DATE,
+        nro_id TEXT,
+        interno TEXT,
+        codigo TEXT,
+        equipo TEXT,
+        cantidad INTEGER,
+        pendiente INTEGER,
+        observaciones TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
     const { rows } = await db.query(
-      `SELECT id, id_cliente, ingreso, codigo, alt, cantidad, notificacion, detalle, resolucion
-       FROM licitacion_garantias
-       WHERE LOWER(TRIM(cabecera)) = LOWER(TRIM($1))
-       ORDER BY ingreso DESC NULLS LAST, id DESC`,
-      [cliente_nombre]
+      `SELECT ge.id, ge.ingreso, ge.nro_id, ge.interno, ge.codigo, ge.equipo,
+              ge.cantidad, ge.pendiente, ge.observaciones
+       FROM garantias_externas ge
+       JOIN clientes c ON c.id = ge.cliente_id
+       WHERE c.codigo = $1
+       ORDER BY ge.ingreso DESC NULLS LAST, ge.id DESC`,
+      [cliente_codigo]
     );
     res.json(rows);
   } catch (err) {

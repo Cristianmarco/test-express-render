@@ -373,7 +373,15 @@ function ensureAceptarModal(){
       cantidad: Number(ds.cantidad||'1')||1,
       nro_pedido: (document.getElementById('acept-nro').value||'').trim(),
       destino: document.getElementById('acept-destino').value.trim(),
-      razon_social: (document.getElementById('acept-razon').value || '').trim(),
+      cliente_id: (() => {
+        const sel = document.getElementById('acept-razon');
+        return sel && sel.value ? Number(sel.value) : null;
+      })(),
+      razon_social: (() => {
+        const sel = document.getElementById('acept-razon');
+        const opt = sel ? sel.options[sel.selectedIndex] : null;
+        return (opt?.dataset.nombre || '').trim();
+      })(),
       fecha_limite_entrega: document.getElementById('acept-fecha-limite').value || null,
       // Los items aceptados desde una licitacion son siempre de Dota.
       // Fecha de ingreso: dia posterior al cierre de la licitacion (regla de negocio).
@@ -432,7 +440,7 @@ function abrirModalAceptarItem({ codigo, descripcion, cantidad, originBtn }){
           sel.innerHTML = '<option value="">Seleccione</option>' + list.map(c=>{
             const name = (c.razon_social || c.fantasia || '').toString();
             const safe = name.replace(/\"/g,'&quot;');
-            return `<option value="${safe}">${safe}</option>`;
+            return `<option value="${c.id}" data-nombre="${safe}">${safe}</option>`;
           }).join('');
         }).catch(()=>{});
     }
@@ -511,6 +519,7 @@ function bindLicitacionesPanel() {
         cantidad: Number(row.dataset.cantidad||'')||1,
         destino: row.dataset.destino || '',
         razon_social: row.dataset.razon || '',
+        cliente_id: row.dataset.clienteId || '',
         pendientes: (row.dataset.pendientes!==undefined? Number(row.dataset.pendientes) : null),
         observaciones: row.dataset.observaciones || '',
         fecha_limite_entrega: row.dataset.fechaLimite || '',
@@ -837,7 +846,15 @@ function ensureVigenteModal(){
       cantidad: Number(document.getElementById('vig-cantidad').value||'1')||1,
       nro_pedido: document.getElementById('vig-nro').value.trim()||null,
       destino: document.getElementById('vig-destino').value.trim()||null,
-      razon_social: document.getElementById('vig-razon').value.trim()||null,
+      cliente_id: (() => {
+        const sel = document.getElementById('vig-razon');
+        return sel && sel.value ? Number(sel.value) : null;
+      })(),
+      razon_social: (() => {
+        const sel = document.getElementById('vig-razon');
+        const opt = sel ? sel.options[sel.selectedIndex] : null;
+        return (opt?.dataset.nombre || '').trim() || null;
+      })(),
       pendientes: (document.getElementById('vig-pendientes').value!==''? Number(document.getElementById('vig-pendientes').value) : undefined),
       observaciones: document.getElementById('vig-observaciones').value.trim()||null,
       fecha_limite_entrega: document.getElementById('vig-fecha-limite').value || null,
@@ -869,7 +886,7 @@ async function abrirModalVigenteABM(data){
       const clientes = await rc.json();
       const list = Array.isArray(clientes) ? clientes : [];
       selRazon.innerHTML = '<option value="">Seleccione cliente</option>' +
-        list.map(c => { const n = (c.razon_social||c.fantasia||'').toString().replace(/"/g,'&quot;'); return `<option value="${n}">${n}</option>`; }).join('');
+        list.map(c => { const n = (c.razon_social||c.fantasia||'').toString().replace(/"/g,'&quot;'); return `<option value="${c.id}" data-nombre="${n}">${n}</option>`; }).join('');
     } catch { selRazon.innerHTML = '<option value="">Error al cargar</option>'; }
   }
 
@@ -903,7 +920,9 @@ async function abrirModalVigenteABM(data){
     document.getElementById('vig-fecha-limite').value = fechaLimiteToInputValue(data.fecha_limite_entrega);
     document.getElementById('vig-fecha-ingreso').value = fechaLimiteToInputValue(data.fecha_ingreso);
     document.getElementById('vig-tipo').value = data.cliente_tipo || '';
-    if (selRazon && data.razon_social) selRazon.value = data.razon_social;
+    // Preseleccionar por cliente_id (dato confiable); las filas viejas sin
+    // cliente_id quedan en "Seleccione cliente" en vez de adivinar por nombre.
+    if (selRazon && data.cliente_id) selRazon.value = String(data.cliente_id);
     // Pre-seleccionar familia por código
     if (selEquipo && data.codigo) {
       const match = Array.from(selEquipo.options).find(o => o.dataset.codigo === String(data.codigo));
@@ -1085,7 +1104,7 @@ async function cargarVigentes(){
         ? 'Atrasado: entra en la ventana de aviso (7 dias antes) de la fecha limite'
         : 'Atrasado: supera las 72hs desde el ingreso (reparacion express)';
       const marcaAtraso = atrasado ? ` <i class="fas fa-triangle-exclamation" style="color:#c0392b;" title="${atrasadoTitle}"></i>` : '';
-      return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}" data-fecha-limite="${attr(fechaLimiteIso)}" data-fecha-ingreso="${attr(fechaIngresoIso)}" data-cliente-tipo="${attr(r.cliente_tipo)}" class="${atrasado ? 'fila-atrasada' : ''}">
+      return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-cliente-id="${attr(r.cliente_id)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}" data-fecha-limite="${attr(fechaLimiteIso)}" data-fecha-ingreso="${attr(fechaIngresoIso)}" data-cliente-tipo="${attr(r.cliente_tipo)}" class="${atrasado ? 'fila-atrasada' : ''}">
         <td>${r.nro_pedido||'-'}</td>
         <td>${r.codigo||'-'}</td>
         <td>${r.descripcion||'-'}</td>

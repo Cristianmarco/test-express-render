@@ -21,28 +21,34 @@ function normalizeClienteTipo(value) {
   return (text === 'dota' || text === 'externo') ? text : null;
 }
 
+function normalizeClienteId(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 async function ensureNuevasColumnas(dbClient) {
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS observaciones TEXT');
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS fecha_limite_entrega DATE');
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS fecha_ingreso DATE');
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS cliente_tipo TEXT');
+  await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS cliente_id INTEGER');
 }
 
 // POST: crear reparación vigente
 router.post('/', async (req, res, next) => {
   const client = await db.connect();
   try {
-    const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo } = req.body;
+    const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id } = req.body;
     if (!codigo || !descripcion || !cantidad) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
     await ensureNuevasColumnas(client);
     await client.query('BEGIN');
     const q = await client.query(
-      `INSERT INTO reparaciones_dota (nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      `INSERT INTO reparaciones_dota (nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
-      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, pendientes || cantidad, observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo)]
+      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, pendientes || cantidad, observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo), normalizeClienteId(cliente_id)]
     );
     await insertDomainAudit(client, req, AUDIT_DOMAIN, q.rows[0].id, 'create', {
       snapshot: q.rows[0]
@@ -67,13 +73,13 @@ router.get('/', async (req, res, next) => {
              c.estado AS cotizacion_estado
       FROM reparaciones_dota r
       LEFT JOIN cotizaciones_reparacion c ON c.vigente_id = r.id
-      ORDER BY r.id DESC
+      ORDER BY r.fecha_ingreso DESC NULLS LAST, r.id DESC
     `);
     res.json(result.rows);
   } catch (err) {
     // Si cotizaciones_reparacion aún no tiene la columna vigente_id, fallback simple
     try {
-      const result = await db.query('SELECT * FROM reparaciones_dota ORDER BY id DESC');
+      const result = await db.query('SELECT * FROM reparaciones_dota ORDER BY fecha_ingreso DESC NULLS LAST, id DESC');
       res.json(result.rows);
     } catch (err2) { next(err2); }
   }
@@ -175,7 +181,7 @@ router.patch('/:id', async (req, res, next) => {
 // PUT: actualizar todos los campos de una reparación
 router.put('/:id', async (req, res, next) => {
   const id = req.params.id;
-  const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo } = req.body;
+  const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id } = req.body;
   const client = await db.connect();
   try {
     await ensureNuevasColumnas(client);
@@ -187,9 +193,9 @@ router.put('/:id', async (req, res, next) => {
     }
     const q = await client.query(
       `UPDATE reparaciones_dota
-       SET nro_pedido=$1, codigo=$2, descripcion=$3, cantidad=$4, destino=$5, razon_social=$6, pendientes=$7, observaciones=$8, fecha_limite_entrega=$9, fecha_ingreso=$10, cliente_tipo=$11
-       WHERE id=$12 RETURNING *`,
-      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, (pendientes ?? cantidad), observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo), id]
+       SET nro_pedido=$1, codigo=$2, descripcion=$3, cantidad=$4, destino=$5, razon_social=$6, pendientes=$7, observaciones=$8, fecha_limite_entrega=$9, fecha_ingreso=$10, cliente_tipo=$11, cliente_id=$12
+       WHERE id=$13 RETURNING *`,
+      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, (pendientes ?? cantidad), observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo), normalizeClienteId(cliente_id), id]
     );
     await insertDomainAudit(client, req, AUDIT_DOMAIN, id, 'update', {
       changes: buildAuditChanges(before.rows[0], q.rows[0])
