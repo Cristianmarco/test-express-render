@@ -349,6 +349,12 @@ function ensureAceptarModal(){
         </div>
         <div class="form-grid">
           <div>
+            <label>Cantidad aceptada</label>
+            <input type="number" id="acept-cantidad" min="1" step="1" />
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
             <label>Destino</label>
             <input type="text" id="acept-destino" placeholder="Taller/Depósito" value="Pompeya" />
           </div>
@@ -379,10 +385,12 @@ function ensureAceptarModal(){
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
     const ds = form.dataset || {};
+    const cantidadInput = document.getElementById('acept-cantidad');
+    const cantidadIngresada = Number(cantidadInput && cantidadInput.value);
     const payload = {
       codigo: ds.codigo,
       descripcion: ds.descripcion,
-      cantidad: Number(ds.cantidad||'1')||1,
+      cantidad: (Number.isFinite(cantidadIngresada) && cantidadIngresada > 0) ? cantidadIngresada : (Number(ds.cantidad||'1')||1),
       nro_pedido: (document.getElementById('acept-nro').value||'').trim(),
       destino: document.getElementById('acept-destino').value.trim(),
       cliente_id: (() => {
@@ -431,6 +439,8 @@ function abrirModalAceptarItem({ codigo, descripcion, cantidad, originBtn }){
     f.dataset.cantidad = String(cantidad || 1);
     const nroInput = document.getElementById('acept-nro');
     if (nroInput) nroInput.value='';
+    const cantidadInput = document.getElementById('acept-cantidad');
+    if (cantidadInput) cantidadInput.value = String(cantidad || 1);
     document.getElementById('acept-destino').value='Pompeya';
     const fechaLimiteInput = document.getElementById('acept-fecha-limite');
     if (fechaLimiteInput) {
