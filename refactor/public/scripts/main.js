@@ -19,14 +19,16 @@ function getViewCache(view) {
   try {
     const raw = sessionStorage.getItem(`erp_view_${view}`);
     if (!raw) return null;
-    const { html, ts } = JSON.parse(raw);
+    const { html, ts, build } = JSON.parse(raw);
+    // Si el servidor se reinició (nuevo deploy/cambio de código), la caché vieja no sirve
+    if (build !== window.APP_BUILD_ID) { sessionStorage.removeItem(`erp_view_${view}`); return null; }
     if (Date.now() - ts > VIEW_CACHE_TTL) { sessionStorage.removeItem(`erp_view_${view}`); return null; }
     return html;
   } catch { return null; }
 }
 
 function setViewCache(view, html) {
-  try { sessionStorage.setItem(`erp_view_${view}`, JSON.stringify({ html, ts: Date.now() })); } catch {}
+  try { sessionStorage.setItem(`erp_view_${view}`, JSON.stringify({ html, ts: Date.now(), build: window.APP_BUILD_ID })); } catch {}
 }
 
 async function loadView(view) {

@@ -54,6 +54,40 @@ async function findProductoByBarcode(codigoBarra, excludeId = null) {
   return result.rows[0] || null;
 }
 
+// Asegura columna de foto y tablas de características técnicas / repuestos relacionados
+let extrasEnsured = false;
+async function ensureProductoExtrasTables() {
+  if (extrasEnsured) return;
+  try {
+    await db.query(`ALTER TABLE productos ADD COLUMN IF NOT EXISTS foto_url TEXT;`);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS producto_caracteristicas (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+        clave TEXT NOT NULL,
+        valor TEXT,
+        orden INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_prod_caract_producto ON producto_caracteristicas(producto_id);`);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS producto_repuestos_relacionados (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+        repuesto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+        nota TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(producto_id, repuesto_id)
+      );
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_prod_rel_producto ON producto_repuestos_relacionados(producto_id);`);
+    extrasEnsured = true;
+  } catch (e) {
+    console.warn('Aviso: no se pudieron asegurar tablas de ficha técnica de producto:', e && e.message ? e.message : e);
+  }
+}
+
 // Asegura la tabla de precios por producto si no existe
 async function ensureProductoPreciosTable() {
   try {
@@ -84,6 +118,7 @@ async function ensureProductoPreciosTable() {
 router.get('/', async (req, res, next) => {
   try {
     await ensureProductoFamiliaTable();
+    await ensureProductoExtrasTables();
     const { grupo_id, familia_id, categoria_id } = req.query;
 
     const hasPF = await tableExists('producto_familia');
@@ -108,7 +143,7 @@ router.get('/', async (req, res, next) => {
         p.id, p.codigo, p.descripcion,
         COALESCE(SUM(s.cantidad), 0) AS stock_total,
         p.equivalencia, p.descripcion_adicional,
-        p.origen, p.iva_tipo, p.codigo_barra, p.fecha_alta,
+        p.origen, p.iva_tipo, p.codigo_barra, p.fecha_alta, p.foto_url,
         p.grupo_id, p.marca_id, p.proveedor_id,
         g.descripcion AS grupo,
         m.descripcion AS marca,
@@ -167,9 +202,9 @@ router.get('/', async (req, res, next) => {
     if (where.length) query += `WHERE ${where.join(' AND ')}\n`;
     query += `
       GROUP BY 
-        p.id, p.codigo, p.descripcion, p.equivalencia, 
-        p.descripcion_adicional, p.origen, p.iva_tipo, 
-        p.codigo_barra, p.fecha_alta,
+        p.id, p.codigo, p.descripcion, p.equivalencia,
+        p.descripcion_adicional, p.origen, p.iva_tipo,
+        p.codigo_barra, p.fecha_alta, p.foto_url,
         p.grupo_id, p.marca_id, p.proveedor_id,
         g.descripcion, m.descripcion, pr.razon_social`;
     if (!hasPF) query += `, f.descripcion`;
@@ -434,6 +469,145 @@ router.put('/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'Referencia inválida (grupo/marca/categoría/proveedor)' });
     }
     res.status(500).json({ error: 'Error interno al actualizar producto' });
+  }
+});
+
+// ============================
+// PUT: Actualizar foto del producto
+// ============================
+router.put('/:id/foto', async (req, res) => {
+  try {
+    await ensureProductoExtrasTables();
+    const pid = Number(req.params.id);
+    if (!pid) return res.status(400).json({ error: 'Producto inválido' });
+
+    const fotoUrl = (req.body && req.body.foto_url) ? String(req.body.foto_url).trim() : null;
+    await db.query(`UPDATE productos SET foto_url=$1 WHERE id=$2`, [fotoUrl || null, pid]);
+    res.json({ mensaje: 'Foto actualizada', foto_url: fotoUrl || null });
+  } catch (e) {
+    console.error('Error PUT /api/productos/:id/foto', e);
+    res.status(500).json({ error: 'Error al actualizar la foto del producto' });
+  }
+});
+
+// ============================
+// GET/PUT: Características técnicas del producto (clave/valor libres)
+// ============================
+router.get('/:id/caracteristicas', async (req, res) => {
+  try {
+    await ensureProductoExtrasTables();
+    const { rows } = await db.query(
+      `SELECT id, clave, valor, orden
+         FROM producto_caracteristicas
+        WHERE producto_id = $1
+        ORDER BY orden ASC, id ASC`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error('Error GET /api/productos/:id/caracteristicas', e);
+    res.status(500).json({ error: 'Error al obtener características del producto' });
+  }
+});
+
+router.put('/:id/caracteristicas', async (req, res) => {
+  try {
+    await ensureProductoExtrasTables();
+    const pid = Number(req.params.id);
+    if (!pid) return res.status(400).json({ error: 'Producto inválido' });
+
+    const items = Array.isArray(req.body && req.body.items) ? req.body.items : [];
+    const limpio = items
+      .map((it) => ({
+        clave: String((it && it.clave) || '').trim(),
+        valor: (it && it.valor != null) ? String(it.valor).trim() : ''
+      }))
+      .filter((it) => it.clave);
+
+    await db.query(`DELETE FROM producto_caracteristicas WHERE producto_id=$1`, [pid]);
+    let orden = 0;
+    for (const it of limpio) {
+      await db.query(
+        `INSERT INTO producto_caracteristicas (producto_id, clave, valor, orden) VALUES ($1,$2,$3,$4)`,
+        [pid, it.clave, it.valor, orden++]
+      );
+    }
+
+    res.json({ mensaje: 'Características actualizadas' });
+  } catch (e) {
+    console.error('Error PUT /api/productos/:id/caracteristicas', e);
+    res.status(500).json({ error: 'Error al guardar características del producto' });
+  }
+});
+
+// ============================
+// GET/POST/DELETE: Repuestos relacionados
+// ============================
+// La relación es recíproca: cada fila representa un vínculo sin dirección entre dos
+// productos, y se muestra tanto en la ficha de uno como en la del otro.
+router.get('/:id/repuestos', async (req, res) => {
+  try {
+    await ensureProductoExtrasTables();
+    const pid = req.params.id;
+    const { rows } = await db.query(
+      `SELECT r.id,
+              CASE WHEN r.producto_id = $1 THEN r.repuesto_id ELSE r.producto_id END AS repuesto_id,
+              r.nota, p.codigo, p.descripcion
+         FROM producto_repuestos_relacionados r
+         JOIN productos p ON p.id = CASE WHEN r.producto_id = $1 THEN r.repuesto_id ELSE r.producto_id END
+        WHERE r.producto_id = $1 OR r.repuesto_id = $1
+        ORDER BY p.codigo ASC`,
+      [pid]
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error('Error GET /api/productos/:id/repuestos', e);
+    res.status(500).json({ error: 'Error al obtener repuestos relacionados' });
+  }
+});
+
+router.post('/:id/repuestos', async (req, res) => {
+  try {
+    await ensureProductoExtrasTables();
+    const pid = Number(req.params.id);
+    const repuestoId = Number(req.body && req.body.repuesto_id);
+    if (!pid || !repuestoId) return res.status(400).json({ error: 'Producto o repuesto inválido' });
+    if (repuestoId === pid) return res.status(400).json({ error: 'Un producto no puede relacionarse consigo mismo' });
+
+    const nota = (req.body && req.body.nota) ? String(req.body.nota).trim() : null;
+    // Se normaliza el orden (menor id primero) para que el vínculo quede guardado una
+    // única vez sin importar desde qué producto se lo haya creado.
+    const ins = await db.query(
+      `INSERT INTO producto_repuestos_relacionados (producto_id, repuesto_id, nota)
+       VALUES (LEAST($1::int,$2::int), GREATEST($1::int,$2::int), $3)
+       ON CONFLICT (producto_id, repuesto_id) DO UPDATE SET nota = EXCLUDED.nota
+       RETURNING id`,
+      [pid, repuestoId, nota]
+    );
+    res.status(201).json({ mensaje: 'Repuesto relacionado agregado', id: ins.rows[0].id });
+  } catch (e) {
+    console.error('Error POST /api/productos/:id/repuestos', e);
+    if (e && e.code === '23503') {
+      return res.status(400).json({ error: 'Producto relacionado inválido' });
+    }
+    res.status(500).json({ error: 'Error al agregar repuesto relacionado' });
+  }
+});
+
+router.delete('/:id/repuestos/:relId', async (req, res) => {
+  try {
+    await ensureProductoExtrasTables();
+    const del = await db.query(
+      `DELETE FROM producto_repuestos_relacionados
+        WHERE id=$1 AND (producto_id=$2 OR repuesto_id=$2)
+        RETURNING id`,
+      [req.params.relId, req.params.id]
+    );
+    if (!del.rowCount) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ mensaje: 'Repuesto relacionado eliminado' });
+  } catch (e) {
+    console.error('Error DELETE /api/productos/:id/repuestos/:relId', e);
+    res.status(500).json({ error: 'Error al eliminar repuesto relacionado' });
   }
 });
 

@@ -1176,12 +1176,27 @@ async function cargarVigentes(){
         });
       });
     }
+    const filtroActual = document.getElementById('vig-filtro-texto');
+    if (filtroActual && filtroActual.value) filtrarVigentes(filtroActual.value);
   } catch(err) {
     console.error('vigentes load', err);
     tb.innerHTML = "<tr><td colspan='12' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
   } finally {
     window.hideSpinner && window.hideSpinner();
   }
+}
+
+function filtrarVigentes(texto) {
+  const tbody = document.getElementById('tbody-vigentes');
+  if (!tbody) return;
+  const q = (texto || '').trim().toLowerCase();
+  tbody.querySelectorAll('tr[data-id]').forEach(tr => {
+    const nro = (tr.dataset.nro || '').toLowerCase();
+    const codigo = (tr.dataset.codigo || '').toLowerCase();
+    const razon = (tr.dataset.razon || '').toLowerCase();
+    const coincide = !q || nro.includes(q) || codigo.includes(q) || razon.includes(q);
+    tr.style.display = coincide ? '' : 'none';
+  });
 }
 
 async function abrirModalCotizacionDetalle(cotId) {

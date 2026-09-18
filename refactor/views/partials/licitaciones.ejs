@@ -11,8 +11,6 @@
       <button class="btn-secundario" data-tab="lic">Licitaciones</button>
       <button class="btn-secundario" data-tab="vig">R.Vigentes</button>
       <button class="btn-secundario" data-tab="gar">Garantias</button>
-      <button id="btn-vig-recalcular" class="btn-secundario" style="margin-left:auto; display:none;">Recalcular pendientes</button>
-      <button id="btn-vig-clear" class="btn-secundario" style="display:none;">Limpiar seleccion</button>
       <div id="gar-filtro-wrap" style="margin-left:auto; display:none; align-items:center; gap:8px;">
         <select id="gar-filtro-categoria" onchange="filtrarGarantiasPorEquipo(document.getElementById('gar-filtro-equipo').value)"
                 style="padding:5px 8px; border:1.5px solid #d1d5db; border-radius:7px; font-size:0.85rem; outline:none;">
@@ -65,6 +63,20 @@
     </div> <!-- /lic-tab -->
 
     <div id="vig-tab" class="lic-tab-pane" style="display:none;">
+      <div style="display:flex; align-items:center; margin-bottom:10px;">
+        <div style="position:relative;">
+          <input type="text" id="vig-filtro-texto" placeholder="Filtrar por N° pedido, código o razón social..."
+                 oninput="filtrarVigentes(this.value)"
+                 style="padding:5px 28px 5px 10px; border:1.5px solid #d1d5db; border-radius:7px; font-size:0.85rem; width:300px; outline:none;" />
+          <button type="button" onclick="filtrarVigentes(''); document.getElementById('vig-filtro-texto').value='';"
+                  title="Limpiar filtro"
+                  style="position:absolute; right:0; top:0; bottom:0; width:26px; border:none; background:transparent; cursor:pointer; color:#94a3b8; font-size:1rem; display:flex; align-items:center; justify-content:center; border-radius:0 7px 7px 0;">&#x2715;</button>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button id="btn-vig-recalcular" class="btn-secundario" style="display:none;">Recalcular pendientes</button>
+        <button id="btn-vig-clear" class="btn-secundario" style="display:none;">Limpiar seleccion</button>
+      </div>
       <div class="erp-table-card">
         <table class="tabla-erp">
           <thead>

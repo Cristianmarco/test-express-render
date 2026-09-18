@@ -110,6 +110,40 @@
           </button>
         </div>
       </div>
+
+      <!-- Ficha tecnica (solo lectura): foto, caracteristicas y repuestos relacionados -->
+      <!-- Para modificar estos datos hay que abrir la visualizacion del producto (boton "Ver") -->
+      <div class="erp-table-card" style="margin-top:14px; padding:14px 16px;">
+        <h4 style="margin:0 0 10px 0; color:#2072c9;"><i class="fas fa-microchip"></i> Ficha técnica</h4>
+
+        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px;">
+          <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-start;">
+            <div id="side-foto-preview" style="width:140px; height:140px; border:1px solid #dbe3ee; border-radius:10px; background:#f8fafc; display:flex; align-items:center; justify-content:center; overflow:hidden; color:#94a3b8; font-size:12px; text-align:center;">
+              Sin foto
+            </div>
+          </div>
+
+          <div style="flex:1 1 240px; min-width:220px;">
+            <div style="font-weight:600; font-size:13px; color:#334155; margin-bottom:6px;">Características técnicas</div>
+            <table class="tabla-erp">
+              <thead><tr><th>Característica</th><th>Valor</th></tr></thead>
+              <tbody id="side-tbody-caracteristicas"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight:600; font-size:13px; color:#334155; margin-bottom:6px;">Repuestos relacionados</div>
+          <table class="tabla-erp">
+            <thead><tr><th>Código</th><th>Descripción</th><th>Nota</th></tr></thead>
+            <tbody id="side-tbody-repuestos"></tbody>
+          </table>
+        </div>
+
+        <div class="tiny" style="margin-top:10px; color:#94a3b8; font-size:11.5px;">
+          <i class="fas fa-lock"></i> Solo lectura. Para modificar la ficha técnica, abrí la visualización del producto (<i class="fas fa-eye"></i> Ver).
+        </div>
+      </div>
     </aside>
   </div>
 

@@ -142,6 +142,7 @@
       <button class="erp-tab-btn active" data-tab="md-tab-detalle">Detalle</button>
       <button class="erp-tab-btn" data-tab="md-tab-stock">Stock</button>
       <button class="erp-tab-btn" data-tab="md-tab-precios">Listas de precios</button>
+      <button class="erp-tab-btn" data-tab="md-tab-tecnico">Ficha técnica</button>
     </div>
 
     <!-- Tab: Detalle -->
@@ -210,6 +211,57 @@
       <button id="md-btn-guardar-precios" class="btn-guardar" style="max-width:240px;">
         <i class="fas fa-save"></i> Guardar precios
       </button>
+    </div>
+
+    <!-- Tab: Ficha tecnica -->
+    <div id="md-tab-tecnico" class="tab-erp" style="display:none;">
+      <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:18px;">
+        <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-start;">
+          <label style="font-weight:600; font-size:13px; color:#334155;">Foto del producto</label>
+          <div id="md-foto-preview" style="width:180px; height:180px; border:1px solid #dbe3ee; border-radius:10px; background:#f8fafc; display:flex; align-items:center; justify-content:center; overflow:hidden; color:#94a3b8; font-size:12px; text-align:center;">
+            Sin foto
+          </div>
+          <label class="btn-guardar" style="max-width:180px; text-align:center; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+            <i class="fas fa-upload"></i> Subir foto
+            <input type="file" id="md-foto-input" accept="image/*" style="display:none;">
+          </label>
+          <small id="md-foto-status" style="color:#64748b;"></small>
+        </div>
+
+        <div style="flex:1 1 340px; min-width:300px;">
+          <label style="font-weight:600; font-size:13px; color:#334155;">Características técnicas</label>
+          <div class="tiny" style="color:#64748b; font-size:12px; margin:2px 0 8px;">Definí los campos que correspondan a este producto (largo total, diámetro, estrías, delgas, rulemanes, etc.)</div>
+          <table class="tabla-erp">
+            <thead><tr><th>Característica</th><th>Valor</th><th style="width:36px;"></th></tr></thead>
+            <tbody id="md-tbody-caracteristicas"></tbody>
+          </table>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button type="button" id="md-btn-add-caracteristica" class="btn-ghost">
+              <i class="fas fa-plus"></i> Agregar campo
+            </button>
+            <button type="button" id="md-btn-guardar-caracteristicas" class="btn-guardar" style="max-width:220px;">
+              <i class="fas fa-save"></i> Guardar características
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-weight:600; font-size:13px; color:#334155;">Repuestos relacionados</label>
+        <div style="display:flex; gap:8px; margin:8px 0; flex-wrap:wrap;">
+          <select id="md-rel-producto" style="min-width:260px; flex:1 1 260px;">
+            <option value="">Seleccione un repuesto</option>
+          </select>
+          <input type="text" id="md-rel-nota" placeholder="Nota (opcional)" style="flex:1 1 160px; min-width:140px;">
+          <button type="button" id="md-btn-add-repuesto" class="btn-guardar" style="max-width:140px;">
+            <i class="fas fa-plus"></i> Agregar
+          </button>
+        </div>
+        <table class="tabla-erp">
+          <thead><tr><th>Código</th><th>Descripción</th><th>Nota</th><th style="width:36px;"></th></tr></thead>
+          <tbody id="md-tbody-repuestos"></tbody>
+        </table>
+      </div>
     </div>
 
   </div>

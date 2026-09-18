@@ -3,6 +3,7 @@
 (function () {
   let productoSeleccionado = null;
   let forceCreate = false;
+  const MD_TABS = ['md-tab-detalle','md-tab-stock','md-tab-precios','md-tab-tecnico'];
   // caches para listas base
   const cache = { familias: [], categorias: [], grupos: [], marcas: [], proveedores: [] };
 
@@ -71,6 +72,7 @@
     qs("detalle-codbarra-ref").textContent = prod.codigo_barra || "-";
     cargarStockProducto(prod.id);
     cargarPreciosProducto(prod.id);
+    cargarFichaTecnicaSoloLectura('side-', prod);
   }
 
   async function cargarStockProducto(productoId) {
@@ -529,7 +531,7 @@
       tabBtns.forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       const target = btn.getAttribute('data-tab');
-      ['md-tab-detalle','md-tab-stock','md-tab-precios'].forEach(id=>{
+      MD_TABS.forEach(id=>{
         const el = document.getElementById(id); if (el) el.style.display = (id===target? '' : 'none');
       });
     }));
@@ -540,6 +542,7 @@
 
     // Precio: listeners se atan cuando el modal existe
     ensureModalPriceBindings();
+    bindFichaTecnica('md-');
   }
 
   function setDetalleModal(prod){
@@ -658,6 +661,273 @@
     }
   }
 
+  // ======= Ficha técnica (foto, características, repuestos relacionados) =======
+  // Se usa tanto en el panel lateral (prefijo 'side-') como en el modal de producto (prefijo 'md-')
+  function qsp(prefix, id) { return document.getElementById(prefix + id); }
+
+  async function subirFotoProducto(file, productoId) {
+    if (!file) throw new Error('Archivo inválido');
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+      reader.readAsDataURL(file);
+    });
+    const safeName = `producto-${productoId}-${Date.now()}-${file.name}`;
+    const res = await fetch('/api/fichas/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: safeName, data: base64 })
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok || !payload.url) throw new Error(payload.error || 'Error al subir la foto');
+    return payload.url;
+  }
+
+  function renderFotoPreview(prefix, url) {
+    const box = qsp(prefix, 'foto-preview');
+    if (!box) return;
+    if (url) {
+      box.innerHTML = `<img src="${url}" alt="Foto producto" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+    } else {
+      box.innerHTML = 'Sin foto';
+    }
+  }
+
+  function renderCaracteristicas(prefix, lista) {
+    const tbody = qsp(prefix, 'tbody-caracteristicas');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const items = Array.isArray(lista) && lista.length ? lista : [{ clave: '', valor: '' }];
+    items.forEach(it => agregarFilaCaracteristica(prefix, it.clave || '', it.valor || ''));
+  }
+
+  function agregarFilaCaracteristica(prefix, clave = '', valor = '') {
+    const tbody = qsp(prefix, 'tbody-caracteristicas');
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" class="${prefix}carac-clave" placeholder="Ej: Largo total" value="${clave.replace(/"/g,'&quot;')}" style="width:100%;"></td>
+      <td><input type="text" class="${prefix}carac-valor" placeholder="Ej: 145 mm" value="${valor.replace(/"/g,'&quot;')}" style="width:100%;"></td>
+      <td style="text-align:center;"><button type="button" class="btn-ghost btn-square ${prefix}carac-quitar" title="Quitar"><i class="fas fa-trash"></i></button></td>
+    `;
+    tr.querySelector(`.${prefix}carac-quitar`).addEventListener('click', () => tr.remove());
+    tbody.appendChild(tr);
+  }
+
+  function renderRepuestosRelacionados(prefix, lista) {
+    const tbody = qsp(prefix, 'tbody-repuestos');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const items = Array.isArray(lista) ? lista : [];
+    if (!items.length) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#888; padding:8px;">Sin repuestos relacionados</td></tr>`;
+      return;
+    }
+    items.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.codigo || '-'}</td>
+        <td>${r.descripcion || '-'}</td>
+        <td>${r.nota || ''}</td>
+        <td style="text-align:center;"><button type="button" class="btn-ghost btn-square" title="Quitar"><i class="fas fa-trash"></i></button></td>
+      `;
+      tr.querySelector('button').addEventListener('click', async () => {
+        if (!productoSeleccionado) return;
+        try {
+          const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/repuestos/${encodeURIComponent(r.id)}`, { method: 'DELETE' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Error al quitar');
+          cargarRepuestosRelacionados(prefix, productoSeleccionado.id);
+        } catch (e) {
+          console.error(e);
+          alert('No se pudo quitar el repuesto relacionado');
+        }
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function poblarSelectRepuestos(prefix, productoId) {
+    const sel = qsp(prefix, 'rel-producto');
+    if (!sel) return;
+    try {
+      const res = await fetch('/api/productos');
+      const data = await res.json();
+      const listado = (Array.isArray(data) ? data : []).filter(p => String(p.id) !== String(productoId));
+      sel.innerHTML = '<option value="">Seleccione un repuesto</option>';
+      listado.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.codigo || ''} - ${p.descripcion || ''}`;
+        sel.appendChild(opt);
+      });
+    } catch (e) {
+      console.error('Error poblando select de repuestos:', e);
+      sel.innerHTML = '<option value="">(sin datos)</option>';
+    }
+  }
+
+  async function cargarCaracteristicas(prefix, productoId) {
+    try {
+      const res = await fetch(`/api/productos/${encodeURIComponent(productoId)}/caracteristicas`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error características');
+      renderCaracteristicas(prefix, data);
+    } catch (e) {
+      console.error('Error cargarCaracteristicas:', e);
+      renderCaracteristicas(prefix, []);
+    }
+  }
+
+  async function cargarRepuestosRelacionados(prefix, productoId) {
+    try {
+      const res = await fetch(`/api/productos/${encodeURIComponent(productoId)}/repuestos`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error repuestos relacionados');
+      renderRepuestosRelacionados(prefix, data);
+    } catch (e) {
+      console.error('Error cargarRepuestosRelacionados:', e);
+      renderRepuestosRelacionados(prefix, []);
+    }
+  }
+
+  function cargarFichaTecnica(prefix, prod) {
+    if (!prod) return;
+    bindFichaTecnica(prefix);
+    renderFotoPreview(prefix, prod.foto_url);
+    cargarCaracteristicas(prefix, prod.id);
+    cargarRepuestosRelacionados(prefix, prod.id);
+    poblarSelectRepuestos(prefix, prod.id);
+  }
+
+  // ---- Versión solo lectura (panel lateral): sin botones de edición ----
+  function renderCaracteristicasSoloLectura(prefix, lista) {
+    const tbody = qsp(prefix, 'tbody-caracteristicas');
+    if (!tbody) return;
+    const items = Array.isArray(lista) ? lista : [];
+    if (!items.length) {
+      tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#888; padding:8px;">Sin características cargadas</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = items.map(it => `<tr><td>${it.clave || '-'}</td><td>${it.valor || '-'}</td></tr>`).join('');
+  }
+
+  function renderRepuestosRelacionadosSoloLectura(prefix, lista) {
+    const tbody = qsp(prefix, 'tbody-repuestos');
+    if (!tbody) return;
+    const items = Array.isArray(lista) ? lista : [];
+    if (!items.length) {
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#888; padding:8px;">Sin repuestos relacionados</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = items.map(r => `<tr><td>${r.codigo || '-'}</td><td>${r.descripcion || '-'}</td><td>${r.nota || ''}</td></tr>`).join('');
+  }
+
+  async function cargarFichaTecnicaSoloLectura(prefix, prod) {
+    if (!prod) return;
+    renderFotoPreview(prefix, prod.foto_url);
+    try {
+      const res = await fetch(`/api/productos/${encodeURIComponent(prod.id)}/caracteristicas`);
+      const data = await res.json();
+      renderCaracteristicasSoloLectura(prefix, res.ok ? data : []);
+    } catch (e) {
+      console.error('Error cargarFichaTecnicaSoloLectura (características):', e);
+      renderCaracteristicasSoloLectura(prefix, []);
+    }
+    try {
+      const res = await fetch(`/api/productos/${encodeURIComponent(prod.id)}/repuestos`);
+      const data = await res.json();
+      renderRepuestosRelacionadosSoloLectura(prefix, res.ok ? data : []);
+    } catch (e) {
+      console.error('Error cargarFichaTecnicaSoloLectura (repuestos):', e);
+      renderRepuestosRelacionadosSoloLectura(prefix, []);
+    }
+  }
+
+  const fichaTecnicaBound = {};
+  function bindFichaTecnica(prefix) {
+    if (fichaTecnicaBound[prefix]) return;
+    fichaTecnicaBound[prefix] = true;
+
+    const fotoInput = qsp(prefix, 'foto-input');
+    if (fotoInput) fotoInput.addEventListener('change', async () => {
+      if (!productoSeleccionado || !fotoInput.files || !fotoInput.files[0]) return;
+      const status = qsp(prefix, 'foto-status');
+      if (status) status.textContent = 'Subiendo...';
+      try {
+        const url = await subirFotoProducto(fotoInput.files[0], productoSeleccionado.id);
+        const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/foto`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ foto_url: url })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error al guardar la foto');
+        productoSeleccionado.foto_url = url;
+        renderFotoPreview(prefix, url);
+        if (status) status.textContent = 'Foto actualizada';
+      } catch (e) {
+        console.error(e);
+        if (status) status.textContent = '';
+        alert('No se pudo subir la foto');
+      } finally {
+        fotoInput.value = '';
+      }
+    });
+
+    const btnAddCarac = qsp(prefix, 'btn-add-caracteristica');
+    if (btnAddCarac) btnAddCarac.addEventListener('click', () => agregarFilaCaracteristica(prefix));
+
+    const btnGuardarCarac = qsp(prefix, 'btn-guardar-caracteristicas');
+    if (btnGuardarCarac) btnGuardarCarac.addEventListener('click', async () => {
+      if (!productoSeleccionado) return alert('Selecciona un producto');
+      const filas = Array.from(document.querySelectorAll(`#${prefix}tbody-caracteristicas tr`));
+      const items = filas.map(tr => ({
+        clave: tr.querySelector(`.${prefix}carac-clave`)?.value || '',
+        valor: tr.querySelector(`.${prefix}carac-valor`)?.value || ''
+      })).filter(it => it.clave.trim());
+      try {
+        const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/caracteristicas`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error al guardar');
+        alert('Características actualizadas');
+        cargarCaracteristicas(prefix, productoSeleccionado.id);
+      } catch (e) {
+        console.error(e);
+        alert('No se pudieron guardar las características');
+      }
+    });
+
+    const btnAddRepuesto = qsp(prefix, 'btn-add-repuesto');
+    if (btnAddRepuesto) btnAddRepuesto.addEventListener('click', async () => {
+      if (!productoSeleccionado) return alert('Selecciona un producto');
+      const sel = qsp(prefix, 'rel-producto');
+      const notaEl = qsp(prefix, 'rel-nota');
+      const repuestoId = sel && sel.value;
+      if (!repuestoId) return alert('Seleccione un repuesto');
+      try {
+        const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/repuestos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repuesto_id: repuestoId, nota: notaEl ? notaEl.value : '' })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error al agregar');
+        if (sel) sel.value = '';
+        if (notaEl) notaEl.value = '';
+        cargarRepuestosRelacionados(prefix, productoSeleccionado.id);
+      } catch (e) {
+        console.error(e);
+        alert('No se pudo agregar el repuesto relacionado');
+      }
+    });
+  }
+
   function abrirModalProducto(prod){
     if (prod){
       // Seleccionar y rellenar detalle
@@ -673,10 +943,11 @@
     if (modal && typeof modal._cargarPreciosProductoMd === 'function') {
       modal._cargarPreciosProductoMd(productoSeleccionado.id);
     }
+    cargarFichaTecnica('md-', productoSeleccionado);
     if (modal) modal.style.display = 'flex';
     // Volver a la primera pestaña por defecto
     const modalTabs = modal.querySelectorAll('.erp-tab-btn'); modalTabs.forEach(b=>b.classList.remove('active')); if (modalTabs[0]) modalTabs[0].classList.add('active');
-    ['md-tab-detalle','md-tab-stock','md-tab-precios'].forEach((id,idx)=>{ const el=document.getElementById(id); if(el) el.style.display = idx===0?'' : 'none'; });
+    MD_TABS.forEach((id,idx)=>{ const el=document.getElementById(id); if(el) el.style.display = idx===0?'' : 'none'; });
   }
 
   // Si ya está visible
