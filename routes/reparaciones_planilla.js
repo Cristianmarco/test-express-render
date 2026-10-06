@@ -188,44 +188,39 @@ async function recalculatePedidoPendientes(dbClient, nroPedido) {
   const nroTrim = normalizePedidoRef(nroPedido);
   if (!nroTrim) return;
 
+  // Empareja cada reparación cargada con la línea del pedido que tenga el
+  // mismo código de equipo (via familia.codigo), no simplemente la primera
+  // línea disponible por orden de creación. Un mismo pedido puede tener mas
+  // de un equipo distinto (ej: un arranque y un alternador) y consumir la
+  // línea equivocada dejaba el pendiente real sin descontar.
   await dbClient.query(
     `
-      WITH reparaciones AS (
-        SELECT btrim(nro_pedido_ref) AS nro_pedido, COUNT(*)::int AS usados
-        FROM equipos_reparaciones
-        WHERE COALESCE(btrim(nro_pedido_ref), '') <> ''
-          AND btrim(nro_pedido_ref) = btrim($1)
-        GROUP BY btrim(nro_pedido_ref)
-      ),
-      base AS (
+      WITH usados AS (
         SELECT
-          r.id,
-          r.nro_pedido,
-          COALESCE(r.cantidad, 0) AS cantidad,
-          COALESCE(rep.usados, 0) AS usados,
-          SUM(COALESCE(r.cantidad, 0)) OVER (PARTITION BY r.nro_pedido ORDER BY r.id) AS acum,
-          SUM(COALESCE(r.cantidad, 0)) OVER (
-            PARTITION BY r.nro_pedido
-            ORDER BY r.id
-            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-          ) AS prev_acum
-        FROM reparaciones_dota r
-        LEFT JOIN reparaciones rep ON btrim(r.nro_pedido) = rep.nro_pedido
-        WHERE btrim(COALESCE(r.nro_pedido, '')) = btrim($1)
+          btrim(er.nro_pedido_ref) AS nro_pedido,
+          btrim(f.codigo) AS codigo,
+          COUNT(*)::int AS usados
+        FROM equipos_reparaciones er
+        JOIN familia f ON f.id = er.familia_id
+        WHERE COALESCE(btrim(er.nro_pedido_ref), '') <> ''
+          AND btrim(er.nro_pedido_ref) = btrim($1)
+        GROUP BY btrim(er.nro_pedido_ref), btrim(f.codigo)
       ),
       calc AS (
         SELECT
-          id,
-          GREATEST(
-            cantidad - LEAST(GREATEST(usados - COALESCE(prev_acum, 0), 0), cantidad),
-            0
-          ) AS new_pendientes
-        FROM base
+          r.id,
+          GREATEST(COALESCE(r.cantidad, 0) - COALESCE(u.usados, 0), 0) AS new_pendientes
+        FROM reparaciones_dota r
+        LEFT JOIN usados u
+          ON btrim(r.nro_pedido) = u.nro_pedido
+         AND btrim(r.codigo) = u.codigo
+        WHERE btrim(COALESCE(r.nro_pedido, '')) = btrim($1)
       )
       UPDATE reparaciones_dota r
       SET pendientes = c.new_pendientes
       FROM calc c
       WHERE r.id = c.id
+        AND r.devuelto IS NOT TRUE
     `,
     [nroTrim]
   );
@@ -497,6 +492,12 @@ function extractRepuestosFromTrabajo(trabajo) {
 // ============================
 router.get("/historial/:id_reparacion", async (req, res) => {
   const { id_reparacion } = req.params;
+  // Con la numeracion antigua, un mismo id_reparacion puede corresponder a dos
+  // equipos distintos (ej: un arranque y un alternador). Si el frontend ya
+  // sabe cual de los dos eligio el usuario, filtra tambien por familia_id para
+  // no mezclar el historial de ambos.
+  const familiaIdRaw = req.query.familia_id;
+  const familiaId = familiaIdRaw != null && familiaIdRaw !== '' ? Number(familiaIdRaw) : null;
 
   try {
     await ensurePlanillaGarantiaColumns(pool);
@@ -505,6 +506,7 @@ router.get("/historial/:id_reparacion", async (req, res) => {
       SELECT
         r.id,
         r.id_reparacion,
+        r.familia_id,
         r.coche_numero,
         r.fecha,
         r.hora_inicio,
@@ -536,9 +538,10 @@ router.get("/historial/:id_reparacion", async (req, res) => {
       LEFT JOIN tecnicos ur ON ur.id = r.ultimo_reparador
       LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE r.id_reparacion = $1
+        AND ($2::int IS NULL OR r.familia_id = $2)
       ORDER BY r.fecha DESC, r.hora_inicio ASC
     `;
-    const result = await pool.query(query, [id_reparacion]);
+    const result = await pool.query(query, [id_reparacion, familiaId]);
 
     if (result.rows.length === 0)
       return res.status(404).json({ error: "No hay reparaciones para este equipo" });
@@ -579,7 +582,11 @@ router.get("/auditoria/:id", async (req, res) => {
 // ============================
 // Búsqueda flexible por texto (parcial)
 // - q: texto a buscar en id_reparacion, id_dota, equipo, cliente, técnico o coche
-// Devuelve un resumen por id_reparacion (último registro)
+// Devuelve un resumen por id_reparacion + familia_id (último registro de cada uno).
+// Se agrupa tambien por familia_id porque con la numeracion antigua un mismo
+// id_reparacion puede corresponder a dos equipos distintos (ej: un arranque y
+// un alternador con el mismo numero); asi cada uno queda como resultado aparte
+// y el frontend puede ofrecer el paso de "elegir cual" en vez de mezclarlos.
 // ============================
 router.get("/buscar", async (req, res) => {
   const q = (req.query.q || "").trim();
@@ -590,8 +597,9 @@ router.get("/buscar", async (req, res) => {
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
     const pattern = `%${q}%`;
     const sql = `
-      SELECT DISTINCT ON (r.id_reparacion)
+      SELECT DISTINCT ON (r.id_reparacion, r.familia_id)
         r.id_reparacion,
+        r.familia_id,
         r.id_dota,
         r.coche_numero,
         f.descripcion AS equipo,
@@ -603,15 +611,15 @@ router.get("/buscar", async (req, res) => {
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
-      WHERE 
-        CAST(r.id_reparacion AS TEXT) ILIKE $1 OR 
+      WHERE
+        CAST(r.id_reparacion AS TEXT) ILIKE $1 OR
         COALESCE(r.id_dota::text, '') ILIKE $1 OR
         COALESCE(r.coche_numero::text, '') ILIKE $1 OR
         COALESCE(f.descripcion, '') ILIKE $1 OR
         COALESCE(t.nombre, '') ILIKE $1 OR
         COALESCE(c.fantasia, c.razon_social, '') ILIKE $1 OR
         COALESCE(r.nro_pedido_ref, '') ILIKE $1
-      ORDER BY r.id_reparacion, r.fecha DESC, r.hora_inicio DESC, r.id DESC
+      ORDER BY r.id_reparacion, r.familia_id, r.fecha DESC, r.hora_inicio DESC, r.id DESC
       LIMIT 50`;
 
     const { rows } = await pool.query(sql, [pattern]);
@@ -718,8 +726,9 @@ router.get("/por_pedido", async (req, res) => {
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
     const pattern = `%${nro}%`;
     const sql = `
-      SELECT DISTINCT ON (r.id_reparacion)
+      SELECT DISTINCT ON (r.id_reparacion, r.familia_id)
         r.id_reparacion,
+        r.familia_id,
         r.id_dota,
         r.coche_numero,
         f.descripcion AS equipo,
@@ -733,7 +742,7 @@ router.get("/por_pedido", async (req, res) => {
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE COALESCE(r.nro_pedido_ref,'') ILIKE $1
-      ORDER BY r.id_reparacion, r.fecha DESC, r.hora_inicio DESC, r.id DESC
+      ORDER BY r.id_reparacion, r.familia_id, r.fecha DESC, r.hora_inicio DESC, r.id DESC
       LIMIT 100`;
     const { rows } = await pool.query(sql, [pattern]);
     return res.json(rows);

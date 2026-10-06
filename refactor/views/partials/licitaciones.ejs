@@ -63,7 +63,7 @@
     </div> <!-- /lic-tab -->
 
     <div id="vig-tab" class="lic-tab-pane" style="display:none;">
-      <div style="display:flex; align-items:center; margin-bottom:10px;">
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
         <div style="position:relative;">
           <input type="text" id="vig-filtro-texto" placeholder="Filtrar por N° pedido, código o razón social..."
                  oninput="filtrarVigentes(this.value)"
@@ -72,8 +72,6 @@
                   title="Limpiar filtro"
                   style="position:absolute; right:0; top:0; bottom:0; width:26px; border:none; background:transparent; cursor:pointer; color:#94a3b8; font-size:1rem; display:flex; align-items:center; justify-content:center; border-radius:0 7px 7px 0;">&#x2715;</button>
         </div>
-      </div>
-      <div style="display:flex; gap:8px; margin-bottom:10px;">
         <button id="btn-vig-recalcular" class="btn-secundario" style="display:none;">Recalcular pendientes</button>
         <button id="btn-vig-clear" class="btn-secundario" style="display:none;">Limpiar seleccion</button>
       </div>
@@ -164,6 +162,9 @@
       </button>
       <button id="btn-lic-cotizar" class="icon-button-erp actualizar" title="Crear / ver cotización" style="display:none;">
         <i class="fas fa-file-invoice-dollar"></i>
+      </button>
+      <button id="btn-vig-devolver" class="icon-button-erp devolver" title="Devolver sin reparar" style="display:none;">
+        <i class="fas fa-rotate-left"></i>
       </button>
     </div>
 

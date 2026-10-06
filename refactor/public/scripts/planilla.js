@@ -276,7 +276,7 @@ function renderHistorialResultados(list) {
     if (r.nro_pedido_ref) meta.push(`Pedido: ${esc(r.nro_pedido_ref)}`);
     const metaHtml = meta.length ? `<div class="hist-meta">${meta.map(t => `<span>${t}</span>`).join('')}</div>` : '';
     return `
-      <tr class="resultado-clickable historial-select-row" data-id="${esc(r.id_reparacion)}">
+      <tr class="resultado-clickable historial-select-row" data-id="${esc(r.id_reparacion)}" data-familia-id="${r.familia_id != null ? esc(r.familia_id) : ''}">
         <td class="historial-id-cell">
           <div class="hist-id">${esc(r.id_reparacion) || '-'}</div>
           ${metaHtml}
@@ -289,7 +289,7 @@ function renderHistorialResultados(list) {
   }).join('');
   tbody.innerHTML = rows || `<tr><td colspan="5" style="text-align:center; padding:10px; color:#666">Sin resultados.</td></tr>`;
   tbody.querySelectorAll('tr.resultado-clickable').forEach(tr => {
-    tr.addEventListener('click', () => cargarHistorial(tr.dataset.id));
+    tr.addEventListener('click', () => cargarHistorial(tr.dataset.id, tr.dataset.familiaId || null));
   });
 }
 
@@ -312,6 +312,15 @@ async function fetchDiasConDatosIso(y, m0) {
   }
 }
 
+
+// Marca un dia del calendario visible como "con datos" (linea verde) sin
+// esperar a un refresh: se llama justo despues de guardar una reparacion.
+function marcarDiaConDatos(fechaIso) {
+  const grid = document.getElementById('calendarGrid');
+  if (!grid || !fechaIso) return;
+  const cell = grid.querySelector(`.day[data-iso="${fechaIso}"]`);
+  if (cell) cell.classList.add('has-data');
+}
 
 // ---------- Calendar ----------
 function bindMonthNavigation() {
@@ -359,6 +368,7 @@ async function renderCalendar(date) {
     const today = new Date();
     if (d === today.getDate() && m === today.getMonth() && y === today.getFullYear()) cell.classList.add('today');
     const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    cell.dataset.iso = iso;
     if (diasConDatosISO.has(iso)) cell.classList.add('has-data');
     cell.addEventListener('click', () => abrirModalPlanilla(`${d}/${m+1}/${y}`));
     grid.appendChild(cell);
@@ -1391,6 +1401,7 @@ function bindPlanillaActions() {
         cerrarModalReparacion();
         // limpiar modo edicion
         delete form.dataset.id;
+        marcarDiaConDatos(datos.fecha);
         const fechaSpan = document.getElementById('fecha-planilla');
         try{ learnTrabajoTermsFrom(datos.trabajo); }catch{}
         if (fechaSpan && fechaSpan.textContent) abrirModalPlanilla(fechaSpan.textContent);
@@ -1923,7 +1934,7 @@ function bindHistorialSearch(){
       const rbus = await fetch(`/api/reparaciones_planilla/buscar?q=${encodeURIComponent(q)}`, { credentials:'include' });
       const list = rbus.ok ? await rbus.json() : [];
       if (Array.isArray(list) && list.length === 1) {
-        return cargarHistorial(list[0].id_reparacion);
+        return cargarHistorial(list[0].id_reparacion, list[0].familia_id);
       }
       if (Array.isArray(list) && list.length > 1) {
         renderHistorialResultados(list);
@@ -2141,13 +2152,14 @@ if (document.getElementById('calendarGrid')) {
 })();
 
 // Helper global para cargar historial por ID (usado por el buscador parcial)
-async function cargarHistorial(id){
+async function cargarHistorial(id, familiaId){
   const modal = document.getElementById('modal-historial');
   const tbody = document.getElementById('tbody-historial');
   try{
     setHistorialTableMode('historial');
     renderHistorialPlaceholder("<i class='fas fa-spinner fa-spin'></i> Cargando historial...");
-    const res = await fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(id)}`, { credentials:'include' });
+    const qs = (familiaId != null && familiaId !== '') ? `?familia_id=${encodeURIComponent(familiaId)}` : '';
+    const res = await fetch(`/api/reparaciones_planilla/historial/${encodeURIComponent(id)}${qs}`, { credentials:'include' });
     const data = await res.json();
     if(!res.ok) throw new Error(data && data.error || 'Error');
 

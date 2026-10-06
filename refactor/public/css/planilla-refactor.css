@@ -202,6 +202,20 @@
   padding-bottom: 12px; /* respiro para el botón */
 }
 
+/* ===== Modal Reparación Vigente (R.Vigentes) =====
+   Formulario en 2 columnas (mas ancho, menos filas) para que entre completo
+   sin scroll en pantallas normales; el overflow-y queda solo como resguardo
+   para ventanas muy bajas, sin generar scroll horizontal. */
+#modal-vigente-contenido {
+  overflow-x: hidden;
+}
+#modal-vigente-abm form#form-vigente {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 12px;
+}
+
 .modal-detalle-fixed {
   width: min(940px, 95vw);
   height: 80vh;
@@ -399,6 +413,28 @@
   background-color: rgba(192, 57, 43, 0.16) !important;
 }
 
+/* Fila de R.Vigentes devuelta al cliente sin reparar */
+.tabla-erp tbody tr.fila-devuelta {
+  background-color: rgba(100, 116, 139, 0.10);
+  border-left: 4px solid #64748b;
+  color: #64748b;
+}
+.tabla-erp tbody tr.fila-devuelta.selected {
+  background-color: rgba(100, 116, 139, 0.22) !important;
+}
+.badge-devuelto {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #64748b;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 /* === PANEL FLOTANTE === */
 .erp-panel-flotante {
   position: static; /* por defecto dentro del contenedor */
@@ -409,6 +445,28 @@
   border-radius: 0;
   box-shadow: none;
   z-index: auto;
+}
+
+/* En las vistas principales la barra de acciones queda pegada al borde inferior
+   de la pantalla mientras se scrollea la pagina, asi no hay que bajar hasta el
+   final para usar agregar/modificar/eliminar. */
+.main-content .erp-panel-flotante {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  background: #fff;
+  padding: 10px 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Licitaciones / R.Vigentes: la tabla ocupa el alto disponible de la pantalla
+   (header + pestanias + titulo + barra de herramientas + barra de acciones)
+   para que la pagina no necesite su propio scroll. */
+#lic-tab .erp-table-card,
+#vig-tab .erp-table-card,
+#gar-tab .erp-table-card {
+  max-height: calc(100vh - 400px);
+  min-height: 220px;
 }
 
 /* En modales: panel de acciones fijo abajo y que scrollee solo la tabla */
@@ -546,6 +604,13 @@
 }
 .icon-button-erp.eliminar:hover {
   background: #dc2626;
+}
+
+.icon-button-erp.devolver {
+  background: #64748b;
+}
+.icon-button-erp.devolver:hover {
+  background: #475569;
 }
 
 .icon-button-erp.actualizar {

@@ -1,4 +1,4 @@
-﻿// Licitaciones (refactor) - ASCII only to avoid encoding issues
+// Licitaciones (refactor) - ASCII only to avoid encoding issues
 
 let licSeleccionada = null; // selected licitacion number
 let licFamilias = []; // cache familias for datalist
@@ -9,6 +9,36 @@ let vigRecalcBusy = false;
 const garSeleccionMultiple = new Set(); // ids marcados para eliminación múltiple
 let garSeleccionAnchorIndex = null; // último índice usado para selección por shift
 let licDetalleFechaCierre = null; // fecha_cierre de la licitacion cuyo detalle esta abierto (para default de fecha limite)
+
+// Avisa si un nro de pedido ya esta cargado en R.Vigentes para OTRO equipo
+// distinto (mismo pedido, distinto codigo). Un mismo pedido puede tener varias
+// lineas (compras con varios items), pero si el codigo no coincide es probable
+// que sea un numero repetido por error, y eso mezcla las reparaciones e
+// historiales de dos equipos distintos bajo un mismo numero.
+// Devuelve true si esta OK continuar (sin duplicado, o el usuario confirmo
+// igualmente); false si hay que cancelar el guardado.
+async function avisarSiPedidoDuplicado(nroPedido, codigo, excludeId) {
+  const nro = String(nroPedido || '').trim();
+  if (!nro) return true;
+  try {
+    const res = await fetch('/api/reparaciones_dota', { credentials: 'include' });
+    const lista = res.ok ? await res.json() : [];
+    const otros = (Array.isArray(lista) ? lista : []).filter(x =>
+      String(x.id) !== String(excludeId || '') &&
+      String(x.nro_pedido || '').trim() === nro &&
+      String(x.codigo || '').trim() !== String(codigo || '').trim()
+    );
+    if (!otros.length) return true;
+    const detalle = otros.map(o => `• ${o.codigo || '-'} - ${o.descripcion || ''}`).join('\n');
+    return confirm(
+      `⚠️ El número de pedido "${nro}" ya está cargado para otro equipo:\n\n${detalle}\n\n` +
+      `El nro de pedido debería ser único por equipo, para que sus reparaciones no se mezclen con las del otro.\n\n` +
+      `¿Confirmás que querés guardarlo igual? Si fue un error de tipeo, cancelá y corregí el número.`
+    );
+  } catch (_) {
+    return true; // si falla la verificacion, no bloqueamos el guardado
+  }
+}
 
 // Escapa HTML antes de insertar texto de la base de datos en innerHTML (evita XSS
 // almacenado desde campos de texto libre como observaciones/detalle/etc.)
@@ -414,6 +444,9 @@ function ensureAceptarModal(){
         return d.toISOString().slice(0, 10);
       })()
     };
+    const ok = await avisarSiPedidoDuplicado(payload.nro_pedido, payload.codigo, null);
+    if (!ok) return;
+
     try{
       const res = await fetch('/api/reparaciones_dota', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const js = await res.json().catch(()=>({}));
@@ -493,6 +526,7 @@ function initLicitacionesView() {
   bindLicitacionesDeselect();
   bindVigentesDeselect();
   bindVigentesRecalcular();
+  bindVigentesDevolver();
 }
 
 if (document.querySelector('[data-view="licitaciones"]')) {
@@ -533,7 +567,17 @@ function bindLicitacionesPanel() {
       if (!vigSeleccionada){ alert('Seleccione una reparación vigente.'); return; }
       const row = document.querySelector(`#tbody-vigentes tr[data-id="${vigSeleccionada}"]`);
       if(!row){ alert('No se pudo localizar la fila.'); return; }
-      const data = {
+      // Se pide el dato fresco al servidor en vez de confiar en la fila en memoria:
+      // si mientras tanto se cargó una reparación en la planilla diaria para este
+      // pedido, "pendientes" ya bajó en la base pero la tabla en pantalla puede
+      // seguir mostrando el valor viejo, y guardar la edición lo pisaría de vuelta.
+      let fresco = null;
+      try {
+        const r = await fetch('/api/reparaciones_dota', { credentials:'include' });
+        const lista = r.ok ? await r.json() : [];
+        fresco = (Array.isArray(lista) ? lista : []).find(x => String(x.id) === String(vigSeleccionada)) || null;
+      } catch(_) { /* si falla, se usa el dato en pantalla como respaldo */ }
+      const data = fresco || {
         id: vigSeleccionada,
         nro_pedido: row.dataset.nro || '',
         codigo: row.dataset.codigo || '',
@@ -768,26 +812,32 @@ function ensureVigenteModal(){
   const m = document.createElement('div');
   m.id = 'modal-vigente-abm'; m.className='modal-refactor'; m.style.display='none';
   m.innerHTML = `
-    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:560px;">
+    <div class="modal-contenido-refactor modal-erp-producto" id="modal-vigente-contenido" style="max-width:700px;">
       <span class="cerrar" id="btn-close-vigente">&times;</span>
       <h2 class="modal-titulo-principal"><i class="fas fa-tools"></i> Reparación Vigente</h2>
       <form id="form-vigente" autocomplete="off" style="display:flex; flex-direction:column; gap:10px;">
-        <div class="form-grid">
+        <div class="form-grid doble">
           <div>
             <label>Cliente *</label>
             <select id="vig-razon" required><option value="">Seleccione cliente</option></select>
           </div>
-        </div>
-        <div class="form-grid">
           <div>
             <label>Equipo *</label>
             <select id="vig-equipo-sel" required><option value="">Seleccione equipo</option></select>
           </div>
         </div>
-        <div class="form-grid">
+        <div class="form-grid doble">
           <div>
             <label>Descripción</label>
             <input type="text" id="vig-descripcion" />
+          </div>
+          <div>
+            <label>Tipo</label>
+            <select id="vig-tipo">
+              <option value="">Sin clasificar</option>
+              <option value="externo">Externo</option>
+              <option value="dota">Dota</option>
+            </select>
           </div>
         </div>
         <div class="form-grid doble">
@@ -810,16 +860,6 @@ function ensureVigenteModal(){
             <input type="text" id="vig-destino" />
           </div>
         </div>
-        <div class="form-grid">
-          <div>
-            <label>Tipo</label>
-            <select id="vig-tipo">
-              <option value="">Sin clasificar</option>
-              <option value="externo">Externo</option>
-              <option value="dota">Dota</option>
-            </select>
-          </div>
-        </div>
         <div class="form-grid doble">
           <div>
             <label>Fecha de Ingreso</label>
@@ -833,7 +873,7 @@ function ensureVigenteModal(){
         <div class="form-grid">
           <div>
             <label>Observaciones</label>
-            <textarea id="vig-observaciones" rows="3" style="resize:vertical;"></textarea>
+            <textarea id="vig-observaciones" rows="2" style="resize:vertical;"></textarea>
           </div>
         </div>
         <input type="hidden" id="vig-codigo" />
@@ -853,12 +893,20 @@ function ensureVigenteModal(){
     document.getElementById('vig-descripcion').value = opt ? (opt.dataset.desc || '') : '';
   });
 
-  // Cantidad → auto-fill pendientes
+  // Cantidad → pendientes. En un alta, pendientes = cantidad. En una edicion se
+  // ajusta por la diferencia (ej: cant 4 / pend 2 → cant 5 / pend 3) para no
+  // pisar lo ya descontado por la planilla.
   const cantInput = m.querySelector('#vig-cantidad');
   const pendInput = m.querySelector('#vig-pendientes');
-  cantInput.addEventListener('input', () => { pendInput.value = cantInput.value; });
-
   const form = m.querySelector('#form-vigente');
+  cantInput.addEventListener('input', () => {
+    if (!form.dataset.id) { pendInput.value = cantInput.value; return; }
+    if (cantInput.value === '' || pendInput.value === '' || form.dataset.lastCant === '') return;
+    const delta = Number(cantInput.value) - Number(form.dataset.lastCant);
+    pendInput.value = Math.max(Number(pendInput.value) + delta, 0);
+    form.dataset.lastCant = cantInput.value;
+  });
+
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
     const id = form.dataset.id || '';
@@ -877,13 +925,24 @@ function ensureVigenteModal(){
         const opt = sel ? sel.options[sel.selectedIndex] : null;
         return (opt?.dataset.nombre || '').trim() || null;
       })(),
-      pendientes: (document.getElementById('vig-pendientes').value!==''? Number(document.getElementById('vig-pendientes').value) : undefined),
+      // En una edicion, si Pendientes no cambio no se manda: el servidor conserva
+      // el valor de la base (que la planilla pudo haber descontado mientras tanto).
+      pendientes: (() => {
+        const v = document.getElementById('vig-pendientes').value;
+        if (v === '') return undefined;
+        if (id && v === form.dataset.origPend) return undefined;
+        return Number(v);
+      })(),
       observaciones: document.getElementById('vig-observaciones').value.trim()||null,
       fecha_limite_entrega: document.getElementById('vig-fecha-limite').value || null,
       fecha_ingreso: document.getElementById('vig-fecha-ingreso').value || null,
       cliente_tipo: document.getElementById('vig-tipo').value || null
     };
     if (!payload.codigo || !payload.descripcion){ alert('Seleccione un equipo'); return; }
+
+    const ok = await avisarSiPedidoDuplicado(payload.nro_pedido, payload.codigo, id);
+    if (!ok) return;
+
     const method = id? 'PUT' : 'POST';
     const url = id? `/api/reparaciones_dota/${id}` : '/api/reparaciones_dota';
     try{
@@ -938,6 +997,8 @@ async function abrirModalVigenteABM(data){
     document.getElementById('vig-nro').value = data.nro_pedido||'';
     document.getElementById('vig-destino').value = data.destino||'';
     document.getElementById('vig-pendientes').value = (data.pendientes!=null? data.pendientes : '');
+    f.dataset.origPend = document.getElementById('vig-pendientes').value;
+    f.dataset.lastCant = document.getElementById('vig-cantidad').value;
     document.getElementById('vig-observaciones').value = data.observaciones||'';
     document.getElementById('vig-fecha-limite').value = fechaLimiteToInputValue(data.fecha_limite_entrega);
     document.getElementById('vig-fecha-ingreso').value = fechaLimiteToInputValue(data.fecha_ingreso);
@@ -958,6 +1019,8 @@ async function abrirModalVigenteABM(data){
     document.getElementById('vig-nro').value = '';
     document.getElementById('vig-destino').value = '';
     document.getElementById('vig-pendientes').value = 1;
+    f.dataset.origPend = '';
+    f.dataset.lastCant = '';
     document.getElementById('vig-observaciones').value = '';
     document.getElementById('vig-fecha-limite').value = '';
     // Alta manual: por defecto es un ingreso externo, con fecha de hoy.
@@ -1031,6 +1094,8 @@ function setupLicitacionesTabs(){
         if (garExtFiltroWrap) garExtFiltroWrap.style.display = (which==='gar' && subActivo==='externos') ? 'flex' : 'none';
         const btnCotizar = document.getElementById('btn-lic-cotizar');
         if (btnCotizar) btnCotizar.style.display = which==='vig' ? 'inline-flex' : 'none';
+        const btnDevolver = document.getElementById('btn-vig-devolver');
+        if (btnDevolver) btnDevolver.style.display = which==='vig' ? 'inline-flex' : 'none';
         if(which==='vig') cargarVigentes();
         if(which==='gar') { if (subActivo==='externos') cargarGarantiasExternos(); else cargarGarantias(); }
       };
@@ -1126,8 +1191,15 @@ async function cargarVigentes(){
         ? 'Atrasado: entra en la ventana de aviso (7 dias antes) de la fecha limite'
         : 'Atrasado: supera las 72hs desde el ingreso (reparacion express)';
       const marcaAtraso = atrasado ? ` <i class="fas fa-triangle-exclamation" style="color:#c0392b;" title="${atrasadoTitle}"></i>` : '';
-      return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-cliente-id="${attr(r.cliente_id)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}" data-fecha-limite="${attr(fechaLimiteIso)}" data-fecha-ingreso="${attr(fechaIngresoIso)}" data-cliente-tipo="${attr(r.cliente_tipo)}" class="${atrasado ? 'fila-atrasada' : ''}">
-        <td>${esc(r.nro_pedido) || '-'}</td>
+      const devuelto = !!r.devuelto;
+      const devueltoFechaIso = fechaLimiteToInputValue(r.devuelto_fecha);
+      const devueltoTitle = 'Devuelto sin reparar'
+        + (devueltoFechaIso ? ' el ' + new Date(devueltoFechaIso + 'T00:00:00').toLocaleDateString('es-AR') : '')
+        + (r.devuelto_motivo ? ' - ' + r.devuelto_motivo : '');
+      const marcaDevuelto = devuelto ? ` <span class="badge-devuelto" title="${attr(devueltoTitle)}"><i class="fas fa-rotate-left"></i> Devuelto</span>` : '';
+      const claseFila = devuelto ? 'fila-devuelta' : (atrasado ? 'fila-atrasada' : '');
+      return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-cliente-id="${attr(r.cliente_id)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}" data-fecha-limite="${attr(fechaLimiteIso)}" data-fecha-ingreso="${attr(fechaIngresoIso)}" data-cliente-tipo="${attr(r.cliente_tipo)}" data-devuelto="${devuelto ? '1' : ''}" class="${claseFila}">
+        <td>${esc(r.nro_pedido) || '-'}${marcaDevuelto}</td>
         <td>${esc(r.codigo) || '-'}</td>
         <td>${esc(r.descripcion) || '-'}</td>
         <td>${r.cantidad||'-'}</td>
@@ -1136,7 +1208,7 @@ async function cargarVigentes(){
         <td>${tipoTxt}</td>
         <td>${r.pendientes!=null?r.pendientes:'-'}</td>
         <td>${fechaIngresoTxt}</td>
-        <td>${fechaLimiteTxt}${marcaAtraso}</td>
+        <td>${fechaLimiteTxt}${devuelto ? '' : marcaAtraso}</td>
         <td>${esc(r.observaciones) || '-'}</td>
         <td style="text-align:center;">${cotIcon}</td>
       </tr>`;
@@ -1487,6 +1559,51 @@ function bindVigentesDeselect(){
   }, true);
 }
 
+
+// Devolucion: el equipo vuelve al cliente sin reparar. Pone pendientes en 0 y
+// marca la fila. Si la fila ya esta devuelta, ofrece revertir la devolucion.
+function bindVigentesDevolver(){
+  const btn = document.getElementById('btn-vig-devolver');
+  if (!btn || btn._bound) return;
+  btn._bound = true;
+  btn.addEventListener('click', async ()=>{
+    if (!isVigenteActiveView()) return;
+    if (!vigSeleccionada){ alert('Seleccione un equipo vigente.'); return; }
+    const row = document.querySelector(`#tbody-vigentes tr[data-id="${vigSeleccionada}"]`);
+    if (!row){ alert('No se pudo localizar la fila.'); return; }
+    const yaDevuelto = row.dataset.devuelto === '1';
+    const equipo = [row.dataset.nro, row.dataset.codigo, row.dataset.descripcion].filter(Boolean).join(' - ');
+    let body;
+    if (yaDevuelto) {
+      if (!confirm('El equipo ya figura como devuelto.\n' + equipo + '\n\n¿Revertir la devolución y restaurar los pendientes?')) return;
+      body = { revertir: true };
+    } else {
+      const motivo = prompt('Devolver sin reparar:\n' + equipo + '\n\nMotivo (opcional): excede presupuesto, sin reparación, sin repuesto...', '');
+      if (motivo === null) return;
+      body = { motivo };
+    }
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/reparaciones_dota/${vigSeleccionada}/devolucion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo registrar la devolución');
+      await cargarVigentes();
+      const nueva = document.querySelector(`#tbody-vigentes tr[data-id="${vigSeleccionada}"]`);
+      if (nueva) nueva.classList.add('selected');
+      refreshInicioDashboard();
+    } catch (err) {
+      console.error('devolucion vigente', err);
+      alert(err.message || 'No se pudo registrar la devolución');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
 
 function bindVigentesRecalcular(){
   const btn = document.getElementById('btn-vig-recalcular');

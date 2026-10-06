@@ -9,10 +9,11 @@ body {
 
 /* ===== Layout principal ===== */
 
+/* El header es sticky (ocupa su lugar en el flujo), asi que no hace falta
+   margin-top: sumarlo dejaba un hueco vacio del alto del header arriba. */
 .layout {
   display: flex;
   min-height: calc(100vh - var(--header-height));
-  margin-top: var(--header-height);
 }
 
 .main-content {
