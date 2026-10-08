@@ -639,6 +639,9 @@ function repuestosPlanillaImprimir() {
   win.print();
 }
 
+// Repuestos de la reparacion abierta en el modal de detalle (para imprimir)
+let detalleRepuestosActual = [];
+
 function imprimirDetallePlanilla() {
   const getTxt = (id) => {
     const el = document.getElementById(id);
@@ -661,6 +664,11 @@ function imprimirDetallePlanilla() {
     trabajo: getTxt('detalle-trabajo'),
     observaciones: getTxt('detalle-observaciones')
   };
+  const repuestosHtml = detalleRepuestosActual.length
+    ? `<table class="rep"><thead><tr><th>Cant.</th><th>Codigo</th><th>Descripcion</th></tr></thead><tbody>${
+        detalleRepuestosActual.map(r => `<tr><td>${esc(r.cantidad)}</td><td>${esc(r.codigo) || '-'}</td><td>${esc(r.descripcion)}</td></tr>`).join('')
+      }</tbody></table>`
+    : '<div class="txt">Sin repuestos registrados.</div>';
 
   const html = `
     <html>
@@ -673,6 +681,9 @@ function imprimirDetallePlanilla() {
           .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
           .item b { display: inline-block; min-width: 130px; }
           .txt { border: 1px solid #ddd; border-radius: 6px; padding: 8px; white-space: pre-wrap; min-height: 48px; }
+          table.rep { width: 100%; border-collapse: collapse; font-size: 13px; }
+          table.rep th, table.rep td { border: 1px solid #ddd; padding: 4px 8px; text-align: left; }
+          table.rep th { background: #f3f4f6; }
         </style>
       </head>
       <body>
@@ -691,8 +702,10 @@ function imprimirDetallePlanilla() {
           <div class="item"><b>Ultimo reparador:</b> ${esc(data.ultimo_reparador)}</div>
           <div class="item"><b>Estado:</b> ${esc(data.estado)}</div>
         </div>
-        <h2>Trabajo y repuestos</h2>
+        <h2>Trabajo realizado</h2>
         <div class="txt">${esc(data.trabajo)}</div>
+        <h2>Repuestos</h2>
+        ${repuestosHtml}
         <h2>Observaciones</h2>
         <div class="txt">${esc(data.observaciones)}</div>
       </body>
@@ -1205,6 +1218,7 @@ function bindPlanillaActions() {
     const repuestosEl = document.getElementById('detalle-repuestos');
     if (repuestosEl) {
       const lista = Array.isArray(seleccion.repuestos) ? seleccion.repuestos : [];
+      detalleRepuestosActual = lista;
       repuestosEl.innerHTML = lista.length
         ? '<ul style="margin:0; padding-left:18px;">' + lista.map(r =>
             `<li>${esc(r.cantidad)} x (${esc(r.codigo) || '-'}) ${esc(r.descripcion)}</li>`
