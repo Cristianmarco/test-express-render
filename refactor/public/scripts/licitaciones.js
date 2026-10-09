@@ -8,6 +8,7 @@ let garExtSeleccionada = null; // item seleccionado en garantias externas
 let vigRecalcBusy = false;
 const garSeleccionMultiple = new Set(); // ids marcados para eliminación múltiple
 let garSeleccionAnchorIndex = null; // último índice usado para selección por shift
+let licDetalleNro = null; // nro de la licitacion cuyo detalle esta abierto (vinculo del item aceptado)
 let licDetalleFechaCierre = null; // fecha_cierre de la licitacion cuyo detalle esta abierto (para default de fecha limite)
 
 // Avisa si un nro de pedido ya esta cargado en R.Vigentes para OTRO equipo
@@ -50,6 +51,23 @@ function esc(v) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// Fecha de ingreso de un item aceptado: dia posterior al cierre de la licitacion
+function fechaIngresoDesdeCierre(fechaCierre) {
+  if (!fechaCierre) return null;
+  const d = new Date(fechaCierre);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function marcarItemAceptado(btn) {
+  if (!btn) return;
+  btn.classList.add('btn-accepted');
+  btn.disabled = true;
+  btn.title = 'Ya aceptado y enviado a R.Vigentes';
+  btn.innerHTML = '<i class="fas fa-check"></i> Aceptado';
 }
 
 function fechaLimiteToInputValue(value) {
@@ -230,6 +248,7 @@ async function verDetalleLicitacion(nro) {
     if (fEl) fEl.textContent = fmt(data.fecha);
     if (cEl) cEl.textContent = fmt(data.fecha_cierre);
     licDetalleFechaCierre = data.fecha_cierre || null;
+    licDetalleNro = nro;
     if (oEl) oEl.textContent = data.observacion || '-';
     if (aEl) aEl.innerHTML = 'Cargando auditoria...';
     let items = Array.isArray(data.items) ? data.items : [];
@@ -249,7 +268,7 @@ async function verDetalleLicitacion(nro) {
           <td>${esc(it.descripcion) || '-'}</td>
           <td>${it.cantidad || '-'}</td>
           <td>${esc(it.estado) || '-'}</td>
-          <td><button type="button" class="btn-aceptar btn-aceptar-item" data-codigo="${esc(it.codigo)}" data-desc="${esc(it.descripcion)}" data-cant="${it.cantidad||''}">Aceptado</button></td>
+          <td><button type="button" class="btn-aceptar btn-aceptar-item" data-codigo="${esc(it.codigo)}" data-desc="${esc(it.descripcion)}" data-cant="${it.cantidad||''}">Aceptar</button></td>
         </tr>
       `).join('');
       tBody.querySelectorAll('.btn-aceptar-item').forEach(btn => {
@@ -270,9 +289,17 @@ async function verDetalleLicitacion(nro) {
         if (Array.isArray(arr)) {
           const acc = new Set();
           const nroStr = String(nro||'').trim();
+          const ingresoLic = fechaIngresoDesdeCierre(data.fecha_cierre);
           arr.forEach(r => {
-            // Solo considerar los vigentes que pertenecen a esta licitación (nro_pedido)
-            if (String(r.nro_pedido||'').trim() !== nroStr) return;
+            // Vigentes que salieron de esta licitación: vinculados por licitacion_nro.
+            // Los aceptados antes de existir ese vinculo se reconocen por nro_pedido
+            // igual al de la licitación, o por ser Dota con fecha de ingreso = cierre + 1.
+            const licRef = String(r.licitacion_nro||'').trim();
+            const delaLicitacion = licRef
+              ? licRef === nroStr
+              : (String(r.nro_pedido||'').trim() === nroStr
+                 || (ingresoLic && r.cliente_tipo === 'dota' && fechaLimiteToInputValue(r.fecha_ingreso) === ingresoLic));
+            if (!delaLicitacion) return;
             const c=(r.codigo||'').toString().trim().toLowerCase();
             const d=(r.descripcion||'').toString().trim().toLowerCase();
             acc.add(c);
@@ -281,7 +308,7 @@ async function verDetalleLicitacion(nro) {
           tBody.querySelectorAll('.btn-aceptar-item').forEach(b=>{
             const c=(b.getAttribute('data-codigo')||'').trim().toLowerCase();
             const d=(b.getAttribute('data-desc')||'').trim().toLowerCase();
-            if (acc.has(c) || acc.has(c+'|'+d)) { b.classList.add('btn-accepted'); b.disabled=true; b.title='Ya aceptado'; }
+            if (acc.has(c) || acc.has(c+'|'+d)) marcarItemAceptado(b);
           });
         }
       } catch {}
@@ -436,13 +463,8 @@ function ensureAceptarModal(){
       // Los items aceptados desde una licitacion son siempre de Dota.
       // Fecha de ingreso: dia posterior al cierre de la licitacion (regla de negocio).
       cliente_tipo: 'dota',
-      fecha_ingreso: (() => {
-        if (!licDetalleFechaCierre) return null;
-        const d = new Date(licDetalleFechaCierre);
-        if (Number.isNaN(d.getTime())) return null;
-        d.setDate(d.getDate() + 1);
-        return d.toISOString().slice(0, 10);
-      })()
+      fecha_ingreso: fechaIngresoDesdeCierre(licDetalleFechaCierre),
+      licitacion_nro: licDetalleNro
     };
     const ok = await avisarSiPedidoDuplicado(payload.nro_pedido, payload.codigo, null);
     if (!ok) return;
@@ -454,7 +476,7 @@ function ensureAceptarModal(){
       alert('Ítem aceptado y enviado a Reparaciones Vigentes.');
       refreshInicioDashboard();
       close();
-      try{ if(window._aceptarOriginBtn){ window._aceptarOriginBtn.classList.add('btn-accepted'); window._aceptarOriginBtn.disabled = true; window._aceptarOriginBtn.title='Ya aceptado'; window._aceptarOriginBtn = null; } }catch{}
+      try{ if(window._aceptarOriginBtn){ marcarItemAceptado(window._aceptarOriginBtn); window._aceptarOriginBtn = null; } }catch{}
     }catch(err){ alert(err.message||'No se pudo aceptar'); }
   });
 }

@@ -32,6 +32,9 @@ async function ensureNuevasColumnas(dbClient) {
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS fecha_ingreso DATE');
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS cliente_tipo TEXT');
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS cliente_id INTEGER');
+  // Licitacion de la que se acepto el item (el nro_pedido lo carga el usuario y
+  // no coincide con el nro de licitacion, asi que hace falta el vinculo aparte).
+  await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS licitacion_nro TEXT');
   // Devolucion: el equipo vuelve al cliente sin reparar (excede presupuesto,
   // no tiene reparacion, no se consigue repuesto). Se guarda el pendiente previo
   // para poder revertir la devolucion.
@@ -49,17 +52,17 @@ ensureNuevasColumnas(db).catch(err => console.error('reparaciones_dota: no se pu
 router.post('/', async (req, res, next) => {
   const client = await db.connect();
   try {
-    const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id } = req.body;
+    const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id, licitacion_nro } = req.body;
     if (!codigo || !descripcion || !cantidad) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
     await ensureNuevasColumnas(client);
     await client.query('BEGIN');
     const q = await client.query(
-      `INSERT INTO reparaciones_dota (nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `INSERT INTO reparaciones_dota (nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id, licitacion_nro)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
-      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, pendientes || cantidad, observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo), normalizeClienteId(cliente_id)]
+      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, pendientes || cantidad, observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo), normalizeClienteId(cliente_id), String(licitacion_nro ?? '').trim() || null]
     );
     await insertDomainAudit(client, req, AUDIT_DOMAIN, q.rows[0].id, 'create', {
       snapshot: q.rows[0]
