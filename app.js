@@ -136,6 +136,8 @@ app.use('/api/garantias_externas', requireLogin, require('./routes/garantias_ext
 app.use('/api/garantias_dota', requireLogin, garantiasDotaRouter);
 app.use('/api/garantias/report', requireLogin, garantiaReportRouter);
 app.use('/api/dashboard', requireLogin, dashboardRouter);
+// Ficha completa / fotos / importacion de proveedores (antes que el router general por las rutas /importar y /fotos)
+app.use('/api/productos', requireLogin, require('./routes/productos_ficha'));
 app.use('/api/productos', requireLogin, productosRouter);
 app.use("/api/familias", requireLogin, require("./routes/familia"));
 app.use("/api/grupo", requireLogin, require("./routes/grupo"));

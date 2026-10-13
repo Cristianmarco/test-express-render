@@ -8,8 +8,15 @@
       <div class="form-grid doble">
         <div>
           <label>Codigo *</label>
-          <input name="codigo" required />
+          <input name="codigo" required placeholder="Ej: NOSSO RNB145298" />
         </div>
+        <div>
+          <label>Codigo de fabricante</label>
+          <input name="codigo_fabricante" placeholder="Ej: RNB 145298 (si queda vacío se toma del código)" />
+        </div>
+      </div>
+
+      <div class="form-grid">
         <div>
           <label>Descripcion *</label>
           <input name="descripcion" required />
@@ -22,8 +29,15 @@
           <input name="equivalencia" />
         </div>
         <div>
-          <label>Codigo de barras</label>
-          <input name="codigo_barra" />
+          <label>Códigos de barras</label>
+          <div class="cb-editor" id="prod-cb-editor">
+            <div class="cb-agregar">
+              <input type="text" id="prod-cb-input" placeholder="Escaneá o escribí y Enter" autocomplete="off" />
+              <button type="button" id="prod-cb-btn" class="btn-secundario" title="Agregar código"><i class="fas fa-plus"></i></button>
+            </div>
+            <div class="cb-chips" id="prod-cb-chips"></div>
+          </div>
+          <input type="hidden" name="codigos_barra" id="prod-codigos-barra" />
         </div>
       </div>
 

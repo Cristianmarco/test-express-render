@@ -21,9 +21,13 @@
       const filtrado = filtro
         ? listado.filter(p => {
             const t = (filtro || "").toString().toLowerCase();
+            // Los codigos se comparan sin espacios ni guiones ("rnb 145298" = "NOSSO RNB145298")
+            const sinSignos = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+            const tc = sinSignos(t);
             return (
-              (p.codigo || "").toLowerCase().includes(t) ||
-              (p.descripcion || "").toLowerCase().includes(t)
+              (p.descripcion || "").toLowerCase().includes(t) ||
+              (tc && (sinSignos(p.codigo).includes(tc) || sinSignos(p.codigo_fabricante).includes(tc))) ||
+              (p.codigo || "").toLowerCase().includes(t)
             );
           })
         : listado;
@@ -38,7 +42,7 @@
           <td>${p.equivalencia || "-"}</td>
         `;
         tr.addEventListener("click", () => seleccionarProducto(p, tr));
-        tr.addEventListener("dblclick", () => abrirModalProducto(p));
+        tr.addEventListener("dblclick", () => abrirFicha(p));
         tbody.appendChild(tr);
       });
     } catch (e) {
@@ -69,7 +73,7 @@
     qs("detalle-proveedor-ref").textContent = prod.proveedor || "-";
     qs("detalle-origen-ref").textContent = prod.origen || "-";
     qs("detalle-iva-ref").textContent = prod.iva_tipo || "-";
-    qs("detalle-codbarra-ref").textContent = prod.codigo_barra || "-";
+    qs("detalle-codbarra-ref").textContent = codigosBarraDe(prod).join(", ") || "-";
     cargarStockProducto(prod.id);
     cargarPreciosProducto(prod.id);
     cargarFichaTecnicaSoloLectura('side-', prod);
@@ -272,6 +276,7 @@
         // La API /api/proveedores lista 'nombre' (alias de razon_social)
         cargarOpcionesSelect("/api/proveedores", "prod-proveedor_id", "id", "nombre", "codigo"),
       ]);
+      setCodigosBarraForm([]);
       // aplicar dependencias
       poblarFamiliasFiltradas(qs('prod-grupo_id')?.value);
       poblarCategoriasDesdeFamilias();
@@ -295,6 +300,8 @@
         cargarOpcionesSelect("/api/proveedores", "prod-proveedor_id", "id", "nombre", "codigo"),
       ]);
       cargarProductoEnFormulario(productoSeleccionado);
+      // La copia arranca sin codigos de barras (cada codigo pertenece a un solo producto)
+      setCodigosBarraForm([]);
       const gSel = qs('prod-grupo_id');
       if (gSel && !gSel._bound) { gSel._bound = true; gSel.addEventListener('change', () => { poblarFamiliasFiltradas(gSel.value); poblarCategoriasDesdeFamilias(); }); }
       const famBox = qs('prod-familias-checklist');
@@ -319,6 +326,7 @@
           const input = form.querySelector(`[name='${k}']`);
           if (input) input.value = v || "";
         }
+        setCodigosBarraForm(codigosBarraDe(productoSeleccionado));
         // categoría principal si viene en arreglo (M2M)
         if (productoSeleccionado.categorias && productoSeleccionado.categorias.length) {
           qs('prod-categoria_id').value = String(productoSeleccionado.categorias[0].id);
@@ -373,6 +381,7 @@
     const formProd = qs("form-producto-refactor");
     if (formProd) formProd.onsubmit = async (e) => {
       e.preventDefault();
+      agregarCodigoBarraForm(); // si quedó un código escrito sin Enter, se incluye
       const fd = new FormData(formProd);
       const datos = Object.fromEntries(fd.entries());
       // familia única
@@ -438,6 +447,65 @@
     });
   }
 
+  // ---- Codigos de barras (varios por producto) ----
+  let codigosBarraForm = [];
+
+  function codigosBarraDe(prod) {
+    if (prod && Array.isArray(prod.codigos_barra) && prod.codigos_barra.length) return prod.codigos_barra.map(String);
+    return prod && prod.codigo_barra ? [String(prod.codigo_barra)] : [];
+  }
+
+  function renderCodigosBarraForm() {
+    const hidden = qs('prod-codigos-barra');
+    if (hidden) hidden.value = JSON.stringify(codigosBarraForm);
+    const box = qs('prod-cb-chips');
+    if (!box) return;
+    const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    box.innerHTML = codigosBarraForm.length
+      ? codigosBarraForm.map((c, i) => `<span class="cb-chip ${i === 0 ? 'principal' : ''}" title="${i === 0 ? 'Código principal' : ''}">${esc(c)}<button type="button" data-cb-quitar="${i}" title="Quitar">&times;</button></span>`).join('')
+      : '<span class="cb-vacio">Sin códigos de barras</span>';
+  }
+
+  function setCodigosBarraForm(lista) {
+    codigosBarraForm = Array.isArray(lista) ? lista.map((c) => String(c).trim()).filter(Boolean) : [];
+    const input = qs('prod-cb-input');
+    if (input) input.value = '';
+    renderCodigosBarraForm();
+  }
+
+  function agregarCodigoBarraForm() {
+    const input = qs('prod-cb-input');
+    if (!input) return;
+    const c = input.value.trim();
+    input.value = '';
+    if (!c) return;
+    if (!codigosBarraForm.includes(c)) codigosBarraForm.push(c);
+    renderCodigosBarraForm();
+  }
+
+  function bindCodigosBarraForm() {
+    const input = qs('prod-cb-input');
+    const btn = qs('prod-cb-btn');
+    const box = qs('prod-cb-chips');
+    if (input && !input._cbBound) {
+      input._cbBound = true;
+      // El lector de codigos de barras manda Enter: agrega el codigo sin enviar el formulario
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); agregarCodigoBarraForm(); }
+      });
+    }
+    if (btn && !btn._cbBound) { btn._cbBound = true; btn.addEventListener('click', () => { agregarCodigoBarraForm(); if (input) input.focus(); }); }
+    if (box && !box._cbBound) {
+      box._cbBound = true;
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-cb-quitar]');
+        if (!b) return;
+        codigosBarraForm.splice(Number(b.dataset.cbQuitar), 1);
+        renderCodigosBarraForm();
+      });
+    }
+  }
+
   function initProductos() {
     // aseguramos que la vista exista
     if (!qs("tbody-productos-refactor")) {
@@ -446,6 +514,7 @@
     }
     bindAcciones();
     bindFormularios();
+    bindCodigosBarraForm();
     cargarProductos();
     bindModalProducto();
   }
@@ -466,7 +535,7 @@
     const lista = toNum(precioListaEl.value);
     const ds = toNum(descSumaEl && descSumaEl.value);
     const dp = toNum(descPagoEl && descPagoEl.value);
-    let costo = Math.max(0, lista * (1 - (ds + dp)/100));
+    let costo = Math.max(0, lista * (1 - ds/100) * (1 - dp/100));
     costo = Math.round(costo * 100)/100;
     costoEl.value = costo.toFixed(2);
     margenEls.forEach((el, idx)=>{
@@ -538,7 +607,16 @@
 
     // Botón visualizar abre modal
     const btnVer = document.getElementById('btn-prod-ver');
-    if (btnVer && !btnVer._bound){ btnVer._bound = true; btnVer.onclick = () => { if(!productoSeleccionado) return alert('Selecciona un producto'); abrirModalProducto(productoSeleccionado); }; }
+    if (btnVer && !btnVer._bound){ btnVer._bound = true; btnVer.onclick = () => { if(!productoSeleccionado) return alert('Selecciona un producto'); abrirFicha(productoSeleccionado); }; }
+
+    const btnImportar = document.getElementById('btn-prod-importar');
+    if (btnImportar && !btnImportar._bound){
+      btnImportar._bound = true;
+      btnImportar.onclick = () => {
+        if (!window.ImportadorProveedor) return alert('El importador no está disponible. Recargá la página.');
+        window.ImportadorProveedor.abrir({ busqueda: (qs('buscar-producto') && qs('buscar-producto').value.trim()) || '' });
+      };
+    }
 
     // Precio: listeners se atan cuando el modal existe
     ensureModalPriceBindings();
@@ -562,7 +640,7 @@
     set('md-proveedor', prod.proveedor);
     set('md-origen', prod.origen);
     set('md-iva', prod.iva_tipo);
-    set('md-codbarra', prod.codigo_barra);
+    set('md-codbarra', codigosBarraDe(prod).join(', '));
   }
 
   async function cargarStockModal(productoId){
@@ -615,7 +693,7 @@
       const lista = toNum(mdPrecioLista.value);
       const ds = toNum(mdDescSuma && mdDescSuma.value);
       const dp = toNum(mdDescPago && mdDescPago.value);
-      let costo = Math.max(0, lista * (1 - (ds + dp)/100));
+      let costo = Math.max(0, lista * (1 - ds/100) * (1 - dp/100));
       costo = Math.round(costo * 100)/100; if (mdCosto) mdCosto.value = costo.toFixed(2);
       mdMargenEls.forEach((el, idx)=>{ const m = toNum(el && el.value); const p = Math.round((costo*(1+m/100))*100)/100; if(mdPrecioEls[idx]) mdPrecioEls[idx].value = p.toFixed(2); });
     }
@@ -795,7 +873,7 @@
   function cargarFichaTecnica(prefix, prod) {
     if (!prod) return;
     bindFichaTecnica(prefix);
-    renderFotoPreview(prefix, prod.foto_url);
+    renderFotoPreview(prefix, prod.foto_principal || prod.foto_url);
     cargarCaracteristicas(prefix, prod.id);
     cargarRepuestosRelacionados(prefix, prod.id);
     poblarSelectRepuestos(prefix, prod.id);
@@ -826,7 +904,7 @@
 
   async function cargarFichaTecnicaSoloLectura(prefix, prod) {
     if (!prod) return;
-    renderFotoPreview(prefix, prod.foto_url);
+    renderFotoPreview(prefix, prod.foto_principal || prod.foto_url);
     try {
       const res = await fetch(`/api/productos/${encodeURIComponent(prod.id)}/caracteristicas`);
       const data = await res.json();
@@ -928,6 +1006,12 @@
     });
   }
 
+  // Ficha completa en pantalla completa (pestaña propia); si el script no cargó, modal viejo
+  function abrirFicha(prod){
+    if (window.abrirFichaProducto) window.abrirFichaProducto(prod.id, prod.codigo);
+    else abrirModalProducto(prod);
+  }
+
   function abrirModalProducto(prod){
     if (prod){
       // Seleccionar y rellenar detalle
@@ -957,5 +1041,9 @@
   // Cuando se cargue dinámicamente
   document.addEventListener("view:changed", (e) => {
     if (e.detail === "productos") initProductos();
+  });
+  // Al importar/actualizar desde un proveedor se refresca el listado
+  document.addEventListener("productos:cambiados", () => {
+    if (qs("tbody-productos-refactor")) cargarProductos((qs("buscar-producto") && qs("buscar-producto").value) || "");
   });
 })();

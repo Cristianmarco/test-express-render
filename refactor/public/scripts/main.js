@@ -31,7 +31,8 @@ function setViewCache(view, html) {
   try { sessionStorage.setItem(`erp_view_${view}`, JSON.stringify({ html, ts: Date.now(), build: window.APP_BUILD_ID })); } catch {}
 }
 
-async function loadView(view) {
+// opts.label: titulo de la pestaña; opts.html: contenido ya armado (no se pide al servidor)
+async function loadView(view, opts = {}) {
   // Si ya existe como tab abierto, solo activarla
   const existing = openTabs.find(t => t.view === view);
   if (existing) {
@@ -43,7 +44,7 @@ async function loadView(view) {
   // Crear pestaña
   const tab = document.createElement("button");
   tab.className = "tab";
-  tab.textContent = getTabLabel(view);
+  tab.textContent = opts.label || getTabLabel(view);
 
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "x";
@@ -59,7 +60,7 @@ async function loadView(view) {
   openTabs.push({ view, tab });
 
   // Cargar HTML: primero del cache, si no hay hace fetch
-  let html = getViewCache(view);
+  let html = opts.html || getViewCache(view);
   // Invalida cache si contiene texto de error en vez de HTML
   if (html && !html.trim().startsWith('<')) {
     sessionStorage.removeItem(`erp_view_${view}`);

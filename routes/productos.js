@@ -2,6 +2,14 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const {
+  asegurarTablaCodigosBarra,
+  normalizarListaCodigos,
+  productoConCodigoBarra,
+  mensajeDuplicado,
+  guardarCodigosBarra,
+  SQL_CODIGOS_BARRA
+} = require('../utils/codigos-barra');
 
 // Helpers para tolerar esquemas mixtos (pivot presente/ausente)
 async function tableExists(name) {
@@ -30,28 +38,22 @@ async function ensureProductoFamiliaTable() {
   }
 }
 
-function normalizeBarcode(value) {
-  if (value === undefined || value === null) return null;
-  const cleaned = String(value).trim();
-  return cleaned || null;
+// Codigo de fabricante (subcodigo). Si no se carga, se toma lo que sigue al prefijo
+// de marca del codigo del ERP ("NOSSO RNB145298" -> "RNB145298").
+function codigoFabricanteDe(codigo, codigoFabricante) {
+  const cf = String(codigoFabricante == null ? '' : codigoFabricante).trim();
+  if (cf) return cf;
+  const c = String(codigo == null ? '' : codigo).trim();
+  const i = c.indexOf(' ');
+  return i > 0 ? c.slice(i + 1).trim() || null : null;
 }
 
-async function findProductoByBarcode(codigoBarra, excludeId = null) {
-  const normalized = normalizeBarcode(codigoBarra);
-  if (!normalized) return null;
-  const params = [normalized];
-  let sql = `
-    SELECT id, codigo, descripcion
-    FROM productos
-    WHERE BTRIM(COALESCE(codigo_barra, '')) = $1
-  `;
-  if (excludeId != null) {
-    params.push(Number(excludeId));
-    sql += ` AND id <> $2`;
-  }
-  sql += ` LIMIT 1`;
-  const result = await db.query(sql, params);
-  return result.rows[0] || null;
+// Codigos de barras enviados por el formulario: "codigos_barra" (varios) o el
+// campo viejo "codigo_barra" (uno). null = no vino ninguno (no se modifican).
+function codigosBarraDelBody(body) {
+  if (Object.prototype.hasOwnProperty.call(body, 'codigos_barra')) return normalizarListaCodigos(body.codigos_barra) || [];
+  if (Object.prototype.hasOwnProperty.call(body, 'codigo_barra')) return normalizarListaCodigos(body.codigo_barra) || [];
+  return null;
 }
 
 // Asegura columna de foto y tablas de características técnicas / repuestos relacionados
@@ -60,6 +62,17 @@ async function ensureProductoExtrasTables() {
   if (extrasEnsured) return;
   try {
     await db.query(`ALTER TABLE productos ADD COLUMN IF NOT EXISTS foto_url TEXT;`);
+    await db.query(`ALTER TABLE productos ADD COLUMN IF NOT EXISTS codigo_fabricante TEXT;`);
+    // Fotos guardadas en la base (las usa el listado para la foto principal)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS producto_fotos (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+        orden INTEGER NOT NULL DEFAULT 0,
+        url TEXT
+      );
+    `);
+    await db.query(`ALTER TABLE producto_fotos ADD COLUMN IF NOT EXISTS data BYTEA;`);
     await db.query(`
       CREATE TABLE IF NOT EXISTS producto_caracteristicas (
         id SERIAL PRIMARY KEY,
@@ -82,6 +95,7 @@ async function ensureProductoExtrasTables() {
       );
     `);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_prod_rel_producto ON producto_repuestos_relacionados(producto_id);`);
+    await asegurarTablaCodigosBarra(db);
     extrasEnsured = true;
   } catch (e) {
     console.warn('Aviso: no se pudieron asegurar tablas de ficha técnica de producto:', e && e.message ? e.message : e);
@@ -143,7 +157,13 @@ router.get('/', async (req, res, next) => {
         p.id, p.codigo, p.descripcion,
         COALESCE(SUM(s.cantidad), 0) AS stock_total,
         p.equivalencia, p.descripcion_adicional,
-        p.origen, p.iva_tipo, p.codigo_barra, p.fecha_alta, p.foto_url,
+        p.origen, p.iva_tipo, p.codigo_barra, p.fecha_alta, p.foto_url, p.codigo_fabricante,
+        (SELECT '/api/productos/fotos/' || pfo.id
+           FROM producto_fotos pfo
+          WHERE pfo.producto_id = p.id AND pfo.data IS NOT NULL
+          ORDER BY pfo.orden, pfo.id
+          LIMIT 1) AS foto_principal,
+        ${SQL_CODIGOS_BARRA} AS codigos_barra,
         p.grupo_id, p.marca_id, p.proveedor_id,
         g.descripcion AS grupo,
         m.descripcion AS marca,
@@ -204,7 +224,7 @@ router.get('/', async (req, res, next) => {
       GROUP BY 
         p.id, p.codigo, p.descripcion, p.equivalencia,
         p.descripcion_adicional, p.origen, p.iva_tipo,
-        p.codigo_barra, p.fecha_alta, p.foto_url,
+        p.codigo_barra, p.fecha_alta, p.foto_url, p.codigo_fabricante,
         p.grupo_id, p.marca_id, p.proveedor_id,
         g.descripcion, m.descripcion, pr.razon_social`;
     if (!hasPF) query += `, f.descripcion`;
@@ -232,42 +252,44 @@ router.post('/', async (req, res, next) => {
       codigo, descripcion, equivalencia,
       descripcion_adicional, familia_id, grupo_id,
       marca_id, categoria_id, proveedor_id,
-      origen, iva_tipo, codigo_barra,
-      familias, categorias
+      origen, iva_tipo,
+      familias, categorias, codigo_fabricante
     } = req.body;
 
     if (!codigo || !descripcion)
       return res.status(400).json({ error: "Datos obligatorios" });
+    await ensureProductoExtrasTables();
 
     // normalizar vacíos a null
     const norm = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : v);
     const famArr = Array.isArray(familias) ? familias.filter(Boolean) : (familia_id ? [familia_id] : []);
     const familiaPrincipal = famArr.length ? famArr[0] : norm(familia_id);
-    const barcode = normalizeBarcode(codigo_barra);
+    const codigosBarra = codigosBarraDelBody(req.body) || [];
+    const barcode = codigosBarra[0] || null;
 
-    const duplicateBarcode = await findProductoByBarcode(barcode);
+    const duplicateBarcode = await productoConCodigoBarra(db, codigosBarra);
     if (duplicateBarcode) {
-      return res.status(409).json({
-        error: `Codigo de barras duplicado. Ya lo usa ${duplicateBarcode.codigo || 'otro producto'}${duplicateBarcode.descripcion ? ` - ${duplicateBarcode.descripcion}` : ''}`
-      });
+      return res.status(409).json({ error: mensajeDuplicado(duplicateBarcode) });
     }
 
     const ins = await db.query(`
       INSERT INTO productos (
         codigo, descripcion, equivalencia, descripcion_adicional,
         familia_id, grupo_id, marca_id, categoria_id, proveedor_id,
-        origen, iva_tipo, codigo_barra, fecha_alta
+        origen, iva_tipo, codigo_barra, codigo_fabricante, fecha_alta
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW()
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW()
       ) RETURNING id
     `, [
       codigo, descripcion, norm(equivalencia),
       norm(descripcion_adicional), norm(familiaPrincipal), norm(grupo_id),
       norm(marca_id), norm(categoria_id), norm(proveedor_id),
-      norm(origen), norm(iva_tipo), barcode
+      norm(origen), norm(iva_tipo), barcode,
+      codigoFabricanteDe(codigo, codigo_fabricante)
     ]);
 
     const prodId = ins.rows[0].id;
+    await guardarCodigosBarra(db, prodId, codigosBarra);
 
     // Insertar pivotes solo si existen las tablas
     const hasPF = await tableExists('producto_familia');
@@ -322,8 +344,8 @@ router.get('/:id/precios', async (req, res) => {
     const precioLista = Number(base.precio_lista) || 0;
     const dSuma = Number(base.desc_suma) || 0;
     const dPago = Number(base.desc_pago) || 0;
-    // Costo por descuentos sumados (ajustable si deseas secuencial)
-    const costo = Math.max(0, precioLista * (1 - (dSuma + dPago) / 100));
+    // Descuentos encadenados (como los aplican los proveedores): lista -30% y sobre eso -20%
+    const costo = Math.max(0, precioLista * (1 - dSuma / 100) * (1 - dPago / 100));
     const m = [base.margen1, base.margen2, base.margen3, base.margen4, base.margen5, base.margen6].map(v => Number(v) || 0);
     const precios = m.map(p => Math.round((costo * (1 + p / 100)) * 100) / 100);
 
@@ -410,20 +432,21 @@ router.put('/:id', async (req, res, next) => {
       codigo, descripcion, equivalencia,
       descripcion_adicional, familia_id, grupo_id,
       marca_id, categoria_id, proveedor_id,
-      origen, iva_tipo, codigo_barra,
+      origen, iva_tipo,
       familias, categorias
     } = req.body;
 
     const norm = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : v);
     const famArr = Array.isArray(familias) ? familias.filter(Boolean) : (familia_id ? [familia_id] : []);
     const familiaPrincipal = famArr.length ? famArr[0] : norm(familia_id);
-    const barcode = normalizeBarcode(codigo_barra);
+    await ensureProductoExtrasTables();
+    // Solo se tocan el codigo de fabricante y los codigos de barras si el formulario los envia
+    const actualizaCodFab = Object.prototype.hasOwnProperty.call(req.body, 'codigo_fabricante');
+    const codigosBarra = codigosBarraDelBody(req.body);
 
-    const duplicateBarcode = await findProductoByBarcode(barcode, req.params.id);
+    const duplicateBarcode = await productoConCodigoBarra(db, codigosBarra, req.params.id);
     if (duplicateBarcode) {
-      return res.status(409).json({
-        error: `Codigo de barras duplicado. Ya lo usa ${duplicateBarcode.codigo || 'otro producto'}${duplicateBarcode.descripcion ? ` - ${duplicateBarcode.descripcion}` : ''}`
-      });
+      return res.status(409).json({ error: mensajeDuplicado(duplicateBarcode) });
     }
 
     await db.query(`
@@ -431,17 +454,20 @@ router.put('/:id', async (req, res, next) => {
       SET codigo=$1, descripcion=$2, equivalencia=$3,
           descripcion_adicional=$4, familia_id=$5, grupo_id=$6,
           marca_id=$7, categoria_id=$8, proveedor_id=$9,
-          origen=$10, iva_tipo=$11, codigo_barra=$12
-      WHERE id=$13
+          origen=$10, iva_tipo=$11,
+          codigo_fabricante = CASE WHEN $13::boolean THEN $14 ELSE codigo_fabricante END
+      WHERE id=$12
     `, [
       codigo, descripcion, norm(equivalencia),
       norm(descripcion_adicional), norm(familiaPrincipal), norm(grupo_id),
       norm(marca_id), norm(categoria_id), norm(proveedor_id),
-      norm(origen), norm(iva_tipo), barcode,
-      req.params.id
+      norm(origen), norm(iva_tipo),
+      req.params.id,
+      actualizaCodFab, codigoFabricanteDe(codigo, req.body.codigo_fabricante)
     ]);
 
     const prodId = req.params.id;
+    if (codigosBarra) await guardarCodigosBarra(db, prodId, codigosBarra);
     const hasPF = await tableExists('producto_familia');
     const hasPC = await tableExists('producto_categoria');
     if (hasPF) {

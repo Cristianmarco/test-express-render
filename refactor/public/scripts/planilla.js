@@ -2090,16 +2090,11 @@ if (document.getElementById('calendarGrid')) {
     if(!codigo) return;
     const code = String(codigo).trim();
     try{
-      const res = await fetch('/api/productos', { credentials:'include' });
-      const data = await res.json();
-      const lista = Array.isArray(data)? data : [];
-      const prod = lista.find(p => {
-        const c = String(p.codigo||'').trim().toLowerCase();
-        const b = String(p.codigo_barra||'').trim();
-        const bLower = b.toLowerCase();
-        const stripZeros = (s)=> String(s||'').replace(/^0+/, '');
-        return (c === code.toLowerCase() || bLower === code.toLowerCase() || stripZeros(b) === stripZeros(code));
-      });
+      // Busca en el servidor por cualquiera de los codigos de barras del producto,
+      // su codigo del ERP o su codigo de fabricante
+      const res = await fetch(`/api/productos/buscar-codigo?c=${encodeURIComponent(code)}`, { credentials:'include' });
+      if (res.status !== 404 && !res.ok) throw new Error('Error ' + res.status);
+      const prod = res.ok ? await res.json() : null;
       if(prod){
         agregarRepuestoForm({ id: prod.id, codigo: prod.codigo, descripcion: prod.descripcion });
         cerrarModalScanner();
