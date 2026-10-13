@@ -73,6 +73,15 @@ async function ensureProductoExtrasTables() {
       );
     `);
     await db.query(`ALTER TABLE producto_fotos ADD COLUMN IF NOT EXISTS data BYTEA;`);
+    // Equivalencias (las usa el buscador del listado)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS producto_equivalencias (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+        fabricante TEXT,
+        codigo TEXT
+      );
+    `);
     await db.query(`
       CREATE TABLE IF NOT EXISTS producto_caracteristicas (
         id SERIAL PRIMARY KEY,
@@ -133,6 +142,7 @@ router.get('/', async (req, res, next) => {
   try {
     await ensureProductoFamiliaTable();
     await ensureProductoExtrasTables();
+    await ensureProductoPreciosTable();
     const { grupo_id, familia_id, categoria_id } = req.query;
 
     const hasPF = await tableExists('producto_familia');
@@ -164,6 +174,13 @@ router.get('/', async (req, res, next) => {
           ORDER BY pfo.orden, pfo.id
           LIMIT 1) AS foto_principal,
         ${SQL_CODIGOS_BARRA} AS codigos_barra,
+        -- Costo (descuentos encadenados) y precio de Lista 1, para el listado
+        (SELECT ROUND(pp.precio_lista * (1 - pp.desc_suma / 100) * (1 - pp.desc_pago / 100), 2)
+           FROM producto_precios pp WHERE pp.producto_id = p.id) AS costo,
+        (SELECT ROUND(pp.precio_lista * (1 - pp.desc_suma / 100) * (1 - pp.desc_pago / 100) * (1 + pp.margen1 / 100), 2)
+           FROM producto_precios pp WHERE pp.producto_id = p.id AND pp.margen1 > 0) AS precio_lista1,
+        -- Codigos equivalentes de otras marcas (para el buscador)
+        (SELECT string_agg(e.codigo, ' ') FROM producto_equivalencias e WHERE e.producto_id = p.id) AS equivalencias_txt,
         p.grupo_id, p.marca_id, p.proveedor_id,
         g.descripcion AS grupo,
         m.descripcion AS marca,

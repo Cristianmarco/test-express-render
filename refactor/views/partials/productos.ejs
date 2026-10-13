@@ -5,23 +5,27 @@
     </div>
   </div>
 
-  <div class="erp-two-col" style="display:grid; grid-template-columns: 2fr 1fr; gap: 12px; align-items: start;">
+  <div class="prod-layout">
     <!-- Columna izquierda: listado -->
-    <div class="erp-main-card">
-      <div class="buscador-historial">
-        <input type="text" id="buscar-producto" class="input-buscar" placeholder="Buscar por código o descripción..." />
-        <button id="btn-buscar-producto" class="btn-primary">
-          <i class="fas fa-search"></i> Buscar
-        </button>
+    <div class="erp-main-card prod-listado">
+      <div class="prod-buscador">
+        <i class="fas fa-search"></i>
+        <input type="text" id="buscar-producto" placeholder="Buscar por código, descripción, equivalencia o código de barras..." autocomplete="off" />
+        <button type="button" id="btn-buscar-producto" class="prod-buscador-limpiar" title="Limpiar búsqueda">&times;</button>
+        <span id="prod-contador" class="prod-contador"></span>
       </div>
 
-      <div class="erp-table-card">
-        <table class="tabla-erp">
+      <div class="erp-table-card prod-tabla-card">
+        <table class="tabla-erp prod-tabla">
           <thead>
             <tr>
+              <th style="width:52px;"></th>
               <th>Código</th>
               <th>Descripción</th>
-              <th>Equivalencia</th>
+              <th>Marca</th>
+              <th style="text-align:right;">Stock</th>
+              <th style="text-align:right;">Costo</th>
+              <th style="text-align:right;">Lista 1</th>
             </tr>
           </thead>
           <tbody id="tbody-productos-refactor"></tbody>
@@ -29,121 +33,21 @@
       </div>
 
       <div class="erp-panel-flotante">
-        <button id="btn-prod-ver" class="icon-button-erp visualizar" title="Ver"><i class="fas fa-eye"></i></button>
+        <button id="btn-prod-ver" class="icon-button-erp visualizar" title="Abrir ficha completa"><i class="fas fa-eye"></i></button>
         <button id="btn-prod-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
         <button id="btn-prod-copiar" class="icon-button-erp visualizar" title="Copiar"><i class="fas fa-copy"></i></button>
-        <button id="btn-prod-modificar" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
+        <button id="btn-prod-modificar" class="icon-button-erp modificar" title="Editar datos básicos"><i class="fas fa-edit"></i></button>
         <button id="btn-prod-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
         <button id="btn-prod-stock" class="icon-button-erp" title="Movimiento de stock"><i class="fas fa-dolly"></i></button>
         <button id="btn-prod-importar" class="icon-button-erp importar" title="Importar desde proveedor (Nosso)"><i class="fas fa-cloud-arrow-down"></i></button>
       </div>
     </div>
 
-    <!-- Columna derecha: ficha + stock -->
-    <aside class="erp-main-card">
-      <h3 style="margin:0 0 8px 0; font-weight:600;">Ficha de producto</h3>
-      <div class="detalle-grid">
-        <p><b>Código:</b> <span id="detalle-codigo-ref">-</span></p>
-        <p><b>Descripción:</b> <span id="detalle-descripcion-ref">-</span></p>
-        <p><b>Familia:</b> <span id="detalle-familia-ref">-</span></p>
-        <p><b>Grupo:</b> <span id="detalle-grupo-ref">-</span></p>
-        <p><b>Marca:</b> <span id="detalle-marca-ref">-</span></p>
-        <p><b>Categoría:</b> <span id="detalle-categoria-ref">-</span></p>
-        <p><b>Proveedor:</b> <span id="detalle-proveedor-ref">-</span></p>
-        <p><b>Origen:</b> <span id="detalle-origen-ref">-</span></p>
-        <p><b>IVA:</b> <span id="detalle-iva-ref">-</span></p>
-        <p><b>Código de barras:</b> <span id="detalle-codbarra-ref">-</span></p>
-      </div>
-
-      <div class="erp-table-card" style="margin-top:10px; display:none;">
-        <table class="tabla-erp">
-          <thead>
-            <tr>
-              <th>Depósito</th>
-              <th>Cantidad</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-stock-refactor"></tbody>
-        </table>
-      </div>
-
-      <div class="erp-table-card" style="margin-top:14px; padding:12px 14px; display:none;">
-        <h4 style="margin:4px 0 10px 0; color:#2072c9;"><i class="fas fa-tags"></i> Listas de precios</h4>
-        <div style="display:flex; gap:12px; flex-wrap:wrap;">
-          <div style="display:flex; flex-direction:column; min-width:160px; flex:1 1 160px;">
-            <label>Precio de lista</label>
-            <input type="number" step="0.01" id="ref-precio-lista" placeholder="0.00" />
-          </div>
-          <div style="display:flex; flex-direction:column; min-width:120px;">
-            <label>Desc. suma %</label>
-            <input type="number" step="0.01" id="ref-desc-suma" placeholder="0" />
-          </div>
-          <div style="display:flex; flex-direction:column; min-width:120px;">
-            <label>Desc. pago %</label>
-            <input type="number" step="0.01" id="ref-desc-pago" placeholder="0" />
-          </div>
-          <div style="display:flex; flex-direction:column; min-width:160px; flex:1 1 160px;">
-            <label>Costo</label>
-            <input type="number" step="0.01" id="ref-costo" placeholder="0.00" readonly />
-          </div>
-        </div>
-
-        <table class="tabla-erp" style="margin-top:10px;">
-          <thead>
-            <tr>
-              <th>Lista</th>
-              <th>Rentabilidad %</th>
-              <th>Precio</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>1</td><td><input type="number" id="ref-margen1" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio1" step="0.01" readonly style="width:120px"></td></tr>
-            <tr><td>2</td><td><input type="number" id="ref-margen2" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio2" step="0.01" readonly style="width:120px"></td></tr>
-            <tr><td>3</td><td><input type="number" id="ref-margen3" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio3" step="0.01" readonly style="width:120px"></td></tr>
-            <tr><td>4</td><td><input type="number" id="ref-margen4" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio4" step="0.01" readonly style="width:120px"></td></tr>
-            <tr><td>5</td><td><input type="number" id="ref-margen5" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio5" step="0.01" readonly style="width:120px"></td></tr>
-            <tr><td>6</td><td><input type="number" id="ref-margen6" step="0.01" placeholder="0" style="width:110px"></td><td><input type="number" id="ref-precio6" step="0.01" readonly style="width:120px"></td></tr>
-          </tbody>
-        </table>
-        <div style="display:flex; gap:8px; margin-top:10px;">
-          <button id="ref-btn-guardar-precios" class="btn-guardar" style="max-width:240px;">
-            <i class="fas fa-save"></i> Guardar precios
-          </button>
-        </div>
-      </div>
-
-      <!-- Ficha tecnica (solo lectura): foto, caracteristicas y repuestos relacionados -->
-      <!-- Para modificar estos datos hay que abrir la visualizacion del producto (boton "Ver") -->
-      <div class="erp-table-card" style="margin-top:14px; padding:14px 16px;">
-        <h4 style="margin:0 0 10px 0; color:#2072c9;"><i class="fas fa-microchip"></i> Ficha técnica</h4>
-
-        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px;">
-          <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-start;">
-            <div id="side-foto-preview" style="width:140px; height:140px; border:1px solid #dbe3ee; border-radius:10px; background:#f8fafc; display:flex; align-items:center; justify-content:center; overflow:hidden; color:#94a3b8; font-size:12px; text-align:center;">
-              Sin foto
-            </div>
-          </div>
-
-          <div style="flex:1 1 240px; min-width:220px;">
-            <div style="font-weight:600; font-size:13px; color:#334155; margin-bottom:6px;">Características técnicas</div>
-            <table class="tabla-erp">
-              <thead><tr><th>Característica</th><th>Valor</th></tr></thead>
-              <tbody id="side-tbody-caracteristicas"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div>
-          <div style="font-weight:600; font-size:13px; color:#334155; margin-bottom:6px;">Repuestos relacionados</div>
-          <table class="tabla-erp">
-            <thead><tr><th>Código</th><th>Descripción</th><th>Nota</th></tr></thead>
-            <tbody id="side-tbody-repuestos"></tbody>
-          </table>
-        </div>
-
-        <div class="tiny" style="margin-top:10px; color:#94a3b8; font-size:11.5px;">
-          <i class="fas fa-lock"></i> Solo lectura. Para modificar la ficha técnica, abrí la visualización del producto (<i class="fas fa-eye"></i> Ver).
-        </div>
+    <!-- Columna derecha: vista rapida (solo lectura). Para editar: ficha completa o "Editar". -->
+    <aside class="erp-main-card prod-rapida" id="prod-vista-rapida">
+      <div class="prod-rapida-vacia">
+        <i class="far fa-hand-pointer"></i>
+        <div>Seleccioná un producto para ver su resumen</div>
       </div>
     </aside>
   </div>

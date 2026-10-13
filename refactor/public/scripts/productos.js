@@ -3,101 +3,217 @@
 (function () {
   let productoSeleccionado = null;
   let forceCreate = false;
-  const MD_TABS = ['md-tab-detalle','md-tab-stock','md-tab-precios','md-tab-tecnico'];
   // caches para listas base
   const cache = { familias: [], categorias: [], grupos: [], marcas: [], proveedores: [] };
 
   function qs(id) { return document.getElementById(id); }
 
-  async function cargarProductos(filtro = "") {
+  // ======= Listado =======
+  let listadoProductos = [];
+  let vistaRapidaToken = 0;
+
+  const escHtml = (v) => String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const aNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const pesos = (v) => '$ ' + aNum(v).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Codigos comparables sin espacios ni signos ("rnb 145298" = "NOSSO RNB145298")
+  const sinSignos = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  function coincideBusqueda(p, texto) {
+    const t = String(texto || '').trim().toLowerCase();
+    if (!t) return true;
+    const tc = sinSignos(t);
+    if ((p.descripcion || '').toLowerCase().includes(t)) return true;
+    if ((p.codigo || '').toLowerCase().includes(t)) return true;
+    if ((p.marca || '').toLowerCase().includes(t)) return true;
+    if (!tc) return false;
+    return [p.codigo, p.codigo_fabricante, p.equivalencia, p.equivalencias_txt]
+      .some((c) => sinSignos(c).includes(tc))
+      || (Array.isArray(p.codigos_barra) && p.codigos_barra.some((c) => sinSignos(c).includes(tc)));
+  }
+
+  async function cargarProductos(filtro) {
     const tbody = qs("tbody-productos-refactor");
     if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#888; padding:12px;"><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>`;
+    if (!listadoProductos.length) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#888; padding:12px;"><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>`;
+    }
     try {
       const resp = await fetch("/api/productos");
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Error al cargar productos");
-      const listado = Array.isArray(data) ? data : [];
-      const filtrado = filtro
-        ? listado.filter(p => {
-            const t = (filtro || "").toString().toLowerCase();
-            // Los codigos se comparan sin espacios ni guiones ("rnb 145298" = "NOSSO RNB145298")
-            const sinSignos = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-            const tc = sinSignos(t);
-            return (
-              (p.descripcion || "").toLowerCase().includes(t) ||
-              (tc && (sinSignos(p.codigo).includes(tc) || sinSignos(p.codigo_fabricante).includes(tc))) ||
-              (p.codigo || "").toLowerCase().includes(t)
-            );
-          })
-        : listado;
-
-      tbody.innerHTML = "";
-      filtrado.forEach(p => {
-        const tr = document.createElement("tr");
-        tr.dataset.id = p.id;
-        tr.innerHTML = `
-          <td>${p.codigo || "-"}</td>
-          <td>${p.descripcion || "-"}</td>
-          <td>${p.equivalencia || "-"}</td>
-        `;
-        tr.addEventListener("click", () => seleccionarProducto(p, tr));
-        tr.addEventListener("dblclick", () => abrirFicha(p));
-        tbody.appendChild(tr);
-      });
+      listadoProductos = Array.isArray(data) ? data : [];
+      // Si habia un producto seleccionado, se toma su version actualizada
+      if (productoSeleccionado) {
+        productoSeleccionado = listadoProductos.find((p) => String(p.id) === String(productoSeleccionado.id)) || null;
+      }
+      // Sin seleccion (o el producto se elimino): la vista rapida queda vacia
+      if (productoSeleccionado) renderVistaRapida(productoSeleccionado);
+      else renderVistaRapidaVacia();
+      renderListado(filtro != null ? filtro : (qs("buscar-producto")?.value || ""));
     } catch (e) {
       console.error("Error cargarProductos:", e);
-      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#c33; padding:12px;">Error cargando productos</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#c33; padding:12px;">Error cargando productos</td></tr>`;
+    }
+  }
+
+  function renderListado(filtro) {
+    const tbody = qs("tbody-productos-refactor");
+    if (!tbody) return;
+    const filtrado = listadoProductos.filter((p) => coincideBusqueda(p, filtro));
+    const contador = qs("prod-contador");
+    if (contador) contador.textContent = filtro && filtro.trim()
+      ? `${filtrado.length} de ${listadoProductos.length}`
+      : `${listadoProductos.length} productos`;
+    if (!filtrado.length) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#888; padding:16px;">Sin resultados${filtro ? ` para "${escHtml(filtro)}"` : ''}.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = filtrado.map((p) => {
+      const foto = p.foto_principal || p.foto_url;
+      const stock = aNum(p.stock_total);
+      const sel = productoSeleccionado && String(productoSeleccionado.id) === String(p.id);
+      return `<tr data-id="${p.id}" class="${sel ? 'selected' : ''}">
+        <td class="prod-col-foto">${foto ? `<img src="${escHtml(foto)}" alt="" loading="lazy">` : '<span class="prod-sin-foto"><i class="far fa-image"></i></span>'}</td>
+        <td><div class="prod-col-codigo">${escHtml(p.codigo || '-')}</div>${p.codigo_fabricante ? `<div class="prod-col-sub">${escHtml(p.codigo_fabricante)}</div>` : ''}</td>
+        <td>${escHtml(p.descripcion || '-')}</td>
+        <td>${escHtml(p.marca || '')}</td>
+        <td style="text-align:right;"><span class="prod-stock ${stock > 0 ? '' : 'sin'}">${stock}</span></td>
+        <td style="text-align:right; white-space:nowrap;">${p.costo != null ? pesos(p.costo) : '<span class="prod-nd">—</span>'}</td>
+        <td style="text-align:right; white-space:nowrap;"><b>${p.precio_lista1 != null ? pesos(p.precio_lista1) : '<span class="prod-nd">—</span>'}</b></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function bindListado() {
+    const tbody = qs("tbody-productos-refactor");
+    if (tbody && !tbody._listadoBound) {
+      tbody._listadoBound = true;
+      tbody.addEventListener("click", (e) => {
+        const tr = e.target.closest("tr[data-id]");
+        if (!tr) return;
+        const prod = listadoProductos.find((p) => String(p.id) === tr.dataset.id);
+        if (prod) seleccionarProducto(prod, tr);
+      });
+      tbody.addEventListener("dblclick", (e) => {
+        const tr = e.target.closest("tr[data-id]");
+        const prod = tr && listadoProductos.find((p) => String(p.id) === tr.dataset.id);
+        if (prod) abrirFicha(prod);
+      });
+    }
+    // Busqueda mientras se escribe (sin volver a pedir al servidor)
+    const input = qs("buscar-producto");
+    if (input && !input._listadoBound) {
+      input._listadoBound = true;
+      let t = null;
+      input.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => renderListado(input.value), 150); });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") { input.value = ""; renderListado(""); }
+        // Enter con un solo resultado: lo selecciona (util con el lector de codigos de barras)
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const visibles = listadoProductos.filter((p) => coincideBusqueda(p, input.value));
+          if (visibles.length === 1) {
+            const tr = tbody && tbody.querySelector(`tr[data-id="${visibles[0].id}"]`);
+            if (tr) seleccionarProducto(visibles[0], tr);
+          }
+        }
+      });
+    }
+    const limpiar = qs("btn-buscar-producto");
+    if (limpiar && !limpiar._listadoBound) {
+      limpiar._listadoBound = true;
+      limpiar.addEventListener("click", () => { if (input) { input.value = ""; input.focus(); } renderListado(""); });
     }
   }
 
   function seleccionarProducto(prod, row) {
     productoSeleccionado = prod;
-    // resaltar fila
     document.querySelectorAll("#tbody-productos-refactor tr").forEach(r => r.classList.remove("selected"));
-    row.classList.add("selected");
-    // detalle
-    qs("detalle-codigo-ref").textContent = prod.codigo || "-";
-    qs("detalle-descripcion-ref").textContent = prod.descripcion || "-";
-    // mostrar familias/categorias M2M si vienen
-    const famTxt = Array.isArray(prod.familias) && prod.familias.length
-      ? prod.familias.map(f=>f.descripcion||f.nombre||f.id).join(', ')
-      : (prod.familia || "-");
-    const catTxt = Array.isArray(prod.categorias) && prod.categorias.length
-      ? prod.categorias.map(c=>c.descripcion||c.nombre||c.id).join(', ')
-      : (prod.categoria || "-");
-    qs("detalle-familia-ref").textContent = famTxt;
-    qs("detalle-grupo-ref").textContent = prod.grupo || "-";
-    qs("detalle-marca-ref").textContent = prod.marca || "-";
-    qs("detalle-categoria-ref").textContent = catTxt || "-";
-    qs("detalle-proveedor-ref").textContent = prod.proveedor || "-";
-    qs("detalle-origen-ref").textContent = prod.origen || "-";
-    qs("detalle-iva-ref").textContent = prod.iva_tipo || "-";
-    qs("detalle-codbarra-ref").textContent = codigosBarraDe(prod).join(", ") || "-";
-    cargarStockProducto(prod.id);
-    cargarPreciosProducto(prod.id);
-    cargarFichaTecnicaSoloLectura('side-', prod);
+    if (row) row.classList.add("selected");
+    renderVistaRapida(prod);
   }
 
-  async function cargarStockProducto(productoId) {
-    const tbody = qs("tbody-stock-refactor");
-    if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#888; padding:8px;">
-      <i class='fas fa-spinner fa-spin'></i> Cargando stock...</td></tr>`;
+  // ======= Vista rapida (solo lectura) =======
+  function renderVistaRapidaVacia() {
+    const box = qs("prod-vista-rapida");
+    if (box) box.innerHTML = `<div class="prod-rapida-vacia"><i class="far fa-hand-pointer"></i><div>Seleccioná un producto para ver su resumen</div></div>`;
+  }
+
+  async function renderVistaRapida(prod) {
+    const box = qs("prod-vista-rapida");
+    if (!box || !prod) return;
+    const token = ++vistaRapidaToken;
+    // Primero lo que ya se tiene del listado; despues se completa con la ficha
+    pintarVistaRapida(box, { ...prod, cargando: true });
     try {
-      const res = await fetch(`/api/stock/${productoId}`);
+      const res = await fetch(`/api/productos/${encodeURIComponent(prod.id)}/ficha`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error stock");
-      tbody.innerHTML = "";
-      data.forEach(s => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${s.deposito}</td><td>${s.cantidad}</td>`;
-        tbody.appendChild(tr);
-      });
+      if (!res.ok) throw new Error(data.error || "Error");
+      if (token !== vistaRapidaToken) return; // se selecciono otro mientras cargaba
+      pintarVistaRapida(box, data);
     } catch (e) {
-      console.error("Error cargarStockProducto:", e);
-      tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#c33; padding:8px;">Error cargando stock</td></tr>`;
+      if (token === vistaRapidaToken) pintarVistaRapida(box, { ...prod, error: e.message });
     }
+  }
+
+  function pintarVistaRapida(box, d) {
+    const foto = (d.fotos && d.fotos[0] && d.fotos[0].url) || d.foto_principal || d.foto_url;
+    const familias = (d.familias || []).map((f) => f.descripcion).filter(Boolean);
+    const codigos = Array.isArray(d.codigos_barra) && d.codigos_barra.length ? d.codigos_barra : (d.codigo_barra ? [d.codigo_barra] : []);
+    const pr = d.precios;
+    let preciosHtml = '';
+    if (pr && aNum(pr.precio_lista)) {
+      const costo = aNum(pr.precio_lista) * (1 - aNum(pr.desc_suma) / 100) * (1 - aNum(pr.desc_pago) / 100);
+      const listas = [1, 2, 3, 4, 5, 6].map((i) => ({ n: i, m: aNum(pr['margen' + i]) })).filter((l) => l.m > 0);
+      preciosHtml = `
+        <div class="prod-rapida-bloque">
+          <div class="prod-rapida-titulo">Precios ${d.iva_tipo ? `<span>(+IVA ${escHtml(d.iva_tipo)}%)</span>` : ''}</div>
+          <div class="prod-rapida-costo"><span>Costo</span><b>${pesos(costo)}</b></div>
+          ${listas.length ? `<div class="prod-rapida-listas">${listas.map((l) => `
+            <div><span>Lista ${l.n} · ${l.m}%</span><b>${pesos(costo * (1 + l.m / 100))}</b></div>`).join('')}</div>` : '<div class="prod-nd">Sin listas configuradas</div>'}
+        </div>`;
+    } else if (!d.cargando) {
+      preciosHtml = '<div class="prod-rapida-bloque"><div class="prod-rapida-titulo">Precios</div><div class="prod-nd">Sin precios cargados</div></div>';
+    }
+    const stockHtml = Array.isArray(d.stock) ? `
+      <div class="prod-rapida-bloque">
+        <div class="prod-rapida-titulo">Stock</div>
+        ${d.stock.filter((s) => aNum(s.cantidad) !== 0).map((s) => `<div class="prod-rapida-fila"><span>${escHtml(s.deposito)}</span><b>${escHtml(s.cantidad)}</b></div>`).join('') || '<div class="prod-nd">Sin stock en ningún depósito</div>'}
+      </div>` : '';
+    const specs = Array.isArray(d.caracteristicas) ? d.caracteristicas.slice(0, 6) : [];
+    const contadores = [
+      Array.isArray(d.aplicaciones) && d.aplicaciones.length ? `${d.aplicaciones.length} aplicaciones` : '',
+      Array.isArray(d.equivalencias) && d.equivalencias.length ? `${d.equivalencias.length} equivalencias` : '',
+      Array.isArray(d.partes) && d.partes.length ? `${d.partes.length} partes relacionadas` : ''
+    ].filter(Boolean);
+    const stockTotal = d.stock_total != null ? aNum(d.stock_total) : null;
+
+    box.innerHTML = `
+      <div class="prod-rapida-foto">${foto ? `<img src="${escHtml(foto)}" alt="">` : '<span class="prod-sin-foto grande"><i class="far fa-image"></i> Sin foto</span>'}</div>
+      <div class="prod-rapida-cabecera">
+        <div>
+          <div class="prod-rapida-codigo">${escHtml(d.codigo || '')}</div>
+          ${d.codigo_fabricante ? `<div class="prod-col-sub">Cód. fabricante: ${escHtml(d.codigo_fabricante)}</div>` : ''}
+        </div>
+        ${stockTotal != null ? `<span class="prod-stock ${stockTotal > 0 ? '' : 'sin'}">Stock ${stockTotal}</span>` : ''}
+      </div>
+      <div class="prod-rapida-desc">${escHtml(d.descripcion || '')}</div>
+      <div class="pf-meta">
+        ${d.marca ? `<span class="pf-chip"><i class="fas fa-tag"></i> ${escHtml(d.marca)}</span>` : ''}
+        ${d.proveedor ? `<span class="pf-chip"><i class="fas fa-truck"></i> ${escHtml(d.proveedor)}</span>` : ''}
+        ${familias.map((f) => `<span class="pf-chip"><i class="fas fa-layer-group"></i> ${escHtml(f)}</span>`).join('')}
+      </div>
+      ${d.cargando ? '<div class="prod-nd" style="margin:10px 0;"><i class="fas fa-spinner fa-spin"></i> Cargando…</div>' : ''}
+      ${d.error ? `<div class="prod-nd" style="margin:10px 0; color:#b91c1c;">${escHtml(d.error)}</div>` : ''}
+      ${preciosHtml}
+      ${stockHtml}
+      ${specs.length ? `<div class="prod-rapida-bloque"><div class="prod-rapida-titulo">Técnica</div>${specs.map((c) => `<div class="prod-rapida-fila"><span>${escHtml(c.clave)}</span><b>${escHtml(c.valor)}</b></div>`).join('')}</div>` : ''}
+      ${codigos.length ? `<div class="prod-rapida-bloque"><div class="prod-rapida-titulo">Códigos de barras</div><div class="pf-meta">${codigos.map((c) => `<span class="pf-chip"><i class="fas fa-barcode"></i> ${escHtml(c)}</span>`).join('')}</div></div>` : ''}
+      ${contadores.length ? `<div class="prod-nd" style="margin-top:8px;">${contadores.join(' · ')}</div>` : ''}
+      <button type="button" class="pf-btn primario prod-rapida-abrir" data-abrir-ficha><i class="fas fa-up-right-from-square"></i> Abrir ficha completa</button>`;
+    const btn = box.querySelector('[data-abrir-ficha]');
+    if (btn) btn.addEventListener('click', () => abrirFicha(d));
   }
 
   async function cargarOpcionesSelect(url, selectId, valueField, textField, codeField) {
@@ -373,8 +489,6 @@
       qs("modal-mov-stock").style.display = "flex";
     };
 
-    const btnBuscar = qs("btn-buscar-producto");
-    if (btnBuscar) btnBuscar.onclick = () => cargarProductos(qs("buscar-producto")?.value || "");
   }
 
   function bindFormularios() {
@@ -427,7 +541,7 @@
         formStock.reset();
         await Promise.all([
           cargarProductos(qs("buscar-producto")?.value || ""),
-          cargarStockProducto(productoSeleccionado.id)
+          renderVistaRapida(productoSeleccionado)
         ]);
       } catch (e) {
         console.error(e);
@@ -516,522 +630,32 @@
     bindFormularios();
     bindCodigosBarraForm();
     cargarProductos();
-    bindModalProducto();
+    bindVerImportar();
+    bindListado();
   }
 
-  // ======= Precios (refactor) =======
-  const precioListaEl = document.getElementById('ref-precio-lista');
-  const descSumaEl = document.getElementById('ref-desc-suma');
-  const descPagoEl = document.getElementById('ref-desc-pago');
-  const costoEl = document.getElementById('ref-costo');
-  const margenEls = [1,2,3,4,5,6].map(i=>document.getElementById('ref-margen'+i));
-  const precioEls = [1,2,3,4,5,6].map(i=>document.getElementById('ref-precio'+i));
-  const btnGuardarPrecios = document.getElementById('ref-btn-guardar-precios');
-
-  function toNum(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
-
-  function recalcPrecios(){
-    if (!precioListaEl || !costoEl) return;
-    const lista = toNum(precioListaEl.value);
-    const ds = toNum(descSumaEl && descSumaEl.value);
-    const dp = toNum(descPagoEl && descPagoEl.value);
-    let costo = Math.max(0, lista * (1 - ds/100) * (1 - dp/100));
-    costo = Math.round(costo * 100)/100;
-    costoEl.value = costo.toFixed(2);
-    margenEls.forEach((el, idx)=>{
-      const m = toNum(el && el.value);
-      const p = Math.round((costo * (1 + m/100)) * 100)/100;
-      if (precioEls[idx]) precioEls[idx].value = p.toFixed(2);
-    });
+  // ======= Ficha completa e importador =======
+  // La ficha completa (pantalla completa, con pestañas y modo Editar) vive en producto_ficha.js
+  function abrirFicha(prod) {
+    if (!prod) return alert('Selecciona un producto');
+    if (window.abrirFichaProducto) window.abrirFichaProducto(prod.id, prod.codigo);
+    else alert('La ficha no está disponible. Recargá la página (Ctrl+F5).');
   }
 
-  async function cargarPreciosProducto(productoId){
-    try{
-      if (!productoId || !precioListaEl) return;
-      const res = await fetch(`/api/productos/${encodeURIComponent(productoId)}/precios`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error precios');
-      precioListaEl.value = toNum(data.precio_lista);
-      if (descSumaEl) descSumaEl.value = toNum(data.desc_suma);
-      if (descPagoEl) descPagoEl.value = toNum(data.desc_pago);
-      margenEls.forEach((el,i)=>{ if (el) el.value = toNum(data['margen'+(i+1)]); });
-      recalcPrecios();
-    }catch(e){ console.error('Error cargarPreciosProducto:', e); }
-  }
-
-  if (precioListaEl){
-    [precioListaEl, descSumaEl, descPagoEl, ...margenEls].forEach(el=>{
-      if (!el) return; el.addEventListener('input', recalcPrecios); el.addEventListener('change', recalcPrecios);
-    });
-  }
-
-  if (btnGuardarPrecios){
-    btnGuardarPrecios.addEventListener('click', async ()=>{
-      try{
-        if (!productoSeleccionado) return alert('Selecciona un producto');
-        const payload = {
-          precio_lista: toNum(precioListaEl && precioListaEl.value),
-          desc_suma: toNum(descSumaEl && descSumaEl.value),
-          desc_pago: toNum(descPagoEl && descPagoEl.value),
-          margen1: toNum(margenEls[0] && margenEls[0].value),
-          margen2: toNum(margenEls[1] && margenEls[1].value),
-          margen3: toNum(margenEls[2] && margenEls[2].value),
-          margen4: toNum(margenEls[3] && margenEls[3].value),
-          margen5: toNum(margenEls[4] && margenEls[4].value),
-          margen6: toNum(margenEls[5] && margenEls[5].value),
-        };
-        const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/precios`, {
-          method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload)
-        });
-        const data = await res.json().catch(()=>({}));
-        if (!res.ok) throw new Error(data.error || 'Error guardando');
-        alert('Precios actualizados');
-      }catch(e){ console.error(e); alert('No se pudieron guardar los precios'); }
-    });
-  }
-
-  // ======= Modal de producto (detalle/stock/precios) =======
-  function bindModalProducto(){
-    // Tabs dentro del modal
-    const modal = document.getElementById('modal-producto');
-    if (!modal || modal._boundTabs) return; modal._boundTabs = true;
-    const tabBtns = modal.querySelectorAll('.erp-tab-btn');
-    tabBtns.forEach(btn => btn.addEventListener('click', ()=>{
-      tabBtns.forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      const target = btn.getAttribute('data-tab');
-      MD_TABS.forEach(id=>{
-        const el = document.getElementById(id); if (el) el.style.display = (id===target? '' : 'none');
-      });
-    }));
-
-    // Botón visualizar abre modal
-    const btnVer = document.getElementById('btn-prod-ver');
-    if (btnVer && !btnVer._bound){ btnVer._bound = true; btnVer.onclick = () => { if(!productoSeleccionado) return alert('Selecciona un producto'); abrirFicha(productoSeleccionado); }; }
-
-    const btnImportar = document.getElementById('btn-prod-importar');
-    if (btnImportar && !btnImportar._bound){
+  function bindVerImportar() {
+    const btnVer = qs('btn-prod-ver');
+    if (btnVer && !btnVer._bound) {
+      btnVer._bound = true;
+      btnVer.onclick = () => abrirFicha(productoSeleccionado);
+    }
+    const btnImportar = qs('btn-prod-importar');
+    if (btnImportar && !btnImportar._bound) {
       btnImportar._bound = true;
       btnImportar.onclick = () => {
         if (!window.ImportadorProveedor) return alert('El importador no está disponible. Recargá la página.');
         window.ImportadorProveedor.abrir({ busqueda: (qs('buscar-producto') && qs('buscar-producto').value.trim()) || '' });
       };
     }
-
-    // Precio: listeners se atan cuando el modal existe
-    ensureModalPriceBindings();
-    bindFichaTecnica('md-');
-  }
-
-  function setDetalleModal(prod){
-    const famTxt = Array.isArray(prod.familias) && prod.familias.length
-      ? prod.familias.map(f=>f.descripcion||f.nombre||f.id).join(', ')
-      : (prod.familia || "-");
-    const catTxt = Array.isArray(prod.categorias) && prod.categorias.length
-      ? prod.categorias.map(c=>c.descripcion||c.nombre||c.id).join(', ')
-      : (prod.categoria || "-");
-    const set = (id, val)=>{ const el=document.getElementById(id); if(el) el.textContent = val||'-'; };
-    set('md-codigo', prod.codigo);
-    set('md-descripcion', prod.descripcion);
-    set('md-familia', famTxt);
-    set('md-grupo', prod.grupo);
-    set('md-marca', prod.marca);
-    set('md-categoria', catTxt);
-    set('md-proveedor', prod.proveedor);
-    set('md-origen', prod.origen);
-    set('md-iva', prod.iva_tipo);
-    set('md-codbarra', codigosBarraDe(prod).join(', '));
-  }
-
-  async function cargarStockModal(productoId){
-    const tbodyS = document.getElementById('md-tbody-stock');
-    const tbodyM = document.getElementById('md-tbody-movimientos');
-    if (tbodyS) tbodyS.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#888; padding:8px;"><i class='fas fa-spinner fa-spin'></i> Cargando stock...</td></tr>`;
-    if (tbodyM) tbodyM.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#888; padding:8px;"><i class='fas fa-spinner fa-spin'></i> Cargando movimientos...</td></tr>`;
-    try{
-      const [resS, resM] = await Promise.all([
-        fetch(`/api/stock/${encodeURIComponent(productoId)}`),
-        fetch(`/api/stock/movimientos/${encodeURIComponent(productoId)}`)
-      ]);
-      const [dataS, dataM] = await Promise.all([resS.json(), resM.json()]);
-      if (tbodyS){
-        tbodyS.innerHTML = '';
-        (Array.isArray(dataS)?dataS:[]).forEach(s=>{
-          const tr=document.createElement('tr'); tr.innerHTML = `<td>${s.deposito}</td><td>${s.cantidad}</td>`; tbodyS.appendChild(tr);
-        });
-        if (!tbodyS.children.length) tbodyS.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#666; padding:8px;">Sin stock</td></tr>`;
-      }
-      if (tbodyM){
-        tbodyM.innerHTML = '';
-        (Array.isArray(dataM)?dataM:[]).forEach(m=>{
-          const tr=document.createElement('tr'); tr.innerHTML = `<td>${m.fecha||''}</td><td>${m.hora||''}</td><td>${m.tipo||''}</td><td>${m.cantidad||0}</td><td>${m.deposito||''}</td><td>${m.observacion||''}</td>`; tbodyM.appendChild(tr);
-        });
-        if (!tbodyM.children.length) tbodyM.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666; padding:8px;">Sin movimientos</td></tr>`;
-      }
-    }catch(e){
-      console.error('Error stock/movimientos modal:', e);
-      if (tbodyS) tbodyS.innerHTML = `<tr><td colspan=\"2\" style=\"text-align:center; color:#c33; padding:8px;\">Error stock</td></tr>`;
-      if (tbodyM) tbodyM.innerHTML = `<tr><td colspan=\"6\" style=\"text-align:center; color:#c33; padding:8px;\">Error movimientos</td></tr>`;
-    }
-  }
-
-  // Precios en modal (binding seguro cuando DOM esté cargado)
-  function ensureModalPriceBindings(){
-    const modal = document.getElementById('modal-producto');
-    if (!modal || modal._pricesBound) return; modal._pricesBound = true;
-
-    const mdPrecioLista = modal.querySelector('#md-precio-lista');
-    const mdDescSuma = modal.querySelector('#md-desc-suma');
-    const mdDescPago = modal.querySelector('#md-desc-pago');
-    const mdCosto = modal.querySelector('#md-costo');
-    const mdMargenEls = [1,2,3,4,5,6].map(i=>modal.querySelector('#md-margen'+i));
-    const mdPrecioEls = [1,2,3,4,5,6].map(i=>modal.querySelector('#md-precio'+i));
-    const mdGuardar = modal.querySelector('#md-btn-guardar-precios');
-
-    function recalcPreciosMd(){
-      if (!mdPrecioLista || !mdCosto) return;
-      const lista = toNum(mdPrecioLista.value);
-      const ds = toNum(mdDescSuma && mdDescSuma.value);
-      const dp = toNum(mdDescPago && mdDescPago.value);
-      let costo = Math.max(0, lista * (1 - ds/100) * (1 - dp/100));
-      costo = Math.round(costo * 100)/100; if (mdCosto) mdCosto.value = costo.toFixed(2);
-      mdMargenEls.forEach((el, idx)=>{ const m = toNum(el && el.value); const p = Math.round((costo*(1+m/100))*100)/100; if(mdPrecioEls[idx]) mdPrecioEls[idx].value = p.toFixed(2); });
-    }
-
-    async function cargarPreciosProductoMd(productoId){
-      try{
-        if (!productoId || !mdPrecioLista) return;
-        const res = await fetch(`/api/productos/${encodeURIComponent(productoId)}/precios`);
-        const data = await res.json(); if(!res.ok) throw new Error(data.error||'Error precios');
-        mdPrecioLista.value = toNum(data.precio_lista);
-        if (mdDescSuma) mdDescSuma.value = toNum(data.desc_suma);
-        if (mdDescPago) mdDescPago.value = toNum(data.desc_pago);
-        mdMargenEls.forEach((el,i)=>{ if(el) el.value = toNum(data['margen'+(i+1)]); });
-        recalcPreciosMd();
-      }catch(e){ console.error('Error cargarPreciosProductoMd:', e); }
-    }
-
-    // Exponer recalc y cargar para uso desde abrirModal
-    modal._recalcPreciosMd = recalcPreciosMd;
-    modal._cargarPreciosProductoMd = cargarPreciosProductoMd;
-
-    [mdPrecioLista, mdDescSuma, mdDescPago, ...mdMargenEls].forEach(el=>{ if(!el) return; el.addEventListener('input', recalcPreciosMd); el.addEventListener('change', recalcPreciosMd); });
-    if (mdGuardar){
-      mdGuardar.addEventListener('click', async ()=>{
-        try{
-          if (!productoSeleccionado) return alert('Selecciona un producto');
-          const payload = {
-            precio_lista: toNum(mdPrecioLista && mdPrecioLista.value),
-            desc_suma: toNum(mdDescSuma && mdDescSuma.value),
-            desc_pago: toNum(mdDescPago && mdDescPago.value),
-            margen1: toNum(mdMargenEls[0] && mdMargenEls[0].value),
-            margen2: toNum(mdMargenEls[1] && mdMargenEls[1].value),
-            margen3: toNum(mdMargenEls[2] && mdMargenEls[2].value),
-            margen4: toNum(mdMargenEls[3] && mdMargenEls[3].value),
-            margen5: toNum(mdMargenEls[4] && mdMargenEls[4].value),
-            margen6: toNum(mdMargenEls[5] && mdMargenEls[5].value),
-          };
-          const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/precios`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-          const data = await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.error||'Error guardando');
-          alert('Precios actualizados');
-        }catch(e){ console.error(e); alert('No se pudieron guardar los precios'); }
-      });
-    }
-  }
-
-  // ======= Ficha técnica (foto, características, repuestos relacionados) =======
-  // Se usa tanto en el panel lateral (prefijo 'side-') como en el modal de producto (prefijo 'md-')
-  function qsp(prefix, id) { return document.getElementById(prefix + id); }
-
-  async function subirFotoProducto(file, productoId) {
-    if (!file) throw new Error('Archivo inválido');
-    const base64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
-      reader.readAsDataURL(file);
-    });
-    const safeName = `producto-${productoId}-${Date.now()}-${file.name}`;
-    const res = await fetch('/api/fichas/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: safeName, data: base64 })
-    });
-    const payload = await res.json().catch(() => ({}));
-    if (!res.ok || !payload.url) throw new Error(payload.error || 'Error al subir la foto');
-    return payload.url;
-  }
-
-  function renderFotoPreview(prefix, url) {
-    const box = qsp(prefix, 'foto-preview');
-    if (!box) return;
-    if (url) {
-      box.innerHTML = `<img src="${url}" alt="Foto producto" style="max-width:100%; max-height:100%; object-fit:contain;">`;
-    } else {
-      box.innerHTML = 'Sin foto';
-    }
-  }
-
-  function renderCaracteristicas(prefix, lista) {
-    const tbody = qsp(prefix, 'tbody-caracteristicas');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    const items = Array.isArray(lista) && lista.length ? lista : [{ clave: '', valor: '' }];
-    items.forEach(it => agregarFilaCaracteristica(prefix, it.clave || '', it.valor || ''));
-  }
-
-  function agregarFilaCaracteristica(prefix, clave = '', valor = '') {
-    const tbody = qsp(prefix, 'tbody-caracteristicas');
-    if (!tbody) return;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><input type="text" class="${prefix}carac-clave" placeholder="Ej: Largo total" value="${clave.replace(/"/g,'&quot;')}" style="width:100%;"></td>
-      <td><input type="text" class="${prefix}carac-valor" placeholder="Ej: 145 mm" value="${valor.replace(/"/g,'&quot;')}" style="width:100%;"></td>
-      <td style="text-align:center;"><button type="button" class="btn-ghost btn-square ${prefix}carac-quitar" title="Quitar"><i class="fas fa-trash"></i></button></td>
-    `;
-    tr.querySelector(`.${prefix}carac-quitar`).addEventListener('click', () => tr.remove());
-    tbody.appendChild(tr);
-  }
-
-  function renderRepuestosRelacionados(prefix, lista) {
-    const tbody = qsp(prefix, 'tbody-repuestos');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    const items = Array.isArray(lista) ? lista : [];
-    if (!items.length) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#888; padding:8px;">Sin repuestos relacionados</td></tr>`;
-      return;
-    }
-    items.forEach(r => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${r.codigo || '-'}</td>
-        <td>${r.descripcion || '-'}</td>
-        <td>${r.nota || ''}</td>
-        <td style="text-align:center;"><button type="button" class="btn-ghost btn-square" title="Quitar"><i class="fas fa-trash"></i></button></td>
-      `;
-      tr.querySelector('button').addEventListener('click', async () => {
-        if (!productoSeleccionado) return;
-        try {
-          const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/repuestos/${encodeURIComponent(r.id)}`, { method: 'DELETE' });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error || 'Error al quitar');
-          cargarRepuestosRelacionados(prefix, productoSeleccionado.id);
-        } catch (e) {
-          console.error(e);
-          alert('No se pudo quitar el repuesto relacionado');
-        }
-      });
-      tbody.appendChild(tr);
-    });
-  }
-
-  async function poblarSelectRepuestos(prefix, productoId) {
-    const sel = qsp(prefix, 'rel-producto');
-    if (!sel) return;
-    try {
-      const res = await fetch('/api/productos');
-      const data = await res.json();
-      const listado = (Array.isArray(data) ? data : []).filter(p => String(p.id) !== String(productoId));
-      sel.innerHTML = '<option value="">Seleccione un repuesto</option>';
-      listado.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = `${p.codigo || ''} - ${p.descripcion || ''}`;
-        sel.appendChild(opt);
-      });
-    } catch (e) {
-      console.error('Error poblando select de repuestos:', e);
-      sel.innerHTML = '<option value="">(sin datos)</option>';
-    }
-  }
-
-  async function cargarCaracteristicas(prefix, productoId) {
-    try {
-      const res = await fetch(`/api/productos/${encodeURIComponent(productoId)}/caracteristicas`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error características');
-      renderCaracteristicas(prefix, data);
-    } catch (e) {
-      console.error('Error cargarCaracteristicas:', e);
-      renderCaracteristicas(prefix, []);
-    }
-  }
-
-  async function cargarRepuestosRelacionados(prefix, productoId) {
-    try {
-      const res = await fetch(`/api/productos/${encodeURIComponent(productoId)}/repuestos`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error repuestos relacionados');
-      renderRepuestosRelacionados(prefix, data);
-    } catch (e) {
-      console.error('Error cargarRepuestosRelacionados:', e);
-      renderRepuestosRelacionados(prefix, []);
-    }
-  }
-
-  function cargarFichaTecnica(prefix, prod) {
-    if (!prod) return;
-    bindFichaTecnica(prefix);
-    renderFotoPreview(prefix, prod.foto_principal || prod.foto_url);
-    cargarCaracteristicas(prefix, prod.id);
-    cargarRepuestosRelacionados(prefix, prod.id);
-    poblarSelectRepuestos(prefix, prod.id);
-  }
-
-  // ---- Versión solo lectura (panel lateral): sin botones de edición ----
-  function renderCaracteristicasSoloLectura(prefix, lista) {
-    const tbody = qsp(prefix, 'tbody-caracteristicas');
-    if (!tbody) return;
-    const items = Array.isArray(lista) ? lista : [];
-    if (!items.length) {
-      tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#888; padding:8px;">Sin características cargadas</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = items.map(it => `<tr><td>${it.clave || '-'}</td><td>${it.valor || '-'}</td></tr>`).join('');
-  }
-
-  function renderRepuestosRelacionadosSoloLectura(prefix, lista) {
-    const tbody = qsp(prefix, 'tbody-repuestos');
-    if (!tbody) return;
-    const items = Array.isArray(lista) ? lista : [];
-    if (!items.length) {
-      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#888; padding:8px;">Sin repuestos relacionados</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = items.map(r => `<tr><td>${r.codigo || '-'}</td><td>${r.descripcion || '-'}</td><td>${r.nota || ''}</td></tr>`).join('');
-  }
-
-  async function cargarFichaTecnicaSoloLectura(prefix, prod) {
-    if (!prod) return;
-    renderFotoPreview(prefix, prod.foto_principal || prod.foto_url);
-    try {
-      const res = await fetch(`/api/productos/${encodeURIComponent(prod.id)}/caracteristicas`);
-      const data = await res.json();
-      renderCaracteristicasSoloLectura(prefix, res.ok ? data : []);
-    } catch (e) {
-      console.error('Error cargarFichaTecnicaSoloLectura (características):', e);
-      renderCaracteristicasSoloLectura(prefix, []);
-    }
-    try {
-      const res = await fetch(`/api/productos/${encodeURIComponent(prod.id)}/repuestos`);
-      const data = await res.json();
-      renderRepuestosRelacionadosSoloLectura(prefix, res.ok ? data : []);
-    } catch (e) {
-      console.error('Error cargarFichaTecnicaSoloLectura (repuestos):', e);
-      renderRepuestosRelacionadosSoloLectura(prefix, []);
-    }
-  }
-
-  const fichaTecnicaBound = {};
-  function bindFichaTecnica(prefix) {
-    if (fichaTecnicaBound[prefix]) return;
-    fichaTecnicaBound[prefix] = true;
-
-    const fotoInput = qsp(prefix, 'foto-input');
-    if (fotoInput) fotoInput.addEventListener('change', async () => {
-      if (!productoSeleccionado || !fotoInput.files || !fotoInput.files[0]) return;
-      const status = qsp(prefix, 'foto-status');
-      if (status) status.textContent = 'Subiendo...';
-      try {
-        const url = await subirFotoProducto(fotoInput.files[0], productoSeleccionado.id);
-        const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/foto`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ foto_url: url })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Error al guardar la foto');
-        productoSeleccionado.foto_url = url;
-        renderFotoPreview(prefix, url);
-        if (status) status.textContent = 'Foto actualizada';
-      } catch (e) {
-        console.error(e);
-        if (status) status.textContent = '';
-        alert('No se pudo subir la foto');
-      } finally {
-        fotoInput.value = '';
-      }
-    });
-
-    const btnAddCarac = qsp(prefix, 'btn-add-caracteristica');
-    if (btnAddCarac) btnAddCarac.addEventListener('click', () => agregarFilaCaracteristica(prefix));
-
-    const btnGuardarCarac = qsp(prefix, 'btn-guardar-caracteristicas');
-    if (btnGuardarCarac) btnGuardarCarac.addEventListener('click', async () => {
-      if (!productoSeleccionado) return alert('Selecciona un producto');
-      const filas = Array.from(document.querySelectorAll(`#${prefix}tbody-caracteristicas tr`));
-      const items = filas.map(tr => ({
-        clave: tr.querySelector(`.${prefix}carac-clave`)?.value || '',
-        valor: tr.querySelector(`.${prefix}carac-valor`)?.value || ''
-      })).filter(it => it.clave.trim());
-      try {
-        const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/caracteristicas`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Error al guardar');
-        alert('Características actualizadas');
-        cargarCaracteristicas(prefix, productoSeleccionado.id);
-      } catch (e) {
-        console.error(e);
-        alert('No se pudieron guardar las características');
-      }
-    });
-
-    const btnAddRepuesto = qsp(prefix, 'btn-add-repuesto');
-    if (btnAddRepuesto) btnAddRepuesto.addEventListener('click', async () => {
-      if (!productoSeleccionado) return alert('Selecciona un producto');
-      const sel = qsp(prefix, 'rel-producto');
-      const notaEl = qsp(prefix, 'rel-nota');
-      const repuestoId = sel && sel.value;
-      if (!repuestoId) return alert('Seleccione un repuesto');
-      try {
-        const res = await fetch(`/api/productos/${encodeURIComponent(productoSeleccionado.id)}/repuestos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ repuesto_id: repuestoId, nota: notaEl ? notaEl.value : '' })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Error al agregar');
-        if (sel) sel.value = '';
-        if (notaEl) notaEl.value = '';
-        cargarRepuestosRelacionados(prefix, productoSeleccionado.id);
-      } catch (e) {
-        console.error(e);
-        alert('No se pudo agregar el repuesto relacionado');
-      }
-    });
-  }
-
-  // Ficha completa en pantalla completa (pestaña propia); si el script no cargó, modal viejo
-  function abrirFicha(prod){
-    if (window.abrirFichaProducto) window.abrirFichaProducto(prod.id, prod.codigo);
-    else abrirModalProducto(prod);
-  }
-
-  function abrirModalProducto(prod){
-    if (prod){
-      // Seleccionar y rellenar detalle
-      productoSeleccionado = prod;
-      setDetalleModal(prod);
-    } else if (productoSeleccionado){
-      setDetalleModal(productoSeleccionado);
-    } else {
-      return alert('Selecciona un producto');
-    }
-    cargarStockModal(productoSeleccionado.id);
-    const modal = document.getElementById('modal-producto');
-    if (modal && typeof modal._cargarPreciosProductoMd === 'function') {
-      modal._cargarPreciosProductoMd(productoSeleccionado.id);
-    }
-    cargarFichaTecnica('md-', productoSeleccionado);
-    if (modal) modal.style.display = 'flex';
-    // Volver a la primera pestaña por defecto
-    const modalTabs = modal.querySelectorAll('.erp-tab-btn'); modalTabs.forEach(b=>b.classList.remove('active')); if (modalTabs[0]) modalTabs[0].classList.add('active');
-    MD_TABS.forEach((id,idx)=>{ const el=document.getElementById(id); if(el) el.style.display = idx===0?'' : 'none'; });
   }
 
   // Si ya está visible

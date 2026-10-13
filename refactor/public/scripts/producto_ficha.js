@@ -230,13 +230,26 @@
             </tr>`).join('')}</tbody></table>`;
       }
       case 'relacionados': {
-        const internos = d.relacionados.length ? `
+        // Vinculos entre productos del ERP (reciprocos). En modo Editar se agregan/quitan al instante.
+        const vincular = ed ? `
+          <div class="pf-mov-form">
+            <div style="flex:2; min-width:240px;"><label>Producto del ERP</label>
+              <input data-rel="producto" list="pf-dl-productos-${st.id}" placeholder="Escribí código o descripción..." style="width:100%; box-sizing:border-box;">
+              <datalist id="pf-dl-productos-${st.id}">${productosParaVincular(st).map((p) => `<option value="${esc(p.codigo)} — ${esc(p.descripcion || '')}"></option>`).join('')}</datalist>
+            </div>
+            <div style="flex:1; min-width:160px;"><label>Nota (opcional)</label><input data-rel="nota" style="width:100%; box-sizing:border-box;"></div>
+            <button class="pf-btn azul" data-act="rel-vincular" type="button"><i class="fas fa-link"></i> Vincular</button>
+          </div>` : '';
+        const internos = d.relacionados.length || ed ? `
           <div class="pf-seccion">
             <div class="pf-subtitulo"><i class="fas fa-link"></i> Repuestos vinculados en el ERP</div>
-            <table class="pf-tabla"><thead><tr><th>Código</th><th>Descripción</th><th>Nota</th><th></th></tr></thead><tbody>
+            ${vincular}
+            ${d.relacionados.length ? `<table class="pf-tabla"><thead><tr><th>Código</th><th>Descripción</th><th>Nota</th><th></th></tr></thead><tbody>
               ${d.relacionados.map((r) => `<tr><td class="pf-codigo-mono">${esc(r.codigo)}</td><td>${esc(r.descripcion)}</td><td>${esc(r.nota || '')}</td>
-                <td class="acciones"><button class="pf-btn chico" data-act="abrir-producto" data-id="${r.producto_id}" data-codigo="${esc(r.codigo)}">Abrir ficha</button></td></tr>`).join('')}
-            </tbody></table>
+                <td class="acciones">${ed
+                  ? `<button class="pf-btn chico peligro" data-act="rel-quitar" data-rel-id="${r.id}" title="Quitar vínculo"><i class="fas fa-link-slash"></i> Quitar</button>`
+                  : `<button class="pf-btn chico" data-act="abrir-producto" data-id="${r.producto_id}" data-codigo="${esc(r.codigo)}">Abrir ficha</button>`}</td></tr>`).join('')}
+            </tbody></table>` : '<div class="pf-nota">Todavía no hay repuestos vinculados.</div>'}
           </div>` : '';
         const partes = d.partes.length ? `
           <div class="pf-seccion">
@@ -320,6 +333,8 @@
         case 'foto-borrar': e.stopPropagation(); await fotoBorrar(root, Number(btn.dataset.foto)); break;
         case 'fila-agregar': leerTablas(root); st.draft[btn.dataset.tabla].push({}); render(root); break;
         case 'fila-borrar': leerTablas(root); st.draft[btn.dataset.tabla].splice(Number(btn.dataset.fila), 1); render(root); break;
+        case 'rel-vincular': await vincularRepuesto(root, btn); break;
+        case 'rel-quitar': await quitarVinculo(root, Number(btn.dataset.relId)); break;
         default: break;
       }
     });
@@ -366,7 +381,14 @@
     };
     st.preciosOriginales = JSON.stringify(st.draft.precios);
     st.editando = true;
-    if (!['tecnica', 'aplicaciones', 'equivalencias'].includes(st.tab)) st.tab = 'tecnica';
+    if (!['tecnica', 'aplicaciones', 'equivalencias', 'relacionados'].includes(st.tab)) st.tab = 'tecnica';
+    // Lista de productos para el buscador de "Vincular repuesto" (se pide una vez)
+    if (!cacheProductos.lista && !cacheProductos.cargando) {
+      cacheProductos.cargando = api('/api/productos')
+        .then((l) => { cacheProductos.lista = Array.isArray(l) ? l : []; if (st.editando && st.tab === 'relacionados') { leerTablas(root); render(root); } })
+        .catch(() => { cacheProductos.lista = []; })
+        .finally(() => { cacheProductos.cargando = null; });
+    }
     render(root);
   }
 
@@ -435,6 +457,42 @@
     if (!f || !confirm('¿Eliminar esta foto?')) return;
     try { await api(`/api/productos/${st.id}/fotos/${f.id}`, { method: 'DELETE' }); }
     catch (e) { alert(e.message); }
+    await recargarConservandoEdicion(root);
+  }
+
+  // ---- Repuestos vinculados entre productos del ERP ----
+  const cacheProductos = { lista: null, cargando: null };
+
+  function productosParaVincular(st) {
+    const yaVinculados = new Set(st.data.relacionados.map((r) => String(r.producto_id)));
+    return (cacheProductos.lista || []).filter((p) => String(p.id) !== String(st.id) && !yaVinculados.has(String(p.id)));
+  }
+
+  async function vincularRepuesto(root, btn) {
+    const st = root._pf;
+    const input = root.querySelector('[data-rel="producto"]');
+    const nota = root.querySelector('[data-rel="nota"]');
+    const texto = (input && input.value || '').trim();
+    if (!texto) { alert('Elegí un producto de la lista.'); return; }
+    // El valor elegido es "CODIGO — descripcion"; tambien se acepta el codigo solo
+    const codigo = texto.split(' — ')[0].trim().toLowerCase();
+    const prod = productosParaVincular(st).find((p) => String(p.codigo || '').trim().toLowerCase() === codigo);
+    if (!prod) { alert('No se encontró ese producto (o ya está vinculado). Elegilo de la lista.'); return; }
+    btn.disabled = true;
+    try {
+      await api(`/api/productos/${st.id}/repuestos`, { method: 'POST', body: JSON.stringify({ repuesto_id: prod.id, nota: nota ? nota.value : '' }) });
+      await recargarConservandoEdicion(root);
+    } catch (e) {
+      alert(e.message || 'No se pudo vincular');
+      btn.disabled = false;
+    }
+  }
+
+  async function quitarVinculo(root, relId) {
+    const st = root._pf;
+    if (!relId || !confirm('¿Quitar este vínculo? (también desaparece de la ficha del otro producto)')) return;
+    try { await api(`/api/productos/${st.id}/repuestos/${relId}`, { method: 'DELETE' }); }
+    catch (e) { alert(e.message || 'No se pudo quitar'); }
     await recargarConservandoEdicion(root);
   }
 
