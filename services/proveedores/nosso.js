@@ -328,4 +328,16 @@ async function descargarImagen(url) {
   return { data: buf, mime };
 }
 
-module.exports = { PREFIJO, buscar, leerFicha, descargarImagen, urlFicha };
+module.exports = {
+  ID: 'nosso',
+  NOMBRE: 'Nosso',
+  PREFIJO,
+  EJEMPLO: 'RNB 145298',
+  // Que se puede buscar en este proveedor (se muestra en el importador)
+  AYUDA: 'Código Nosso (ej: RNB 145298), código de otra marca (equivalencia) o URL de la ficha',
+  credencialesCargadas: () => !!(process.env.NOSSO_EMAIL && process.env.NOSSO_PASSWORD),
+  buscar,
+  leerFicha,
+  descargarImagen,
+  urlFicha
+};

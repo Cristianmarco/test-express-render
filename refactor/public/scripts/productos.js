@@ -208,7 +208,7 @@
       ${d.error ? `<div class="prod-nd" style="margin:10px 0; color:#b91c1c;">${escHtml(d.error)}</div>` : ''}
       ${preciosHtml}
       ${stockHtml}
-      ${specs.length ? `<div class="prod-rapida-bloque"><div class="prod-rapida-titulo">Técnica</div>${specs.map((c) => `<div class="prod-rapida-fila"><span>${escHtml(c.clave)}</span><b>${escHtml(c.valor)}</b></div>`).join('')}</div>` : ''}
+      ${specs.length ? `<div class="prod-rapida-bloque"><div class="prod-rapida-titulo">Técnica</div>${specs.map((c) => `<div class="prod-rapida-fila"><span>${c.cota ? `${escHtml(c.cota)} · ` : ''}${escHtml(c.clave)}</span><b>${escHtml(c.valor)}${c.unidad && c.valor_num != null ? ` ${escHtml(c.unidad)}` : ''}</b></div>`).join('')}</div>` : ''}
       ${codigos.length ? `<div class="prod-rapida-bloque"><div class="prod-rapida-titulo">Códigos de barras</div><div class="pf-meta">${codigos.map((c) => `<span class="pf-chip"><i class="fas fa-barcode"></i> ${escHtml(c)}</span>`).join('')}</div></div>` : ''}
       ${contadores.length ? `<div class="prod-nd" style="margin-top:8px;">${contadores.join(' · ')}</div>` : ''}
       <button type="button" class="pf-btn primario prod-rapida-abrir" data-abrir-ficha><i class="fas fa-up-right-from-square"></i> Abrir ficha completa</button>`;

@@ -115,7 +115,7 @@
               ${d.iva_tipo ? `<span class="pf-chip">IVA ${esc(d.iva_tipo)}%</span>` : ''}
             </div>
             ${renderPrecioCard(st, precios, calc)}
-            ${!ed && d.caracteristicas.length ? `<div class="pf-meta">${d.caracteristicas.slice(0, 6).map((c) => `<span class="pf-chip spec">${esc(c.clave)}: <b>${esc(c.valor)}</b></span>`).join('')}</div>` : ''}
+            ${!ed && d.caracteristicas.length ? `<div class="pf-meta">${d.caracteristicas.slice(0, 6).map((c) => `<span class="pf-chip spec">${c.cota ? `${esc(c.cota)} · ` : ''}${esc(c.clave)}: <b>${esc(conUnidad(c))}</b></span>`).join('')}</div>` : ''}
             ${d.proveedor_sync_at ? `<div class="pf-nota"><i class="fas fa-cloud-arrow-down"></i> Actualizado desde ${esc(d.proveedor || 'el proveedor')} el ${esc(fechaHora(d.proveedor_sync_at))}</div>` : ''}
           </div>
         </div>
@@ -202,9 +202,12 @@
     const ed = st.editando;
     switch (st.tab) {
       case 'tecnica': {
-        if (ed) return tablaEditable('caracteristicas', [['clave', 'Característica'], ['valor', 'Valor']], st.draft.caracteristicas);
+        if (ed) {
+          return `<div class="pf-nota" style="margin-bottom:8px;">La <b>cota</b> es la letra del plano (A, B, C…). Las medidas se guardan como número para el buscador técnico; los nombres se unifican solos (ej: "Diametro fijacion" → "Distancia entre fijación").</div>`
+            + tablaEditable('caracteristicas', [['cota', 'Cota'], ['clave', 'Característica'], ['valor', 'Valor']], st.draft.caracteristicas);
+        }
         if (!d.caracteristicas.length) return '<div class="pf-vacio">Sin especificaciones técnicas.</div>';
-        return `<div class="pf-specs">${d.caracteristicas.map((c) => `<div class="pf-spec"><span>${esc(c.clave)}</span><span>${esc(c.valor)}</span></div>`).join('')}</div>`;
+        return renderTecnica(d);
       }
       case 'aplicaciones': {
         if (ed) return tablaEditable('aplicaciones', [['marca', 'Marca'], ['modelo', 'Modelo'], ['detalle', 'Detalle']], st.draft.aplicaciones);
@@ -292,6 +295,62 @@
     }
   }
 
+  // "72.5" + "mm" -> "72.5 mm"
+  const conUnidad = (c) => `${c.valor}${c.unidad && c.valor_num != null ? ` ${c.unidad}` : ''}`;
+  const fmtMedida = (n) => Number(n).toLocaleString('es-AR', { maximumFractionDigits: 2 });
+
+  // Pestaña Tecnica: cuadro de medidas (con el plano al lado), medidas del carbon y el resto
+  function renderTecnica(d) {
+    const carac = d.caracteristicas;
+    const esEscobilla = (c) => /^escobilla - /i.test(c.clave);
+    // Medidas: las que tienen cota del plano o son longitudes en mm
+    const medidas = carac.filter((c) => !esEscobilla(c) && (c.cota || (c.unidad === 'mm' && c.valor_num != null)))
+      .sort((a, b) => (a.cota || '~').localeCompare(b.cota || '~'));
+    const escobilla = carac.filter(esEscobilla);
+    const otros = carac.filter((c) => !medidas.includes(c) && !escobilla.includes(c));
+    const plano = d.fotos.findIndex((f) => f.plano);
+
+    const cuadro = medidas.length ? `
+      <div class="pf-seccion">
+        <div class="pf-subtitulo"><i class="fas fa-ruler-combined"></i> Cuadro de medidas</div>
+        <div class="pf-medidas">
+          <table class="pf-tabla pf-tabla-medidas">
+            <thead><tr><th style="width:60px;">Cota</th><th>Medida</th><th style="text-align:right;">Valor</th></tr></thead>
+            <tbody>${medidas.map((c) => `
+              <tr>
+                <td>${c.cota ? `<span class="pf-cota">${esc(c.cota)}</span>` : '<span class="pf-nota">—</span>'}</td>
+                <td>${esc(c.clave)}</td>
+                <td style="text-align:right;"><b>${c.valor_num != null ? esc(fmtMedida(c.valor_num)) : esc(c.valor)}</b> ${esc(c.valor_num != null ? (c.unidad || '') : '')}</td>
+              </tr>`).join('')}</tbody>
+          </table>
+          ${plano >= 0 ? `<button type="button" class="pf-plano" data-act="ver-foto" data-foto="${plano}" title="Ver plano ampliado"><img src="${esc(d.fotos[plano].url)}" alt="Plano"></button>` : ''}
+        </div>
+      </div>` : '';
+
+    let carbon = '';
+    if (escobilla.length) {
+      const parte = (n) => escobilla.find((c) => c.clave.toLowerCase().endsWith(n));
+      const a = parte('ancho'), h = parte('alto'), l = parte('largo');
+      carbon = `
+        <div class="pf-seccion">
+          <div class="pf-subtitulo"><i class="fas fa-cube"></i> Escobilla (carbón)</div>
+          <div class="pf-carbon">
+            ${[['Ancho', a], ['Alto', h], ['Largo', l]].filter(([, c]) => c).map(([n, c]) => `
+              <div><span>${n}</span><b>${esc(fmtMedida(c.valor_num != null ? c.valor_num : c.valor))}</b><small>${esc(c.unidad || '')}</small></div>`).join('')}
+            ${a && h && l ? `<div class="pf-carbon-total"><span>Ancho × alto × largo</span><b>${esc(fmtMedida(a.valor_num))} × ${esc(fmtMedida(h.valor_num))} × ${esc(fmtMedida(l.valor_num))}</b><small>mm</small></div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    const resto = otros.length ? `
+      <div class="pf-seccion">
+        ${cuadro || carbon ? '<div class="pf-subtitulo"><i class="fas fa-list"></i> Otras características</div>' : ''}
+        <div class="pf-specs">${otros.map((c) => `<div class="pf-spec"><span>${esc(c.clave)}</span><span>${esc(conUnidad(c))}</span></div>`).join('')}</div>
+      </div>` : '';
+
+    return cuadro + carbon + resto;
+  }
+
   function tablaEditable(nombre, cols, filas) {
     return `
       <table class="pf-tabla" data-editable="${nombre}">
@@ -326,6 +385,7 @@
         case 'guardar': guardar(root, btn); break;
         case 'sync': ImportadorProveedor.abrir({ url: st.data.proveedor_url, productoId: st.id, alTerminar: () => cargar(root) }); break;
         case 'ampliar': abrirVisor(st.data.fotos, st.fotoActiva); break;
+        case 'ver-foto': abrirVisor(st.data.fotos, Number(btn.dataset.foto) || 0); break;
         case 'copiar': copiar(btn.dataset.valor, btn); break;
         case 'abrir-producto': abrirFichaProducto(btn.dataset.id, btn.dataset.codigo); break;
         case 'importar-parte': ImportadorProveedor.abrir({ url: btn.dataset.url, alTerminar: () => cargar(root) }); break;
@@ -622,33 +682,78 @@
       else mostrarBuscador(opts.busqueda || '');
     }
 
-    function mostrarBuscador(texto) {
-      cuerpo().innerHTML = `
-        <h2><i class="fas fa-cloud-arrow-down"></i> Importar producto desde proveedor</h2>
-        <div class="pfi-sub">Proveedor: <b>Nosso</b>. Buscá por código (ej: RNB 145298), por código de otra marca (equivalencia) o pegá la URL de la ficha.</div>
-        <form class="pfi-buscar">
-          <input name="q" value="${esc(texto)}" placeholder="Código, equivalencia o URL de Nosso..." autocomplete="off" required>
-          <button class="pf-btn primario" type="submit"><i class="fas fa-search"></i> Buscar</button>
-        </form>
-        <div class="pfi-resultados"></div>`;
-      const form = cuerpo().querySelector('form');
-      const input = form.querySelector('input');
-      input.focus();
-      form.addEventListener('submit', (e) => { e.preventDefault(); buscar(input.value); });
-      if (texto) buscar(texto);
+    // ---- Selector de proveedor ----
+    let proveedores = null;
+    const PREF_PROVEEDOR = 'erp_importar_proveedor';
+
+    async function cargarProveedores() {
+      if (proveedores) return proveedores;
+      try { proveedores = await api('/api/productos/importar/proveedores'); }
+      catch { proveedores = []; }
+      return proveedores;
     }
 
-    async function buscar(q) {
+    function proveedorPreferido() {
+      let id = null;
+      try { id = localStorage.getItem(PREF_PROVEEDOR); } catch (_) {}
+      const disponibles = proveedores.filter((p) => p.configurado);
+      return (disponibles.find((p) => p.id === id) || disponibles[0] || proveedores[0] || null);
+    }
+
+    async function mostrarBuscador(texto) {
+      cuerpo().innerHTML = '<div class="pfi-estado"><i class="fas fa-spinner fa-spin"></i></div>';
+      await cargarProveedores();
+      if (!proveedores.length) {
+        cuerpo().innerHTML = '<div class="pfi-estado error">No hay proveedores configurados para importar.</div>';
+        return;
+      }
+      const actual = proveedorPreferido();
+      cuerpo().innerHTML = `
+        <h2><i class="fas fa-cloud-arrow-down"></i> Importar producto desde proveedor</h2>
+        <div class="pfi-sub">Elegí el proveedor y escribí el código del artículo.</div>
+        <form class="pfi-buscar">
+          <select name="proveedor" class="pfi-proveedor" title="Proveedor">
+            ${proveedores.map((p) => `<option value="${esc(p.id)}" ${p.id === actual.id ? 'selected' : ''} ${p.configurado ? '' : 'disabled'}>${esc(p.nombre)}${p.configurado ? '' : ' (sin credenciales)'}</option>`).join('')}
+          </select>
+          <input name="q" value="${esc(texto)}" autocomplete="off" required>
+          <button class="pf-btn primario" type="submit"><i class="fas fa-search"></i> Buscar</button>
+        </form>
+        <div class="pfi-ayuda"></div>
+        <div class="pfi-resultados"></div>`;
+      const form = cuerpo().querySelector('form');
+      const input = form.querySelector('input[name="q"]');
+      const select = form.querySelector('select');
+      const ayuda = cuerpo().querySelector('.pfi-ayuda');
+      const aplicarProveedor = () => {
+        const p = proveedores.find((x) => x.id === select.value) || actual;
+        input.placeholder = `Código del artículo en ${p.nombre} (ej: ${p.ejemplo || ''})`;
+        ayuda.innerHTML = `<i class="fas fa-circle-info"></i> ${esc(p.ayuda || '')}${p.prefijo ? ` · Se crea con el prefijo <b>${esc(p.prefijo)}</b>` : ''}`;
+      };
+      aplicarProveedor();
+      select.addEventListener('change', () => {
+        try { localStorage.setItem(PREF_PROVEEDOR, select.value); } catch (_) {}
+        aplicarProveedor();
+        if (input.value.trim()) buscar(input.value, select.value);
+        input.focus();
+      });
+      input.focus();
+      form.addEventListener('submit', (e) => { e.preventDefault(); buscar(input.value, select.value); });
+      if (texto) buscar(texto, select.value);
+    }
+
+    async function buscar(q, proveedorId) {
       const zona = cuerpo().querySelector('.pfi-resultados');
-      zona.innerHTML = '<div class="pfi-estado"><i class="fas fa-spinner fa-spin"></i> Buscando en Nosso...</div>';
+      const prov = (proveedores || []).find((p) => p.id === proveedorId);
+      const nombre = prov ? prov.nombre : 'el proveedor';
+      zona.innerHTML = `<div class="pfi-estado"><i class="fas fa-spinner fa-spin"></i> Buscando en ${esc(nombre)}...</div>`;
       try {
-        const items = await api(`/api/productos/importar/buscar?q=${encodeURIComponent(q.trim())}`);
-        if (!items.length) { zona.innerHTML = '<div class="pfi-estado">Sin resultados en Nosso.</div>'; return; }
+        const items = await api(`/api/productos/importar/buscar?proveedor=${encodeURIComponent(proveedorId || '')}&q=${encodeURIComponent(q.trim())}`);
+        if (!items.length) { zona.innerHTML = `<div class="pfi-estado">Sin resultados en ${esc(nombre)}.</div>`; return; }
         zona.innerHTML = items.map((it, i) => `
           <button type="button" class="pfi-item" data-i="${i}">
             <img src="${esc(it.foto || '')}" alt="" onerror="this.style.visibility='hidden'">
             <div><div class="cod">${esc(it.codigo)}${it.producto_id ? '<span class="pf-badge-erp">Ya está en el ERP</span>' : ''}</div><div class="desc">${esc(it.descripcion)}</div>${it.codigo_erp && !it.producto_id ? `<div class="pf-nota">Se crea como ${esc(it.codigo_erp)}</div>` : ''}</div>
-            <div class="der">${it.precio_costo != null ? `Costo<br><b>${pesos(it.precio_costo)}</b>` : ''}${it.stock ? `<div>${esc(it.stock)}</div>` : ''}</div>
+            <div class="der">${it.precio_costo != null ? `Costo<br><b>${pesos(it.precio_costo)}</b>` : (it.precio_lista != null ? `Lista<br><b>${pesos(it.precio_lista)}</b>` : '')}${it.stock ? `<div>${esc(it.stock)}</div>` : ''}</div>
           </button>`).join('');
         zona.querySelectorAll('.pfi-item').forEach((b) => b.addEventListener('click', () => {
           const it = items[Number(b.dataset.i)];
@@ -696,7 +801,7 @@
           <div>
             ${pr ? `
               <div class="pf-precio-card">
-                <div class="pf-precio-fila"><span>Precio de lista (+IVA ${esc(pr.iva_pct)}%)</span><span>${pesos(lista)}</span></div>
+                <div class="pf-precio-fila"><span>Precio de lista${pr.iva_pct != null ? ` (+IVA ${esc(pr.iva_pct)}%)` : (pr.incluye_iva ? ' (IVA incluido)' : ' (+IVA)')}</span><span>${pesos(lista)}</span></div>
                 <div class="pf-precio-fila"><span>Bonificación ${pct(pr.bonificacion_pct)} · Pronto pago ${pct(pr.pronto_pago_pct)}</span><span></span></div>
                 <div class="pf-precio-fila costo"><span>Costo</span><span>${pesos(costo)}</span></div>
                 ${existente ? '' : `<div class="pf-listas">${MARGENES_IMPORTACION.map((m, i) => `

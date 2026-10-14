@@ -6,7 +6,8 @@ const router = express.Router();
 const db = require('../db');
 const { insertDomainAudit } = require('../utils/domain-audit');
 const { asegurarTablaCodigosBarra, agregarCodigoBarra, SQL_CODIGOS_BARRA } = require('../utils/codigos-barra');
-const nosso = require('../services/proveedores/nosso');
+const { lectorPorId, lectorDesdeUrl, listarProveedores } = require('../services/proveedores');
+const { normalizarCaracteristicas } = require('../utils/caracteristicas');
 
 const AUDIT_DOMAIN = 'productos';
 // Rentabilidad (%) de las listas 1 a 6 al importar un producto nuevo.
@@ -67,6 +68,12 @@ function asegurarEsquema() {
           orden INTEGER NOT NULL DEFAULT 0,
           created_at TIMESTAMP NOT NULL DEFAULT NOW()
         )`);
+      // Para el cuadro de medidas y el buscador tecnico: cota del plano (A, B...),
+      // unidad y valor numerico
+      await db.query(`ALTER TABLE producto_caracteristicas ADD COLUMN IF NOT EXISTS cota TEXT`);
+      await db.query(`ALTER TABLE producto_caracteristicas ADD COLUMN IF NOT EXISTS unidad TEXT`);
+      await db.query(`ALTER TABLE producto_caracteristicas ADD COLUMN IF NOT EXISTS valor_num NUMERIC`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_prod_caract_clave_num ON producto_caracteristicas(lower(clave), valor_num)`);
       await db.query(`
         CREATE TABLE IF NOT EXISTS producto_aplicaciones (
           id SERIAL PRIMARY KEY,
@@ -105,9 +112,18 @@ function asegurarEsquema() {
 // Codigo comparable: sin espacios ni signos, en mayusculas ("RNB 145298" = "rnb-145298")
 const codigoNormalizado = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-function lectorDesdeUrl(url) {
-  if (nosso.urlFicha(url)) return nosso;
-  return null;
+// Reemplaza las caracteristicas de un producto, normalizadas (nombres unificados,
+// cotas del plano, unidad y valor numerico para el buscador tecnico)
+async function guardarCaracteristicas(client, pid, lista) {
+  const items = normalizarCaracteristicas(lista);
+  await client.query(`DELETE FROM producto_caracteristicas WHERE producto_id = $1`, [pid]);
+  let i = 0;
+  for (const it of items) {
+    await client.query(
+      `INSERT INTO producto_caracteristicas (producto_id, clave, valor, cota, unidad, valor_num, orden) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [pid, it.clave, it.valor, it.cota, it.unidad, it.valor_num, i++]
+    );
+  }
 }
 
 function urlFoto(fotoId) {
@@ -253,8 +269,8 @@ router.get('/:id(\\d+)/ficha', async (req, res) => {
     if (!prod.rowCount) return res.status(404).json({ error: 'Producto no encontrado' });
 
     const [fotos, caracteristicas, aplicaciones, equivalencias, partes, relacionados, stock, precios] = await Promise.all([
-      db.query(`SELECT id, orden FROM producto_fotos WHERE producto_id = $1 AND data IS NOT NULL ORDER BY orden, id`, [pid]),
-      db.query(`SELECT clave, valor FROM producto_caracteristicas WHERE producto_id = $1 ORDER BY orden, id`, [pid]),
+      db.query(`SELECT id, orden, origen_url FROM producto_fotos WHERE producto_id = $1 AND data IS NOT NULL ORDER BY orden, id`, [pid]),
+      db.query(`SELECT clave, valor, cota, unidad, valor_num FROM producto_caracteristicas WHERE producto_id = $1 ORDER BY orden, id`, [pid]),
       db.query(`SELECT marca, modelo, detalle FROM producto_aplicaciones WHERE producto_id = $1 ORDER BY orden, id`, [pid]),
       db.query(`SELECT fabricante, codigo FROM producto_equivalencias WHERE producto_id = $1 ORDER BY id`, [pid]),
       // Si la parte ya existe en el ERP se devuelve su id para enlazarla. El prefijo
@@ -292,7 +308,8 @@ router.get('/:id(\\d+)/ficha', async (req, res) => {
     const p = prod.rows[0];
     res.json({
       ...p,
-      fotos: fotos.rows.map((f) => ({ id: f.id, url: urlFoto(f.id) })),
+      // "plano": imagen con las cotas de medidas (se muestra junto al cuadro de medidas)
+      fotos: fotos.rows.map((f) => ({ id: f.id, url: urlFoto(f.id), plano: /plano/i.test(f.origen_url || '') })),
       caracteristicas: caracteristicas.rows,
       aplicaciones: aplicaciones.rows,
       equivalencias: equivalencias.rows,
@@ -327,12 +344,7 @@ router.put('/:id(\\d+)/ficha', async (req, res) => {
     const secciones = [];
     if (Array.isArray(body.caracteristicas)) {
       secciones.push('caracteristicas');
-      await client.query(`DELETE FROM producto_caracteristicas WHERE producto_id = $1`, [pid]);
-      let i = 0;
-      for (const it of body.caracteristicas) {
-        if (!txt(it && it.clave)) continue;
-        await client.query(`INSERT INTO producto_caracteristicas (producto_id, clave, valor, orden) VALUES ($1,$2,$3,$4)`, [pid, txt(it.clave), txt(it.valor), i++]);
-      }
+      await guardarCaracteristicas(client, pid, body.caracteristicas);
     }
     if (Array.isArray(body.aplicaciones)) {
       secciones.push('aplicaciones');
@@ -383,12 +395,23 @@ router.get('/:id(\\d+)/historial', async (req, res) => {
 // Importacion desde proveedores
 // ============================
 
-// Busca productos en el proveedor: ?q=codigo|equivalencia|URL
+// Proveedores disponibles para el selector del importador
+router.get('/importar/proveedores', (req, res) => {
+  res.json(listarProveedores());
+});
+
+// Busca productos en un proveedor: ?proveedor=nosso&q=codigo|equivalencia|URL
+// (una URL pegada se busca en el proveedor al que pertenece)
 router.get('/importar/buscar', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();
     if (q.length < 2) return res.json([]);
-    const items = await nosso.buscar(q);
+    const lector = (/^https?:\/\//i.test(q) && lectorDesdeUrl(q)) || lectorPorId(req.query.proveedor || 'nosso');
+    if (!lector) return res.status(400).json({ error: 'Proveedor no soportado' });
+    if (typeof lector.credencialesCargadas === 'function' && !lector.credencialesCargadas()) {
+      return res.status(400).json({ error: `Faltan las credenciales de ${lector.NOMBRE} en el servidor` });
+    }
+    const items = await lector.buscar(q);
     if (!items.length) return res.json([]);
     // Marca cuales ya existen en el ERP (por codigo de fabricante o codigo con prefijo)
     await asegurarEsquema();
@@ -396,10 +419,16 @@ router.get('/importar/buscar', async (req, res) => {
       `SELECT q.cod, p.id
          FROM unnest($1::text[]) AS q(cod)
          JOIN LATERAL (SELECT id FROM productos x WHERE ${sqlCoincide('x', 'q.cod', '$2')} LIMIT 1) p ON true`,
-      [items.map((it) => codigoNormalizado(it.codigo)), codigoNormalizado(nosso.PREFIJO)]
+      [items.map((it) => codigoNormalizado(it.codigo)), codigoNormalizado(lector.PREFIJO)]
     );
     const existentes = new Map(rows.map((r) => [r.cod, r.id]));
-    res.json(items.map((it) => ({ ...it, proveedor: 'nosso', codigo_erp: codigoErp(nosso.PREFIJO, it.codigo), producto_id: existentes.get(codigoNormalizado(it.codigo)) || null })));
+    res.json(items.map((it) => ({
+      ...it,
+      proveedor: lector.ID,
+      proveedor_nombre: lector.NOMBRE,
+      codigo_erp: codigoErp(lector.PREFIJO, it.codigo),
+      producto_id: existentes.get(codigoNormalizado(it.codigo)) || null
+    })));
   } catch (e) {
     console.error('Error GET /api/productos/importar/buscar', e);
     res.status(502).json({ error: e.message || 'No se pudo consultar al proveedor' });
@@ -546,11 +575,7 @@ router.post('/importar', async (req, res) => {
     }
 
     if (op.tecnica) {
-      await client.query(`DELETE FROM producto_caracteristicas WHERE producto_id = $1`, [pid]);
-      let i = 0;
-      for (const it of ficha.especificaciones) {
-        await client.query(`INSERT INTO producto_caracteristicas (producto_id, clave, valor, orden) VALUES ($1,$2,$3,$4)`, [pid, it.clave, it.valor, i++]);
-      }
+      await guardarCaracteristicas(client, pid, ficha.especificaciones);
     }
     if (op.aplicaciones) {
       await client.query(`DELETE FROM producto_aplicaciones WHERE producto_id = $1`, [pid]);

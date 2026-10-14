@@ -303,6 +303,49 @@
 .pf-spec span:first-child { color: var(--pf-gris); }
 .pf-spec span:last-child { font-weight: 600; text-align: right; }
 
+/* Cuadro de medidas (cotas del plano) */
+.pf-medidas {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(200px, 340px);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 800px) { .pf-medidas { grid-template-columns: 1fr; } }
+.pf-tabla-medidas td { font-size: 0.95rem; }
+.pf-cota {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--pf-azul);
+  color: #fff;
+  font-weight: 700;
+}
+.pf-plano {
+  border: 1px solid var(--pf-borde);
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+  cursor: zoom-in;
+}
+.pf-plano img { width: 100%; display: block; }
+.pf-carbon { display: flex; gap: 10px; flex-wrap: wrap; }
+.pf-carbon > div {
+  min-width: 100px;
+  border: 1px solid var(--pf-borde);
+  border-radius: 10px;
+  background: var(--pf-suave);
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.pf-carbon span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--pf-gris); }
+.pf-carbon b { font-size: 1.15rem; }
+.pf-carbon small { color: var(--pf-gris); }
+.pf-carbon .pf-carbon-total { background: #eff6ff; border-color: #bfdbfe; }
+
 /* Aplicaciones agrupadas */
 .pf-grupo {
   border: 1px solid var(--pf-borde);
@@ -609,7 +652,19 @@
 .pfi-sub { color: #64748b; font-size: 0.88rem; margin-bottom: 16px; }
 .pfi-cerrar { position: absolute; top: 14px; right: 18px; background: none; border: none; font-size: 1.6rem; color: #94a3b8; cursor: pointer; }
 .pfi-buscar { display: flex; gap: 8px; }
-.pfi-buscar input { flex: 1; padding: 10px 14px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 0.95rem; }
+.pfi-buscar input { flex: 1; min-width: 0; padding: 10px 14px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 0.95rem; }
+.pfi-proveedor {
+  min-width: 150px;
+  padding: 10px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: #f8fafc;
+  cursor: pointer;
+}
+.pfi-ayuda { font-size: 0.8rem; color: #64748b; margin-top: 8px; }
+@media (max-width: 600px) { .pfi-buscar { flex-wrap: wrap; } .pfi-proveedor { width: 100%; } }
 .pfi-resultados { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow-y: auto; }
 .pfi-item {
   display: grid;
