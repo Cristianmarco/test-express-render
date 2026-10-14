@@ -696,6 +696,8 @@
 .pfi-aviso { border-radius: 10px; padding: 10px 14px; font-size: 0.88rem; margin: 10px 0; }
 .pfi-aviso.nuevo { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
 .pfi-aviso.existe { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+.pfi-aviso.dudoso { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+.pfi-eleccion { display: flex; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer; color: #1f2937; }
 .pfi-opciones { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 14px; margin: 12px 0; }
 .pfi-opciones label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; }
 .pfi-acciones { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; flex-wrap: wrap; }

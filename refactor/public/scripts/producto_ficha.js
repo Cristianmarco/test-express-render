@@ -778,6 +778,8 @@
       const f = res.ficha;
       // Si se abrio desde una ficha ("Actualizar desde proveedor") se actualiza ese producto
       const existente = opciones.productoId ? { id: opciones.productoId, codigo: res.existente ? res.existente.codigo : f.codigo } : res.existente;
+      // Coincide solo el codigo de fabricante con un producto de otra marca: hay que elegir
+      const dudoso = !opciones.productoId && !!res.existente && res.existente.misma_marca === false;
       const pr = f.precio;
       const op = [
         ['datos', 'Datos básicos (descripción, EAN, marca)', true],
@@ -811,25 +813,48 @@
             ${f.especificaciones.length ? `<div class="pf-meta" style="margin-top:10px;">${f.especificaciones.slice(0, 8).map((c) => `<span class="pf-chip spec">${esc(c.clave)}: <b>${esc(c.valor)}</b></span>`).join('')}</div>` : ''}
           </div>
         </div>
-        ${existente
-          ? `<div class="pfi-aviso existe"><i class="fas fa-circle-info"></i> El producto <b>${esc(existente.codigo)}</b> ya existe en el ERP: se va a <b>actualizar</b> con lo que marques. Las listas de precio que ya tengas cargadas no se modifican.</div>`
-          : `<div class="pfi-aviso nuevo"><i class="fas fa-circle-plus"></i> Producto nuevo: se va a <b>crear</b> en el ERP con el código <b>${esc(f.codigo_erp || f.codigo)}</b> (código de fabricante <b>${esc(f.codigo)}</b>).</div>`}
+        ${dudoso
+          ? `<div class="pfi-aviso dudoso"><i class="fas fa-triangle-exclamation"></i> Ya hay un producto con el mismo código de fabricante (<b>${esc(f.codigo)}</b>) pero de <b>otra marca</b>:
+               <b>${esc(existente.codigo)}</b>${existente.descripcion ? ` — ${esc(existente.descripcion)}` : ''}. ¿Es el mismo artículo?
+               <label class="pfi-eleccion"><input type="radio" name="pfi-destino" value="actualizar"> Sí, es el mismo: <b>actualizar ${esc(existente.codigo)}</b></label>
+               <label class="pfi-eleccion"><input type="radio" name="pfi-destino" value="nuevo"> No, es otro: <b>crear ${esc(f.codigo_erp || f.codigo)}</b> como producto nuevo</label>
+             </div>`
+          : existente
+            ? `<div class="pfi-aviso existe"><i class="fas fa-circle-info"></i> El producto <b>${esc(existente.codigo)}</b> ya existe en el ERP: se va a <b>actualizar</b> con lo que marques. Las listas de precio que ya tengas cargadas no se modifican.</div>`
+            : `<div class="pfi-aviso nuevo"><i class="fas fa-circle-plus"></i> Producto nuevo: se va a <b>crear</b> en el ERP con el código <b>${esc(f.codigo_erp || f.codigo)}</b> (código de fabricante <b>${esc(f.codigo)}</b>).</div>`}
         <div class="pfi-opciones">
           ${op.map(([k, t, hay]) => `<label><input type="checkbox" data-op="${k}" ${hay ? 'checked' : 'disabled'}> ${esc(t)}</label>`).join('')}
         </div>
         <div class="pfi-acciones">
           <button class="pf-btn" data-act="volver">← ${opciones.url ? 'Buscar otro' : 'Volver a resultados'}</button>
-          <button class="pf-btn primario" data-act="confirmar"><i class="fas fa-check"></i> ${existente ? 'Actualizar producto' : 'Crear producto'}</button>
+          <button class="pf-btn primario" data-act="confirmar" ${dudoso ? 'disabled' : ''}><i class="fas fa-check"></i> ${dudoso ? 'Elegí una opción' : (existente ? 'Actualizar producto' : 'Crear producto')}</button>
         </div>`;
       cuerpo().querySelector('[data-act="volver"]').addEventListener('click', () => { opciones = { alTerminar: opciones.alTerminar }; mostrarBuscador(busquedaPrevia || ''); });
       const btn = cuerpo().querySelector('[data-act="confirmar"]');
+      // Producto de otra marca con el mismo codigo: se actualiza solo si el usuario lo confirma
+      let destino = dudoso ? null : (existente ? 'actualizar' : 'nuevo');
+      const etiquetaBoton = () => (destino === 'actualizar' ? 'Actualizar producto' : 'Crear producto');
+      cuerpo().querySelectorAll('input[name="pfi-destino"]').forEach((rb) => rb.addEventListener('change', () => {
+        destino = rb.value;
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fas fa-check"></i> ${etiquetaBoton()}`;
+      }));
       btn.addEventListener('click', async () => {
+        if (!destino) return;
         const sel = {};
         cuerpo().querySelectorAll('[data-op]').forEach((c) => { sel[c.dataset.op] = c.checked; });
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
         try {
-          const r = await api('/api/productos/importar', { method: 'POST', body: JSON.stringify({ url: f.url, producto_id: existente ? existente.id : null, opciones: sel }) });
+          const r = await api('/api/productos/importar', {
+            method: 'POST',
+            body: JSON.stringify({
+              url: f.url,
+              producto_id: destino === 'actualizar' && existente ? existente.id : null,
+              forzar_nuevo: dudoso && destino === 'nuevo',
+              opciones: sel
+            })
+          });
           cerrar();
           document.dispatchEvent(new CustomEvent('productos:cambiados', { detail: { id: r.producto_id } }));
           if (typeof opciones.alTerminar === 'function') opciones.alTerminar(r);
@@ -837,7 +862,7 @@
         } catch (e) {
           alert(e.message || 'No se pudo importar');
           btn.disabled = false;
-          btn.innerHTML = `<i class="fas fa-check"></i> ${existente ? 'Actualizar producto' : 'Crear producto'}`;
+          btn.innerHTML = `<i class="fas fa-check"></i> ${etiquetaBoton()}`;
         }
       });
     }

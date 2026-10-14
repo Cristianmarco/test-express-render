@@ -8,8 +8,9 @@ const nosso = require('./nosso');
 const ferman = require('./ferman');
 const bmh = require('./bmh');
 const dipra = require('./dipra');
+const exintrader = require('./exintrader');
 
-const LECTORES = [nosso, ferman, bmh, dipra];
+const LECTORES = [nosso, ferman, bmh, dipra, exintrader];
 
 function lectorPorId(id) {
   const k = String(id || '').trim().toLowerCase();

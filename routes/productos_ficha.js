@@ -438,11 +438,16 @@ router.get('/importar/buscar', async (req, res) => {
 async function buscarExistente(ficha, dbClient = db) {
   await asegurarEsquema();
   const { rows } = await dbClient.query(
-    `SELECT id, codigo, codigo_fabricante, descripcion, codigo_barra FROM productos x
+    `SELECT id, codigo, codigo_fabricante, descripcion, codigo_barra,
+            -- misma_marca: el codigo del ERP tiene el prefijo de este proveedor ("EX 40100").
+            -- Si no, coincide solo el codigo de fabricante con un producto de otra marca
+            -- ("TRV 40100") y hay que confirmar si es el mismo articulo.
+            (${NORM('x.codigo')} = $3 || $1 OR $3 = '') AS misma_marca
+       FROM productos x
       WHERE ${sqlCoincide('x', '$1', '$3')}
          OR ($2::text IS NOT NULL AND EXISTS (
               SELECT 1 FROM producto_codigos_barra cb WHERE cb.producto_id = x.id AND btrim(cb.codigo) = $2))
-      ORDER BY ${sqlCoincide('x', '$1', '$3')} DESC
+      ORDER BY (${NORM('x.codigo')} = $3 || $1) DESC, ${sqlCoincide('x', '$1', '$3')} DESC
       LIMIT 1`,
     [codigoNormalizado(ficha.codigo), ficha.ean || null, codigoNormalizado(ficha.prefijo)]
   );
@@ -512,7 +517,11 @@ router.post('/importar', async (req, res) => {
     const iva = ficha.precio && ficha.precio.iva_pct != null ? String(ficha.precio.iva_pct) : null;
 
     if (creado) {
-      const dup = await buscarExistente({ ...ficha, ean: null }, client);
+      // Con forzar_nuevo (el usuario confirmo que el que coincide es de otra marca) solo
+      // se impide duplicar el mismo codigo del ERP
+      const dup = body.forzar_nuevo
+        ? (await client.query(`SELECT id, codigo FROM productos x WHERE ${NORM('x.codigo')} = $1 LIMIT 1`, [codigoNormalizado(codigoErp(ficha.prefijo, ficha.codigo))])).rows[0]
+        : await buscarExistente({ ...ficha, ean: null }, client);
       if (dup) {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: `El producto ${dup.codigo} ya existe en el ERP. Elegí "Actualizar".`, producto_id: dup.id });
