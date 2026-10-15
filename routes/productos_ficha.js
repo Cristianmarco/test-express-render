@@ -415,19 +415,21 @@ router.get('/importar/buscar', async (req, res) => {
     if (!items.length) return res.json([]);
     // Marca cuales ya existen en el ERP (por codigo de fabricante o codigo con prefijo)
     await asegurarEsquema();
+    // Cada articulo puede traer su propio prefijo (ej: Rodaser usa la marca del rodamiento)
+    const prefijoDe = (it) => it.prefijo || lector.PREFIJO;
     const { rows } = await db.query(
-      `SELECT q.cod, p.id
-         FROM unnest($1::text[]) AS q(cod)
-         JOIN LATERAL (SELECT id FROM productos x WHERE ${sqlCoincide('x', 'q.cod', '$2')} LIMIT 1) p ON true`,
-      [items.map((it) => codigoNormalizado(it.codigo)), codigoNormalizado(lector.PREFIJO)]
+      `SELECT q.i, p.id
+         FROM unnest($1::text[], $2::text[]) WITH ORDINALITY AS q(cod, pref, i)
+         JOIN LATERAL (SELECT id FROM productos x WHERE ${sqlCoincide('x', 'q.cod', 'q.pref')} LIMIT 1) p ON true`,
+      [items.map((it) => codigoNormalizado(it.codigo)), items.map((it) => codigoNormalizado(prefijoDe(it)))]
     );
-    const existentes = new Map(rows.map((r) => [r.cod, r.id]));
-    res.json(items.map((it) => ({
+    const existentes = new Map(rows.map((r) => [Number(r.i) - 1, r.id]));
+    res.json(items.map((it, i) => ({
       ...it,
       proveedor: lector.ID,
       proveedor_nombre: lector.NOMBRE,
-      codigo_erp: codigoErp(lector.PREFIJO, it.codigo),
-      producto_id: existentes.get(codigoNormalizado(it.codigo)) || null
+      codigo_erp: codigoErp(prefijoDe(it), it.codigo),
+      producto_id: existentes.get(i) || null
     })));
   } catch (e) {
     console.error('Error GET /api/productos/importar/buscar', e);

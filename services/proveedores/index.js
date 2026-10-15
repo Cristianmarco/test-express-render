@@ -9,8 +9,9 @@ const ferman = require('./ferman');
 const bmh = require('./bmh');
 const dipra = require('./dipra');
 const exintrader = require('./exintrader');
+const rodaser = require('./rodaser');
 
-const LECTORES = [nosso, ferman, bmh, dipra, exintrader];
+const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser];
 
 function lectorPorId(id) {
   const k = String(id || '').trim().toLowerCase();
