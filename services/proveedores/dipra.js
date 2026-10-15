@@ -286,7 +286,7 @@ async function leerFicha(urlEntrada) {
       pronto_pago_pct: 0,
       precio_costo: Math.round(p.precio * (1 - desc / 100) * 100) / 100,
       rentabilidad_pct: null,
-      iva_pct: null,
+      iva_pct: 21, // precios + IVA 21%
       incluye_iva: false,
       precio_oferta: 0,
       lista_nombre: p.lista
