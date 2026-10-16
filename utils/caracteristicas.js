@@ -29,6 +29,7 @@ const CANONICAS = {
   'amperaje': { nombre: 'Amperaje', unidad: 'A' },
   'aro colector': { nombre: 'Aro colector', unidad: 'mm' },
   'distancia entre orificios de montaje': { nombre: 'Distancia entre fijación', unidad: 'mm' },
+  'distancia de montaje': { nombre: 'Distancia entre fijación', unidad: 'mm' },
   'resistencia': { nombre: 'Resistencia', unidad: 'Ω' },
   'tension': { nombre: 'Voltaje', unidad: 'V' },
   'estrias': { nombre: 'Estrías', unidad: null },
@@ -39,7 +40,7 @@ const CANONICAS = {
 };
 
 // Campos de medida del carbon/escobilla "7 x 19 x 15.8" (ancho x alto x largo)
-const CLAVES_ESCOBILLA = new Set(['medida escobillas', 'medida escobilla', 'medida de carbon', 'medida carbon', 'medida de carbones', 'carbon', 'escobillas']);
+const CLAVES_ESCOBILLA = new Set(['medida escobillas', 'medida escobilla', 'medida de carbon', 'medida carbon', 'medida de carbones', 'carbon', 'carbones', 'escobillas']);
 const PARTES_ESCOBILLA = ['Escobilla - Ancho', 'Escobilla - Alto', 'Escobilla - Largo'];
 
 // Cotas del plano de los portaescobillas de arranque (plano Dipra)

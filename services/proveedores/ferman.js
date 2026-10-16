@@ -240,7 +240,68 @@ async function leerPrecio(url) {
     if (lista == null && /precio de lista/i.test(t)) lista = numeroAR(($(el).find('strong').first().text()) || t);
   });
   const stock = limpiar($('p.stock').first().text()) || null;
-  return { lista, stock };
+  return { lista, stock, ...leerTablasPagina($) };
+}
+
+// Tablas de la pagina del producto (no vienen en la API):
+//  - "Numeros originales": marca | numero  -> equivalencias
+//  - "Especificaciones tecnicas:": caracteristica | valor
+//  - "Equivalencias:" (en la descripcion): fila de marcas + fila de codigos
+//  - "Partes relacionadas": links a otros productos
+function leerTablasPagina($) {
+  const titulo = (txt) => (s) => new RegExp(txt, 'i').test(limpiar(s));
+  const filasDe = (tabla) => $(tabla).find('tr').toArray()
+    .map((tr) => $(tr).find('td,th').toArray().map((c) => limpiar($(c).text())))
+    .filter((f) => f.some(Boolean));
+  const capitalizar = (s) => s.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+
+  // Bloque que sigue a un titulo h3 (el contenido esta en el siguiente elemento del constructor)
+  const bloqueTrasTitulo = (re) => {
+    const h = $('h3').filter((_, el) => titulo(re)($(el).text())).first();
+    if (!h.length) return null;
+    return h.closest('.wpb_text_column, .wd-text-block').nextAll().first();
+  };
+
+  const numerosOriginales = [];
+  const bOrig = bloqueTrasTitulo('n[uú]meros originales');
+  if (bOrig) {
+    bOrig.find('table').first().find('tr').each((_, tr) => {
+      const td = $(tr).find('td');
+      const fab = limpiar($(td[0]).text());
+      const cod = limpiar($(td[1]).text());
+      if (fab && cod) numerosOriginales.push({ fabricante: capitalizar(fab), codigo: cod });
+    });
+  }
+
+  const especificaciones = [];
+  const equivalencias = [];
+  $('table').each((_, tabla) => {
+    const filas = filasDe(tabla);
+    if (!filas.length) return;
+    const encabezado = filas[0].join(' ');
+    if (/especificaciones t[eé]cnicas/i.test(encabezado)) {
+      filas.slice(1).forEach((f) => { if (f[0] && f[1]) especificaciones.push({ clave: f[0].replace(/:\s*$/, ''), valor: f[1] }); });
+    } else if (/^equivalencias:?$/i.test(encabezado.trim()) && filas.length >= 3) {
+      // Fila 2: marcas; filas siguientes: codigos
+      const marcas = filas[1];
+      filas.slice(2).forEach((f) => f.forEach((cod, i) => {
+        if (cod && marcas[i]) equivalencias.push({ fabricante: capitalizar(marcas[i]), codigo: cod });
+      }));
+    }
+  });
+
+  const partes = [];
+  const bPartes = bloqueTrasTitulo('partes relacionadas');
+  if (bPartes) {
+    bPartes.find('a[href*="/producto/"]').each((_, a) => {
+      const href = $(a).attr('href');
+      const texto = limpiar($(a).text());
+      if (!href || !texto) return;
+      partes.push({ fabricante: 'Ferman', codigo: texto, tipo: limpiar($(a).attr('title') || ''), url: urlFicha(href) });
+    });
+  }
+
+  return { numerosOriginales, especificaciones, equivalencias, partes };
 }
 
 async function leerFicha(urlEntrada) {
@@ -259,7 +320,19 @@ async function leerFicha(urlEntrada) {
     const valor = (a.terms || []).map((t) => textoHtml(t.name)).join(', ');
     if (a.name && valor) especificaciones.push({ clave: textoHtml(a.name), valor });
   });
+  // "Especificaciones tecnicas" de la pagina (medidas, voltaje, carbones...)
+  especificaciones.push(...precio.especificaciones);
   if (categorias.length) especificaciones.push({ clave: 'Categoría', valor: categorias.join(', ') });
+
+  // Equivalencias: numeros originales + tablas de equivalencias (de la pagina y de la API), sin repetir
+  const equivalencias = [];
+  const vistos = new Set([codigoNormLocal(codigo)]);
+  [...precio.numerosOriginales, ...precio.equivalencias, ...equivalenciasDeDescripcion($desc, codigo)].forEach((e) => {
+    const k = codigoNormLocal(e.codigo);
+    if (!k || vistos.has(k)) return;
+    vistos.add(k);
+    equivalencias.push(e);
+  });
 
   const lista = precio.lista != null ? precio.lista : precioApi(p);
   const descuento = descuentoFerman();
@@ -291,10 +364,12 @@ async function leerFicha(urlEntrada) {
     } : null,
     especificaciones,
     aplicaciones: aplicacionesDeDescripcion(p.description),
-    equivalencias: equivalenciasDeDescripcion($desc, codigo),
-    partes: []
+    equivalencias,
+    partes: precio.partes
   };
 }
+
+const codigoNormLocal = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 async function descargarImagen(url) {
   let u;
