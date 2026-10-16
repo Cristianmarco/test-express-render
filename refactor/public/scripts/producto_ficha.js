@@ -90,7 +90,8 @@
           <div class="pf-toolbar-right">
             ${d.proveedor_url ? `
               <a class="pf-btn" href="${esc(d.proveedor_url)}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Ver en proveedor</a>
-              <button class="pf-btn" data-act="sync" ${ed ? 'disabled' : ''}><i class="fas fa-rotate"></i> Actualizar desde proveedor</button>` : ''}
+              <button class="pf-btn" data-act="sync" ${ed ? 'disabled' : ''}><i class="fas fa-rotate"></i> Actualizar desde proveedor</button>`
+              : `<button class="pf-btn" data-act="vincular" ${ed ? 'disabled' : ''} title="Buscar este producto en la página de un proveedor y completar la ficha"><i class="fas fa-cloud-arrow-down"></i> Buscar en proveedor</button>`}
             ${ed ? '' : '<button class="pf-btn primario" data-act="editar"><i class="fas fa-pen"></i> Editar</button>'}
           </div>
         </div>
@@ -383,7 +384,17 @@
         case 'editar': empezarEdicion(root); break;
         case 'cancelar': st.editando = false; st.draft = null; render(root); break;
         case 'guardar': guardar(root, btn); break;
-        case 'sync': ImportadorProveedor.abrir({ url: st.data.proveedor_url, productoId: st.id, alTerminar: () => cargar(root) }); break;
+        case 'sync': ImportadorProveedor.abrir({ url: st.data.proveedor_url, productoId: st.id, productoCodigo: st.data.codigo, alTerminar: () => cargar(root) }); break;
+        // Producto cargado antes del importador: se busca en el proveedor (elegido por el
+        // prefijo del codigo) y se actualiza este producto, que queda vinculado
+        case 'vincular': ImportadorProveedor.abrir({
+          busqueda: st.data.codigo_fabricante || st.data.codigo,
+          productoId: st.id,
+          productoCodigo: st.data.codigo,
+          prefijo: String(st.data.codigo || '').trim().split(/\s+/)[0],
+          proveedorNombre: st.data.proveedor,
+          alTerminar: () => cargar(root)
+        }); break;
         case 'ampliar': abrirVisor(st.data.fotos, st.fotoActiva); break;
         case 'ver-foto': abrirVisor(st.data.fotos, Number(btn.dataset.foto) || 0); break;
         case 'copiar': copiar(btn.dataset.valor, btn); break;
@@ -694,9 +705,22 @@
     }
 
     function proveedorPreferido() {
+      const disponibles = proveedores.filter((p) => p.configurado);
+      const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      // Al buscar un producto ya cargado: el proveedor que corresponde a su prefijo
+      // ("EFR SD1841" -> Ferman) o, si no, al proveedor del producto
+      if (opciones.prefijo) {
+        const p = disponibles.find((x) => norm(x.prefijo) === norm(opciones.prefijo));
+        if (p) return p;
+      }
+      if (opciones.proveedorNombre) {
+        const nom = norm(opciones.proveedorNombre);
+        // Alguna palabra del nombre del lector aparece en la razon social ("Encendido Ferman" ~ "Ferman")
+        const p = disponibles.find((x) => String(x.nombre).split(/[\s()]+/).map(norm).filter((w) => w.length >= 3).some((w) => nom.includes(w)));
+        if (p) return p;
+      }
       let id = null;
       try { id = localStorage.getItem(PREF_PROVEEDOR); } catch (_) {}
-      const disponibles = proveedores.filter((p) => p.configurado);
       return (disponibles.find((p) => p.id === id) || disponibles[0] || proveedores[0] || null);
     }
 
@@ -710,7 +734,9 @@
       const actual = proveedorPreferido();
       cuerpo().innerHTML = `
         <h2><i class="fas fa-cloud-arrow-down"></i> Importar producto desde proveedor</h2>
-        <div class="pfi-sub">Elegí el proveedor y escribí el código del artículo.</div>
+        <div class="pfi-sub">${opciones.productoId
+          ? `Buscá el artículo en el proveedor para completar la ficha de <b>${esc(opciones.productoCodigo || '')}</b>. Queda vinculado y después se puede actualizar con un clic.`
+          : 'Elegí el proveedor y escribí el código del artículo.'}</div>
         <form class="pfi-buscar">
           <select name="proveedor" class="pfi-proveedor" title="Proveedor">
             ${proveedores.map((p) => `<option value="${esc(p.id)}" ${p.id === actual.id ? 'selected' : ''} ${p.configurado ? '' : 'disabled'}>${esc(p.nombre)}${p.configurado ? '' : ' (sin credenciales)'}</option>`).join('')}
@@ -777,7 +803,10 @@
       }
       const f = res.ficha;
       // Si se abrio desde una ficha ("Actualizar desde proveedor") se actualiza ese producto
-      const existente = opciones.productoId ? { id: opciones.productoId, codigo: res.existente ? res.existente.codigo : f.codigo } : res.existente;
+      // Abierto desde una ficha (actualizar o buscar en proveedor): se actualiza ese producto
+      const existente = opciones.productoId
+        ? { id: opciones.productoId, codigo: opciones.productoCodigo || (res.existente ? res.existente.codigo : f.codigo) }
+        : res.existente;
       // Coincide solo el codigo de fabricante con un producto de otra marca: hay que elegir
       const dudoso = !opciones.productoId && !!res.existente && res.existente.misma_marca === false;
       const pr = f.precio;
@@ -829,7 +858,8 @@
           <button class="pf-btn" data-act="volver">← ${opciones.url ? 'Buscar otro' : 'Volver a resultados'}</button>
           <button class="pf-btn primario" data-act="confirmar" ${dudoso ? 'disabled' : ''}><i class="fas fa-check"></i> ${dudoso ? 'Elegí una opción' : (existente ? 'Actualizar producto' : 'Crear producto')}</button>
         </div>`;
-      cuerpo().querySelector('[data-act="volver"]').addEventListener('click', () => { opciones = { alTerminar: opciones.alTerminar }; mostrarBuscador(busquedaPrevia || ''); });
+      // Volver al buscador conservando el producto que se esta completando (si lo hay)
+      cuerpo().querySelector('[data-act="volver"]').addEventListener('click', () => { opciones = { ...opciones, url: null }; mostrarBuscador(busquedaPrevia || opciones.busqueda || ''); });
       const btn = cuerpo().querySelector('[data-act="confirmar"]');
       // Producto de otra marca con el mismo codigo: se actualiza solo si el usuario lo confirma
       let destino = dudoso ? null : (existente ? 'actualizar' : 'nuevo');
