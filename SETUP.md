@@ -41,6 +41,12 @@ original. Copiala vos mismo desde ahí (Explorador de archivos o `cat .env` en l
 terminal) — no la compartas por chat ni la subas a ningún lado, es información
 sensible.
 
+Además completá `SESSION_SECRET` y las **credenciales de los proveedores**
+(`NOSSO_EMAIL`, `FERMAN_USUARIO`, `BMH_USUARIO`, `DIPRA_EMAIL`, `EXINTRADER_EMAIL` y sus
+`..._PASSWORD`). Sin ellas el sistema funciona igual, pero el importador de productos no
+puede consultar a esos proveedores. Copialas también del `.env` de la PC original
+(o de Render → Environment).
+
 > ⚠️ Importante: al usar el mismo `DATABASE_URL`, esta segunda PC va a trabajar
 > contra la **misma base de datos real**, no una copia aparte. Cualquier cambio
 > que hagas ahí impacta en los datos de producción.
