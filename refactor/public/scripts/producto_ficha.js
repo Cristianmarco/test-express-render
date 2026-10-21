@@ -704,13 +704,17 @@
       return proveedores;
     }
 
+    // Proveedores para buscar por codigo (los catalogos de fabricante, como ZEN, son solo
+    // para la busqueda avanzada)
+    const proveedoresPorCodigo = () => (proveedores || []).filter((p) => !p.solo_avanzada);
+
     function proveedorPreferido() {
-      const disponibles = proveedores.filter((p) => p.configurado);
+      const disponibles = proveedoresPorCodigo().filter((p) => p.configurado);
       const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       // Al buscar un producto ya cargado: el proveedor que corresponde a su prefijo
-      // ("EFR SD1841" -> Ferman) o, si no, al proveedor del producto
+      // ("EFR SD1841" -> Ferman, "ZEN 0790" -> Nosso) o, si no, al proveedor del producto
       if (opciones.prefijo) {
-        const p = disponibles.find((x) => norm(x.prefijo) === norm(opciones.prefijo));
+        const p = disponibles.find((x) => (x.prefijos || [x.prefijo]).some((pr) => norm(pr) === norm(opciones.prefijo)));
         if (p) return p;
       }
       if (opciones.proveedorNombre) {
@@ -721,7 +725,7 @@
       }
       let id = null;
       try { id = localStorage.getItem(PREF_PROVEEDOR); } catch (_) {}
-      return (disponibles.find((p) => p.id === id) || disponibles[0] || proveedores[0] || null);
+      return (disponibles.find((p) => p.id === id) || disponibles[0] || proveedoresPorCodigo()[0] || null);
     }
 
     async function mostrarBuscador(texto) {
@@ -740,7 +744,7 @@
         ${pestanias('codigo')}
         <form class="pfi-buscar">
           <select name="proveedor" class="pfi-proveedor" title="Proveedor">
-            ${proveedores.map((p) => `<option value="${esc(p.id)}" ${p.id === actual.id ? 'selected' : ''} ${p.configurado ? '' : 'disabled'}>${esc(p.nombre)}${p.configurado ? '' : ' (sin credenciales)'}</option>`).join('')}
+            ${proveedoresPorCodigo().map((p) => `<option value="${esc(p.id)}" ${p.id === actual.id ? 'selected' : ''} ${p.configurado ? '' : 'disabled'}>${esc(p.nombre)}${p.configurado ? '' : ' (sin credenciales)'}</option>`).join('')}
           </select>
           <input name="q" value="${esc(texto)}" autocomplete="off" required>
           <button class="pf-btn primario" type="submit"><i class="fas fa-search"></i> Buscar</button>
@@ -790,7 +794,38 @@
           <div><div class="cod">${esc(it.codigo)}${it.producto_id ? '<span class="pf-badge-erp">Ya está en el ERP</span>' : ''}</div><div class="desc">${esc(it.descripcion)}</div>${it.detalle ? `<div class="pfi-detalle">${esc(it.detalle)}</div>` : ''}${it.codigo_erp && !it.producto_id ? `<div class="pf-nota">Se crea como ${esc(it.codigo_erp)}</div>` : ''}</div>
           <div class="der">${it.precio_costo != null ? `Costo<br><b>${pesos(it.precio_costo)}</b>` : (it.precio_lista != null ? `Lista<br><b>${pesos(it.precio_lista)}</b>` : '')}${it.stock ? `<div>${esc(it.stock)}</div>` : ''}</div>
         </button>`).join('');
-      zona.querySelectorAll('.pfi-item').forEach((b) => b.addEventListener('click', () => alElegir(items[Number(b.dataset.i)])));
+      zona.querySelectorAll('.pfi-item').forEach((b) => b.addEventListener('click', () => alElegir(items[Number(b.dataset.i)], b)));
+    }
+
+    // Resultado de la busqueda avanzada. Los de un catalogo de fabricante (ZEN) no tienen
+    // ficha propia: se busca el articulo en el proveedor que lo vende (Nosso) y se abre esa.
+    async function elegirResultado(it, volverA, boton) {
+      if (it.url) { mostrarVistaPrevia(it.url, volverA); return; }
+      const desde = it.importar_desde;
+      if (!desde || !boton) return;
+      // El aviso va dentro del resultado elegido
+      const aviso = (html) => {
+        let caja = boton.querySelector('.pfi-aviso-item');
+        if (!caja) {
+          caja = document.createElement('div');
+          caja.className = 'pfi-aviso-item';
+          boton.querySelector('div').appendChild(caja);
+        }
+        caja.innerHTML = html;
+      };
+      const prov = (proveedores || []).find((p) => p.id === desde.proveedor);
+      const nombre = prov ? prov.nombre : desde.proveedor;
+      aviso(`<i class="fas fa-spinner fa-spin"></i> Buscando ${esc(desde.q)} en ${esc(nombre)}...`);
+      try {
+        const encontrados = await api(`/api/productos/importar/buscar?proveedor=${encodeURIComponent(desde.proveedor)}&q=${encodeURIComponent(desde.q)}`);
+        const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        // El mismo articulo: mismo codigo ERP ("ZEN 0954")
+        const mismo = encontrados.find((x) => norm(x.codigo_erp) === norm(it.codigo_erp));
+        if (mismo) { mostrarVistaPrevia(mismo.url, volverA); return; }
+        aviso(`<i class="fas fa-triangle-exclamation"></i> ${esc(desde.q)} no está disponible en ${esc(nombre)}.`);
+      } catch (e) {
+        aviso(`<i class="fas fa-triangle-exclamation"></i> ${esc(e.message)}`);
+      }
     }
 
     // Vuelve a la busqueda de donde se eligio el producto (por codigo o avanzada)
@@ -1025,7 +1060,7 @@
           const items = await api(`/api/productos/importar/avanzada/buscar?${qs}`);
           if (!items.length) { zona.innerHTML = `<div class="pfi-estado">Sin resultados en ${esc(prov.nombre)}.</div>`; return; }
           const volverA = { proveedor: prov.id, categoria: estado.categoria, filtros: estado.filtros, buscarAlAbrir: true };
-          pintarResultados(zona, items, (it) => mostrarVistaPrevia(it.url, volverA));
+          pintarResultados(zona, items, (it, boton) => elegirResultado(it, volverA, boton));
           zona.insertAdjacentHTML('afterbegin', `<div class="pfi-cantidad">${items.length} resultado${items.length === 1 ? '' : 's'}</div>`);
         } catch (e) {
           zona.innerHTML = `<div class="pfi-estado error"><i class="fas fa-triangle-exclamation"></i> ${esc(e.message)}</div>`;

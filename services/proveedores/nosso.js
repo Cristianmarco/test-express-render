@@ -347,6 +347,7 @@ module.exports = {
   ID: 'nosso',
   NOMBRE: 'Nosso',
   PREFIJO,
+  PREFIJOS: [PREFIJO, 'ZEN', 'ZM'],
   EJEMPLO: 'RNB 145298',
   // Que se puede buscar en este proveedor (se muestra en el importador)
   AYUDA: 'Código Nosso (ej: RNB 145298), código de otra marca (equivalencia) o URL de la ficha. Los ZEN y ZM se crean con su propio prefijo (ZEN 0013, ZM 102)',

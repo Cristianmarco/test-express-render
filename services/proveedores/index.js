@@ -10,8 +10,11 @@ const bmh = require('./bmh');
 const dipra = require('./dipra');
 const exintrader = require('./exintrader');
 const rodaser = require('./rodaser');
+// Catalogos tecnicos de fabricantes: solo busqueda avanzada (se importan desde Nosso)
+const zen = require('./zen');
+const zm = require('./zm');
 
-const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser];
+const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser, zen, zm];
 
 function lectorPorId(id) {
   const k = String(id || '').trim().toLowerCase();
@@ -29,11 +32,14 @@ function listarProveedores() {
     id: l.ID,
     nombre: l.NOMBRE,
     prefijo: l.PREFIJO,
+    // Prefijos de las marcas que vende (Nosso: NOSSO, ZEN, ZM)
+    prefijos: l.PREFIJOS || [l.PREFIJO],
     ejemplo: l.EJEMPLO,
     ayuda: l.AYUDA,
     // Busqueda avanzada (categoria + dato tecnico / Nº original / aplicacion)
     avanzada: typeof l.buscarAvanzado === 'function',
     ayuda_avanzada: l.AYUDA_AVANZADA || '',
+    solo_avanzada: !!l.SOLO_AVANZADA,
     configurado: typeof l.credencialesCargadas === 'function' ? l.credencialesCargadas() : true
   }));
 }
