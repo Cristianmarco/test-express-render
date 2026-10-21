@@ -31,6 +31,9 @@ function listarProveedores() {
     prefijo: l.PREFIJO,
     ejemplo: l.EJEMPLO,
     ayuda: l.AYUDA,
+    // Busqueda avanzada (categoria + dato tecnico / Nº original / aplicacion)
+    avanzada: typeof l.buscarAvanzado === 'function',
+    ayuda_avanzada: l.AYUDA_AVANZADA || '',
     configurado: typeof l.credencialesCargadas === 'function' ? l.credencialesCargadas() : true
   }));
 }

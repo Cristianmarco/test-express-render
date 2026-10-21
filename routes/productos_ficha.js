@@ -412,27 +412,92 @@ router.get('/importar/buscar', async (req, res) => {
       return res.status(400).json({ error: `Faltan las credenciales de ${lector.NOMBRE} en el servidor` });
     }
     const items = await lector.buscar(q);
-    if (!items.length) return res.json([]);
-    // Marca cuales ya existen en el ERP (por codigo de fabricante o codigo con prefijo)
-    await asegurarEsquema();
-    // Cada articulo puede traer su propio prefijo (ej: Rodaser usa la marca del rodamiento)
-    const prefijoDe = (it) => it.prefijo || lector.PREFIJO;
-    const { rows } = await db.query(
-      `SELECT q.i, p.id
-         FROM unnest($1::text[], $2::text[]) WITH ORDINALITY AS q(cod, pref, i)
-         JOIN LATERAL (SELECT id FROM productos x WHERE ${sqlCoincide('x', 'q.cod', 'q.pref')} LIMIT 1) p ON true`,
-      [items.map((it) => codigoNormalizado(it.codigo)), items.map((it) => codigoNormalizado(prefijoDe(it)))]
-    );
-    const existentes = new Map(rows.map((r) => [Number(r.i) - 1, r.id]));
-    res.json(items.map((it, i) => ({
-      ...it,
-      proveedor: lector.ID,
-      proveedor_nombre: lector.NOMBRE,
-      codigo_erp: codigoErp(prefijoDe(it), it.codigo),
-      producto_id: existentes.get(i) || null
-    })));
+    res.json(await marcarExistentes(lector, items));
   } catch (e) {
     console.error('Error GET /api/productos/importar/buscar', e);
+    res.status(502).json({ error: e.message || 'No se pudo consultar al proveedor' });
+  }
+});
+
+// Marca cuales resultados ya existen en el ERP (por codigo de fabricante o codigo con prefijo)
+async function marcarExistentes(lector, items) {
+  if (!items.length) return [];
+  await asegurarEsquema();
+  // Cada articulo puede traer su propio prefijo (ej: Rodaser usa la marca del rodamiento)
+  const prefijoDe = (it) => it.prefijo || lector.PREFIJO;
+  const { rows } = await db.query(
+    `SELECT q.i, p.id
+       FROM unnest($1::text[], $2::text[]) WITH ORDINALITY AS q(cod, pref, i)
+       JOIN LATERAL (SELECT id FROM productos x WHERE ${sqlCoincide('x', 'q.cod', 'q.pref')} LIMIT 1) p ON true`,
+    [items.map((it) => codigoNormalizado(it.codigo)), items.map((it) => codigoNormalizado(prefijoDe(it)))]
+  );
+  const existentes = new Map(rows.map((r) => [Number(r.i) - 1, r.id]));
+  return items.map((it, i) => ({
+    ...it,
+    proveedor: lector.ID,
+    proveedor_nombre: lector.NOMBRE,
+    codigo_erp: codigoErp(prefijoDe(it), it.codigo),
+    producto_id: existentes.get(i) || null
+  }));
+}
+
+// Busqueda avanzada: lector que la soporta o error 400
+function lectorAvanzado(req, res) {
+  const lector = lectorPorId(req.query.proveedor);
+  if (!lector || typeof lector.buscarAvanzado !== 'function') {
+    res.status(400).json({ error: 'Este proveedor no tiene búsqueda avanzada' });
+    return null;
+  }
+  return lector;
+}
+
+// Categorias de la busqueda avanzada, cada una con sus datos de busqueda: ?proveedor=dipra
+router.get('/importar/avanzada/categorias', async (req, res) => {
+  try {
+    const lector = lectorAvanzado(req, res);
+    if (!lector) return;
+    res.json(await lector.categoriasAvanzadas());
+  } catch (e) {
+    console.error('Error GET /api/productos/importar/avanzada/categorias', e);
+    res.status(502).json({ error: e.message || 'No se pudieron leer las categorías del proveedor' });
+  }
+});
+
+// Datos de busqueda de una categoria, para los proveedores que los arman al elegirla
+// (Ferman): ?proveedor=ferman&categoria=457
+router.get('/importar/avanzada/campos', async (req, res) => {
+  try {
+    const lector = lectorAvanzado(req, res);
+    if (!lector) return;
+    if (typeof lector.camposCategoria !== 'function') return res.status(400).json({ error: 'El proveedor no arma datos por categoría' });
+    res.json(await lector.camposCategoria(String(req.query.categoria || '')));
+  } catch (e) {
+    console.error('Error GET /api/productos/importar/avanzada/campos', e);
+    res.status(502).json({ error: e.message || 'No se pudieron leer los datos de la categoría' });
+  }
+});
+
+// ?proveedor=dipra&categoria=8|TAPA PORTA ESCOBILLAS&filtros={"escobillas":"13.3x17.5","medida_porta":{"A":"85"}}
+router.get('/importar/avanzada/buscar', async (req, res) => {
+  try {
+    const lector = lectorAvanzado(req, res);
+    if (!lector) return;
+    let filtros = {};
+    try { filtros = JSON.parse(String(req.query.filtros || '{}').slice(0, 2000)) || {}; } catch (_) {
+      return res.status(400).json({ error: 'Filtros inválidos' });
+    }
+    // Solo textos cortos (o un objeto de cotas con textos cortos)
+    const corto = (v) => String(v == null ? '' : v).slice(0, 100);
+    const limpios = {};
+    for (const [k, v] of Object.entries(filtros)) {
+      limpios[k] = v && typeof v === 'object'
+        ? Object.fromEntries(Object.entries(v).map(([a, b]) => [a, corto(b)]))
+        : corto(v);
+    }
+    const items = await lector.buscarAvanzado({ categoria: String(req.query.categoria || ''), filtros: limpios });
+    res.json(await marcarExistentes(lector, items));
+  } catch (e) {
+    console.error('Error GET /api/productos/importar/avanzada/buscar', e);
     res.status(502).json({ error: e.message || 'No se pudo consultar al proveedor' });
   }
 });

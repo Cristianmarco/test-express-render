@@ -737,6 +737,7 @@
         <div class="pfi-sub">${opciones.productoId
           ? `Buscá el artículo en el proveedor para completar la ficha de <b>${esc(opciones.productoCodigo || '')}</b>. Queda vinculado y después se puede actualizar con un clic.`
           : 'Elegí el proveedor y escribí el código del artículo.'}</div>
+        ${pestanias('codigo')}
         <form class="pfi-buscar">
           <select name="proveedor" class="pfi-proveedor" title="Proveedor">
             ${proveedores.map((p) => `<option value="${esc(p.id)}" ${p.id === actual.id ? 'selected' : ''} ${p.configurado ? '' : 'disabled'}>${esc(p.nombre)}${p.configurado ? '' : ' (sin credenciales)'}</option>`).join('')}
@@ -764,6 +765,7 @@
       });
       input.focus();
       form.addEventListener('submit', (e) => { e.preventDefault(); buscar(input.value, select.value); });
+      conectarPestanias();
       if (texto) buscar(texto, select.value);
     }
 
@@ -775,19 +777,275 @@
       try {
         const items = await api(`/api/productos/importar/buscar?proveedor=${encodeURIComponent(proveedorId || '')}&q=${encodeURIComponent(q.trim())}`);
         if (!items.length) { zona.innerHTML = `<div class="pfi-estado">Sin resultados en ${esc(nombre)}.</div>`; return; }
-        zona.innerHTML = items.map((it, i) => `
-          <button type="button" class="pfi-item" data-i="${i}">
-            <img src="${esc(it.foto || '')}" alt="" onerror="this.style.visibility='hidden'">
-            <div><div class="cod">${esc(it.codigo)}${it.producto_id ? '<span class="pf-badge-erp">Ya está en el ERP</span>' : ''}</div><div class="desc">${esc(it.descripcion)}</div>${it.codigo_erp && !it.producto_id ? `<div class="pf-nota">Se crea como ${esc(it.codigo_erp)}</div>` : ''}</div>
-            <div class="der">${it.precio_costo != null ? `Costo<br><b>${pesos(it.precio_costo)}</b>` : (it.precio_lista != null ? `Lista<br><b>${pesos(it.precio_lista)}</b>` : '')}${it.stock ? `<div>${esc(it.stock)}</div>` : ''}</div>
-          </button>`).join('');
-        zona.querySelectorAll('.pfi-item').forEach((b) => b.addEventListener('click', () => {
-          const it = items[Number(b.dataset.i)];
-          mostrarVistaPrevia(it.url, q);
-        }));
+        pintarResultados(zona, items, (it) => mostrarVistaPrevia(it.url, q));
       } catch (e) {
         zona.innerHTML = `<div class="pfi-estado error"><i class="fas fa-triangle-exclamation"></i> ${esc(e.message)}</div>`;
       }
+    }
+
+    function pintarResultados(zona, items, alElegir) {
+      zona.innerHTML = items.map((it, i) => `
+        <button type="button" class="pfi-item" data-i="${i}">
+          <img src="${esc(it.foto || '')}" alt="" onerror="this.style.visibility='hidden'">
+          <div><div class="cod">${esc(it.codigo)}${it.producto_id ? '<span class="pf-badge-erp">Ya está en el ERP</span>' : ''}</div><div class="desc">${esc(it.descripcion)}</div>${it.detalle ? `<div class="pfi-detalle">${esc(it.detalle)}</div>` : ''}${it.codigo_erp && !it.producto_id ? `<div class="pf-nota">Se crea como ${esc(it.codigo_erp)}</div>` : ''}</div>
+          <div class="der">${it.precio_costo != null ? `Costo<br><b>${pesos(it.precio_costo)}</b>` : (it.precio_lista != null ? `Lista<br><b>${pesos(it.precio_lista)}</b>` : '')}${it.stock ? `<div>${esc(it.stock)}</div>` : ''}</div>
+        </button>`).join('');
+      zona.querySelectorAll('.pfi-item').forEach((b) => b.addEventListener('click', () => alElegir(items[Number(b.dataset.i)])));
+    }
+
+    // Vuelve a la busqueda de donde se eligio el producto (por codigo o avanzada)
+    function volverABuscar(previa) {
+      if (previa && typeof previa === 'object') mostrarAvanzada({ ...previa, buscarAlAbrir: true });
+      else mostrarBuscador(previa || '');
+    }
+
+    // ---- Pestañas: por codigo / busqueda avanzada ----
+    function pestanias(activa) {
+      if (!(proveedores || []).some((p) => p.avanzada && p.configurado)) return '';
+      return `<div class="pfi-tabs">
+        <button type="button" class="pfi-tab ${activa === 'codigo' ? 'activa' : ''}" data-tab="codigo"><i class="fas fa-barcode"></i> Por código</button>
+        <button type="button" class="pfi-tab ${activa === 'avanzada' ? 'activa' : ''}" data-tab="avanzada"><i class="fas fa-sliders"></i> Búsqueda avanzada</button>
+      </div>`;
+    }
+    function conectarPestanias() {
+      cuerpo().querySelectorAll('.pfi-tab').forEach((b) => b.addEventListener('click', () => {
+        if (b.classList.contains('activa')) return;
+        if (b.dataset.tab === 'avanzada') mostrarAvanzada();
+        else mostrarBuscador('');
+      }));
+    }
+
+    // ---- Busqueda avanzada: proveedor -> categoria -> datos (medidas, Nº original, aplicacion) ----
+    // Siempre arranca vacia; solo al volver de la vista previa se restaura la busqueda.
+    // previa: { proveedor, categoria, filtros }
+    const categoriasPorProveedor = new Map();
+
+    async function categoriasDe(proveedorId) {
+      if (!categoriasPorProveedor.has(proveedorId)) {
+        const p = api(`/api/productos/importar/avanzada/categorias?proveedor=${encodeURIComponent(proveedorId)}`);
+        categoriasPorProveedor.set(proveedorId, p);
+        p.catch(() => categoriasPorProveedor.delete(proveedorId));
+      }
+      return categoriasPorProveedor.get(proveedorId);
+    }
+
+    // "porta escobilla" coincide con "MOTORES DE ARRANQUE › TAPA PORTA ESCOBILLAS"
+    const sinAcentos = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const MAX_SUGERENCIAS = 80;
+
+    async function mostrarAvanzada(previa) {
+      cuerpo().innerHTML = '<div class="pfi-estado"><i class="fas fa-spinner fa-spin"></i></div>';
+      await cargarProveedores();
+      const disponibles = proveedores.filter((p) => p.avanzada && p.configurado);
+      if (!disponibles.length) { mostrarBuscador(''); return; }
+      const estado = { proveedor: '', categoria: '', filtros: {}, ...(previa || {}) };
+
+      cuerpo().innerHTML = `
+        <h2><i class="fas fa-cloud-arrow-down"></i> Importar producto desde proveedor</h2>
+        <div class="pfi-sub">Buscá por categoría y uno o más datos técnicos, Nº original o aplicación en la página del proveedor.</div>
+        ${pestanias('avanzada')}
+        <form class="pfi-avanzada" autocomplete="off">
+          <label>Proveedor
+            <select name="proveedor" class="pfi-proveedor">
+              <option value="">— Elegí el proveedor —</option>
+              ${disponibles.map((p) => `<option value="${esc(p.id)}" ${p.id === estado.proveedor ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}
+            </select>
+          </label>
+          <label>Categoría
+            <div class="pfi-combo">
+              <input type="search" name="categoria" placeholder="Elegí primero el proveedor" disabled>
+              <div class="pfi-combo-lista" hidden></div>
+            </div>
+          </label>
+          <div class="pfi-campos"></div>
+          <div class="pfi-avanzada-acciones">
+            <button class="pf-btn" type="button" data-act="limpiar"><i class="fas fa-eraser"></i> Limpiar</button>
+            <button class="pf-btn primario" type="submit" disabled><i class="fas fa-search"></i> Buscar</button>
+          </div>
+        </form>
+        <div class="pfi-ayuda"></div>
+        <div class="pfi-resultados"></div>`;
+      conectarPestanias();
+
+      const form = cuerpo().querySelector('form');
+      const selProv = form.elements.proveedor;
+      const inputCat = form.elements.categoria;
+      const lista = form.querySelector('.pfi-combo-lista');
+      const zonaCampos = form.querySelector('.pfi-campos');
+      const btnBuscar = form.querySelector('button[type="submit"]');
+      const ayuda = cuerpo().querySelector('.pfi-ayuda');
+      const zona = cuerpo().querySelector('.pfi-resultados');
+      let categorias = [];
+      let marcada = -1; // sugerencia resaltada con las flechas
+
+      const categoriaActual = () => categorias.find((c) => c.id === estado.categoria) || null;
+
+      // ---- Datos de la categoria: todos visibles, se completan los que se quieran ----
+      const pintarCampos = () => {
+        const c = categoriaActual();
+        btnBuscar.disabled = !c || !c.campos;
+        if (!c || !c.campos) { zonaCampos.innerHTML = ''; return; }
+        const f = estado.filtros || {};
+        zonaCampos.innerHTML = c.campos.map((x) => {
+          if (x.tipo === 'cotas') {
+            const v = f[x.id] || {};
+            return `<div class="pfi-campo ancho"><span>${esc(x.nombre)}${x.ayuda ? ` <small>(${esc(x.ayuda)})</small>` : ''}</span>
+              <div class="pfi-cotas">${x.cotas.map((k) => `<label>${esc(k)}<input name="${esc(x.id)}.${esc(k)}" inputmode="decimal" value="${esc(v[k] || '')}"></label>`).join('')}</div></div>`;
+          }
+          return `<label class="pfi-campo">${esc(x.nombre)}${x.ayuda ? ` <small>(${esc(x.ayuda)})</small>` : ''}
+            <input name="${esc(x.id)}" value="${esc(typeof f[x.id] === 'string' ? f[x.id] : '')}" placeholder="${x.ejemplo ? `ej: ${esc(x.ejemplo)}` : ''}"></label>`;
+        }).join('') || '<div class="pf-nota">Esta categoría no tiene datos para filtrar: se lista completa.</div>';
+      };
+
+      const leerFiltros = () => {
+        const c = categoriaActual();
+        const filtros = {};
+        (c ? c.campos : []).forEach((x) => {
+          if (x.tipo === 'cotas') {
+            const cot = {};
+            x.cotas.forEach((k) => { const v = form.elements[`${x.id}.${k}`].value.trim(); if (v) cot[k] = v; });
+            if (Object.keys(cot).length) filtros[x.id] = cot;
+          } else {
+            const v = form.elements[x.id].value.trim();
+            if (v) filtros[x.id] = v;
+          }
+        });
+        return filtros;
+      };
+
+      // Algunos proveedores (Ferman) arman los datos de la categoria al elegirla
+      const asegurarCampos = async (c) => {
+        if (!c || c.campos) return;
+        zonaCampos.innerHTML = '<div class="pfi-estado"><i class="fas fa-spinner fa-spin"></i> Leyendo los datos de la categoría...</div>';
+        btnBuscar.disabled = true;
+        try {
+          c.campos = await api(`/api/productos/importar/avanzada/campos?proveedor=${encodeURIComponent(selProv.value)}&categoria=${encodeURIComponent(c.id)}`);
+        } catch (e) {
+          zonaCampos.innerHTML = `<div class="pfi-estado error"><i class="fas fa-triangle-exclamation"></i> ${esc(e.message)}</div>`;
+          throw e;
+        }
+      };
+
+      // ---- Categoria: un solo campo con sugerencias ----
+      const elegirCategoria = async (c) => {
+        estado.categoria = c ? c.id : '';
+        estado.filtros = {};
+        inputCat.value = c ? c.nombre : '';
+        lista.hidden = true;
+        zona.innerHTML = '';
+        try { await asegurarCampos(c); } catch (_) { return; }
+        // Si mientras cargaba se eligio otra categoria, no se pisa
+        if (estado.categoria !== (c ? c.id : '')) return;
+        pintarCampos();
+        const primero = zonaCampos.querySelector('input');
+        if (primero) primero.focus();
+      };
+
+      const sugerir = () => {
+        const palabras = sinAcentos(inputCat.value).split(/\s+/).filter(Boolean);
+        const coinciden = categorias.filter((c) => palabras.every((w) => sinAcentos(c.nombre).includes(w)));
+        marcada = coinciden.length ? 0 : -1;
+        lista.innerHTML = coinciden.length
+          ? coinciden.slice(0, MAX_SUGERENCIAS).map((c, i) => `<div class="pfi-combo-op ${i === marcada ? 'marcada' : ''}" data-id="${esc(c.id)}">${esc(c.nombre)}</div>`).join('')
+            + (coinciden.length > MAX_SUGERENCIAS ? `<div class="pfi-combo-mas">${coinciden.length - MAX_SUGERENCIAS} más… seguí escribiendo</div>` : '')
+          : '<div class="pfi-combo-mas">No hay categorías con ese nombre</div>';
+        lista.hidden = false;
+      };
+      const marcar = (i) => {
+        const ops = lista.querySelectorAll('.pfi-combo-op');
+        if (!ops.length) return;
+        marcada = (i + ops.length) % ops.length;
+        ops.forEach((o, k) => o.classList.toggle('marcada', k === marcada));
+        ops[marcada].scrollIntoView({ block: 'nearest' });
+      };
+
+      inputCat.addEventListener('focus', () => { if (!estado.categoria) sugerir(); else inputCat.select(); });
+      inputCat.addEventListener('input', () => {
+        // Al escribir se descarta la categoria elegida hasta elegir otra
+        if (estado.categoria) { estado.categoria = ''; estado.filtros = {}; pintarCampos(); }
+        sugerir();
+      });
+      inputCat.addEventListener('keydown', (e) => {
+        if (lista.hidden) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); marcar(marcada + 1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); marcar(marcada - 1); }
+        else if (e.key === 'Enter') {
+          e.preventDefault();
+          const op = lista.querySelectorAll('.pfi-combo-op')[marcada];
+          if (op) elegirCategoria(categorias.find((c) => c.id === op.dataset.id));
+        } else if (e.key === 'Escape') { e.stopPropagation(); lista.hidden = true; }
+      });
+      // mousedown: se elige antes de que el input pierda el foco
+      lista.addEventListener('mousedown', (e) => {
+        const op = e.target.closest('.pfi-combo-op');
+        if (!op) return;
+        e.preventDefault();
+        elegirCategoria(categorias.find((c) => c.id === op.dataset.id));
+      });
+      inputCat.addEventListener('blur', () => {
+        lista.hidden = true;
+        // Si quedo texto sin elegir una categoria se borra
+        if (!estado.categoria) inputCat.value = '';
+      });
+
+      const cargarCategorias = async () => {
+        const prov = disponibles.find((p) => p.id === selProv.value);
+        categorias = [];
+        pintarCampos();
+        if (!prov) {
+          inputCat.disabled = true;
+          inputCat.value = '';
+          inputCat.placeholder = 'Elegí primero el proveedor';
+          ayuda.innerHTML = '';
+          return;
+        }
+        ayuda.innerHTML = `<i class="fas fa-circle-info"></i> ${esc(prov.ayuda_avanzada || '')}${prov.prefijo ? ` · Se crea con el prefijo <b>${esc(prov.prefijo)}</b>` : ''}`;
+        inputCat.disabled = true;
+        inputCat.placeholder = 'Cargando categorías...';
+        try {
+          categorias = await categoriasDe(prov.id);
+        } catch (e) {
+          zona.innerHTML = `<div class="pfi-estado error"><i class="fas fa-triangle-exclamation"></i> ${esc(e.message)}</div>`;
+        }
+        inputCat.disabled = false;
+        inputCat.placeholder = 'Escribí para buscar (ej: porta escobilla)';
+        const c = categoriaActual();
+        inputCat.value = c ? c.nombre : '';
+        try { await asegurarCampos(c); } catch (_) { return; }
+        pintarCampos();
+      };
+
+      const buscarAvanzada = async () => {
+        const prov = disponibles.find((p) => p.id === selProv.value);
+        if (!prov || !categoriaActual()) return;
+        estado.filtros = leerFiltros();
+        zona.innerHTML = `<div class="pfi-estado"><i class="fas fa-spinner fa-spin"></i> Buscando en ${esc(prov.nombre)}...</div>`;
+        const qs = new URLSearchParams({ proveedor: prov.id, categoria: estado.categoria, filtros: JSON.stringify(estado.filtros) });
+        try {
+          const items = await api(`/api/productos/importar/avanzada/buscar?${qs}`);
+          if (!items.length) { zona.innerHTML = `<div class="pfi-estado">Sin resultados en ${esc(prov.nombre)}.</div>`; return; }
+          const volverA = { proveedor: prov.id, categoria: estado.categoria, filtros: estado.filtros, buscarAlAbrir: true };
+          pintarResultados(zona, items, (it) => mostrarVistaPrevia(it.url, volverA));
+          zona.insertAdjacentHTML('afterbegin', `<div class="pfi-cantidad">${items.length} resultado${items.length === 1 ? '' : 's'}</div>`);
+        } catch (e) {
+          zona.innerHTML = `<div class="pfi-estado error"><i class="fas fa-triangle-exclamation"></i> ${esc(e.message)}</div>`;
+        }
+      };
+
+      selProv.addEventListener('change', async () => {
+        estado.proveedor = selProv.value;
+        estado.categoria = '';
+        estado.filtros = {};
+        zona.innerHTML = '';
+        await cargarCategorias();
+        if (selProv.value) inputCat.focus();
+      });
+      form.querySelector('[data-act="limpiar"]').addEventListener('click', () => mostrarAvanzada());
+      form.addEventListener('submit', (e) => { e.preventDefault(); buscarAvanzada(); });
+
+      await cargarCategorias();
+      if (previa && previa.buscarAlAbrir && categoriaActual()) buscarAvanzada();
+      else selProv.focus();
     }
 
     async function mostrarVistaPrevia(url, busquedaPrevia) {
@@ -798,7 +1056,7 @@
       } catch (e) {
         cuerpo().innerHTML = `<div class="pfi-estado error"><i class="fas fa-triangle-exclamation"></i> ${esc(e.message)}</div>
           <div class="pfi-acciones"><button class="pf-btn" data-act="volver">← Volver a buscar</button></div>`;
-        cuerpo().querySelector('[data-act="volver"]').addEventListener('click', () => mostrarBuscador(busquedaPrevia || ''));
+        cuerpo().querySelector('[data-act="volver"]').addEventListener('click', () => volverABuscar(busquedaPrevia));
         return;
       }
       const f = res.ficha;
@@ -859,7 +1117,7 @@
           <button class="pf-btn primario" data-act="confirmar" ${dudoso ? 'disabled' : ''}><i class="fas fa-check"></i> ${dudoso ? 'Elegí una opción' : (existente ? 'Actualizar producto' : 'Crear producto')}</button>
         </div>`;
       // Volver al buscador conservando el producto que se esta completando (si lo hay)
-      cuerpo().querySelector('[data-act="volver"]').addEventListener('click', () => { opciones = { ...opciones, url: null }; mostrarBuscador(busquedaPrevia || opciones.busqueda || ''); });
+      cuerpo().querySelector('[data-act="volver"]').addEventListener('click', () => { opciones = { ...opciones, url: null }; volverABuscar(busquedaPrevia || opciones.busqueda); });
       const btn = cuerpo().querySelector('[data-act="confirmar"]');
       // Producto de otra marca con el mismo codigo: se actualiza solo si el usuario lo confirma
       let destino = dudoso ? null : (existente ? 'actualizar' : 'nuevo');
