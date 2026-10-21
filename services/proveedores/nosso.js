@@ -183,6 +183,18 @@ function urlFicha(urlOId) {
   return id ? `${BASE}/esp/productos_detalle/${id}` : null;
 }
 
+// Nosso vende tres lineas: NOSSO, ZEN (impulsores) y ZM (solenoides). Las ZEN y ZM traen
+// la marca en el codigo; en el ERP la marca va como prefijo y el codigo de fabricante es
+// lo que sigue, sin guiones (como se cargan en el ERP): "ZEN 0013" -> prefijo ZEN,
+// codigo "0013" (ERP "ZEN 0013"); "ZM 2-897" -> prefijo ZM, codigo "2897" (ERP "ZM 2897").
+// El resto queda como siempre: "RNB 145298" -> "NOSSO RNB145298".
+function lineaDe(codigoNosso) {
+  const cod = limpiar(codigoNosso);
+  const m = cod.match(/^(ZEN|ZM)[\s-]*(\d.*)$/i);
+  if (m) return { prefijo: m[1].toUpperCase(), codigo: limpiar(m[2]).replace(/[\s-]+/g, ''), marca: m[1].toUpperCase() };
+  return { prefijo: PREFIJO, codigo: cod, marca: 'Nosso' };
+}
+
 // Busca por codigo, EAN, equivalencia o texto. Devuelve la lista de coincidencias.
 async function buscar(texto) {
   const q = limpiar(texto);
@@ -191,7 +203,7 @@ async function buscar(texto) {
   const directa = /^https?:\/\//i.test(q) ? urlFicha(q) : null;
   if (directa) {
     const ficha = await leerFicha(directa);
-    return [{ id: ficha.proveedor_id, url: ficha.url, codigo: ficha.codigo, descripcion: ficha.descripcion, foto: ficha.fotos[0] || null, precio_costo: ficha.precio ? ficha.precio.precio_costo : null }];
+    return [{ id: ficha.proveedor_id, url: ficha.url, codigo: ficha.codigo, prefijo: ficha.prefijo, descripcion: ficha.descripcion, foto: ficha.fotos[0] || null, precio_costo: ficha.precio ? ficha.precio.precio_costo : null }];
   }
   const sug = await postAjax('/buscador_normal/buscar_sugerencias', { busqueda: q, idioma: 'esp' });
   const sugerencias = Array.isArray(sug.arraySugerencias) ? sug.arraySugerencias : [];
@@ -210,10 +222,12 @@ async function buscar(texto) {
     const id = idDesdeUrl(url);
     if (!id) return;
     const precio = parsearVerPrecios(a.find('.buscador-cart-price span').attr('onclick'));
+    const linea = lineaDe(a.find('.product-code h4').text());
     items.push({
       id,
       url: `${BASE}/esp/productos_detalle/${id}`,
-      codigo: limpiar(a.find('.product-code h4').text()),
+      codigo: linea.codigo,
+      prefijo: linea.prefijo,
       descripcion: limpiar(a.find('.product-description p').first().text()),
       foto: a.find('.product-img img').attr('src') || null,
       stock: limpiar(a.find('.label-stock').first().text()) || null,
@@ -231,8 +245,9 @@ async function leerFicha(urlOId) {
   if (res.status !== 200) throw new Error(`Nosso: no se pudo abrir la ficha (error ${res.status})`);
   const $ = cheerio.load(res.text);
 
-  const codigo = limpiar($('.product-title-row h2').first().text());
-  if (!codigo) throw new Error('Nosso: la pagina no tiene una ficha de producto');
+  const codigoNosso = limpiar($('.product-title-row h2').first().text());
+  if (!codigoNosso) throw new Error('Nosso: la pagina no tiene una ficha de producto');
+  const linea = lineaDe(codigoNosso);
   const descripcion = limpiar($('.summary-title-content p').first().text());
 
   const fotos = [];
@@ -299,10 +314,10 @@ async function leerFicha(urlOId) {
     proveedor_nombre: 'Nosso',
     proveedor_id: idDesdeUrl(url),
     url,
-    codigo,
-    prefijo: PREFIJO,
+    codigo: linea.codigo,
+    prefijo: linea.prefijo,
     descripcion,
-    marca: 'Nosso',
+    marca: linea.marca,
     ean: eanTxt ? eanTxt[1] : null,
     stock: limpiar($('.block-buy .label-stock').first().text()) || null,
     fotos,
@@ -334,7 +349,7 @@ module.exports = {
   PREFIJO,
   EJEMPLO: 'RNB 145298',
   // Que se puede buscar en este proveedor (se muestra en el importador)
-  AYUDA: 'Código Nosso (ej: RNB 145298), código de otra marca (equivalencia) o URL de la ficha',
+  AYUDA: 'Código Nosso (ej: RNB 145298), código de otra marca (equivalencia) o URL de la ficha. Los ZEN y ZM se crean con su propio prefijo (ZEN 0013, ZM 102)',
   credencialesCargadas: () => !!(process.env.NOSSO_EMAIL && process.env.NOSSO_PASSWORD),
   buscar,
   leerFicha,
