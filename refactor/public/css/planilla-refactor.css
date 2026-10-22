@@ -15,6 +15,14 @@
   padding: 24px;
 }
 
+/* Secciones con tablas anchas (Licitaciones / R.Vigentes): usan todo el ancho de la
+   pantalla en vez de quedar centradas en 1200px */
+.erp-main-card.erp-main-card--ancha {
+  width: 100%;
+  max-width: 1900px;
+  box-sizing: border-box;
+}
+
 /* Header */
 .erp-header-row {
   display: flex;
@@ -467,6 +475,108 @@
 #gar-tab .erp-table-card {
   max-height: calc(100vh - 400px);
   min-height: 220px;
+}
+
+/* R.Vigentes: anchos por columna. Las de datos cortos van justas y el resto del ancho
+   queda para Descripcion, Razon social y Observaciones. En pantallas chicas la tabla
+   no se aplasta: aparece el scroll horizontal. */
+.tabla-vigentes { table-layout: fixed; min-width: 1370px; }
+.tabla-vigentes th, .tabla-vigentes td { padding: 8px 7px; }
+.tabla-vigentes td { font-size: 0.9rem; }
+/* Los titulos pueden ir en dos lineas ("Nro / Pedido") en vez de cortarse */
+.tabla-vigentes thead th { white-space: normal; line-height: 1.25; vertical-align: middle; }
+.tabla-vigentes .vc-nro { width: 96px; }
+.tabla-vigentes .vc-codigo { width: 76px; }
+.tabla-vigentes .vc-descripcion { width: 14%; }
+.tabla-vigentes .vc-cantidad { width: 62px; }
+.tabla-vigentes .vc-destino { width: 118px; }
+.tabla-vigentes .vc-razon { width: 12%; }
+.tabla-vigentes .vc-tipo { width: 76px; }
+.tabla-vigentes .vc-pendientes { width: 62px; }
+.tabla-vigentes .vc-fecha { width: 92px; }
+.tabla-vigentes .vc-limite { width: 108px; } /* lleva el icono de atraso */
+.tabla-vigentes .vc-cotiz { width: 66px; }
+.tabla-vigentes .vc-foto { width: 70px; }
+/* Observaciones: todo el ancho restante. Los textos largos pueden cortar palabras muy
+   largas (codigos sin espacios) para no salirse de la columna */
+.tabla-vigentes td.vig-texto { text-align: left; overflow-wrap: anywhere; }
+.tabla-vigentes td.vig-nowrap { white-space: nowrap; }
+/* R.Vigentes: fotos del estado de ingreso (tabla, formulario y detalle) */
+.tabla-vigentes td.vig-foto-celda { padding: 4px; text-align: center; }
+.vig-mini {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  vertical-align: middle;
+}
+.vig-mini img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+.vig-mini-cant {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+}
+.vig-fotos-bloque { display: flex; flex-direction: column; gap: 6px; }
+.vig-fotos-bloque small { color: #64748b; font-weight: 400; }
+.vig-fotos { display: flex; flex-wrap: wrap; gap: 8px; }
+.vig-fotos-vacio { color: #94a3b8; font-size: 0.85rem; }
+.vig-foto {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f8fafc;
+  display: block;
+}
+.vig-foto img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; display: block; }
+.vig-foto.nueva { border: 2px dashed #16a34a; }
+.vig-foto-quitar {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.7);
+  color: #fff;
+  font-size: 15px;
+  line-height: 22px;
+  cursor: pointer;
+  padding: 0;
+}
+.vig-foto-etiqueta {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  color: #fff;
+  font-size: 10px;
+  text-align: center;
+  padding: 1px 0;
+}
+.vig-fotos-botones { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Hasta 3 lineas; el texto completo en el title y en el detalle (doble clic) */
+.tabla-vigentes td.vig-obs > div {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* En modales: panel de acciones fijo abajo y que scrollee solo la tabla */

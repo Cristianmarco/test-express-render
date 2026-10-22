@@ -1,5 +1,5 @@
 <section class="planilla-section">
-  <div class="erp-main-card">
+  <div class="erp-main-card erp-main-card--ancha">
     <div class="erp-header-row">
       <div class="titulo-dota">
         <i class="fas fa-file-signature"></i> Licitaciones
@@ -76,21 +76,28 @@
         <button id="btn-vig-clear" class="btn-secundario" style="display:none;">Limpiar seleccion</button>
       </div>
       <div class="erp-table-card">
-        <table class="tabla-erp">
+        <table class="tabla-erp tabla-vigentes">
+          <!-- Anchos de columna: ver .tabla-vigentes en planilla-refactor.css -->
+          <colgroup>
+            <col class="vc-nro"><col class="vc-codigo"><col class="vc-descripcion"><col class="vc-cantidad">
+            <col class="vc-destino"><col class="vc-razon"><col class="vc-tipo"><col class="vc-pendientes">
+            <col class="vc-fecha"><col class="vc-limite"><col class="vc-obs"><col class="vc-cotiz"><col class="vc-foto">
+          </colgroup>
           <thead>
             <tr>
               <th>Nro Pedido</th>
               <th>Código</th>
               <th>Descripción</th>
-              <th>Cantidad</th>
+              <th title="Cantidad">Cant.</th>
               <th>Destino</th>
               <th>Razón Social</th>
               <th>Tipo</th>
-              <th>Pendientes</th>
-              <th>Fecha Ingreso</th>
-              <th>Fecha Límite</th>
+              <th title="Pendientes">Pend.</th>
+              <th title="Fecha de ingreso">Ingreso</th>
+              <th title="Fecha límite de entrega">Límite</th>
               <th>Observaciones</th>
               <th title="Cotización asociada">Cotiz.</th>
+              <th title="Foto del estado de ingreso">Foto</th>
             </tr>
           </thead>
           <tbody id="tbody-vigentes"></tbody>

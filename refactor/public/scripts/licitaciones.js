@@ -898,14 +898,26 @@ function ensureVigenteModal(){
             <textarea id="vig-observaciones" rows="2" style="resize:vertical;"></textarea>
           </div>
         </div>
+        <div class="vig-fotos-bloque">
+          <label>Fotos de ingreso <small>(estado del equipo al ingresar, hasta ${VIG_MAX_FOTOS})</small></label>
+          <div id="vig-fotos" class="vig-fotos"></div>
+          <div class="vig-fotos-botones">
+            <!-- En el celular "Tomar foto" abre la camara; en la PC los dos abren el explorador -->
+            <button type="button" class="btn-secundario" id="vig-fotos-camara"><i class="fas fa-camera"></i> Tomar foto</button>
+            <button type="button" class="btn-secundario" id="vig-fotos-archivo"><i class="fas fa-images"></i> Elegir archivos</button>
+            <input type="file" id="vig-fotos-input-camara" accept="image/*" capture="environment" hidden />
+            <input type="file" id="vig-fotos-input-archivo" accept="image/*" multiple hidden />
+          </div>
+        </div>
         <input type="hidden" id="vig-codigo" />
         <div style="display:flex; justify-content:flex-end; gap:8px;">
-          <button type="submit" class="btn-aceptar"><i class="fas fa-save"></i> Guardar</button>
+          <button type="submit" class="btn-aceptar" id="vig-guardar"><i class="fas fa-save"></i> Guardar</button>
         </div>
       </form>
     </div>`;
   document.body.appendChild(m);
   m.querySelector('#btn-close-vigente').addEventListener('click', ()=> m.style.display='none');
+  bindFotosVigenteABM(m);
 
   // Equipo → auto-fill código y descripción
   const equipoSel = m.querySelector('#vig-equipo-sel');
@@ -967,13 +979,142 @@ function ensureVigenteModal(){
 
     const method = id? 'PUT' : 'POST';
     const url = id? `/api/reparaciones_dota/${id}` : '/api/reparaciones_dota';
+    const btnGuardar = document.getElementById('vig-guardar');
+    btnGuardar.disabled = true;
     try{
       const r = await fetch(url, { method, credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const js = await r.json().catch(()=>({}));
       if(!r.ok) throw new Error(js.error||'Error');
+      // Fotos: se suben (y se borran las quitadas) recien con el registro guardado
+      const fallas = await guardarFotosVigente(js.id || id, btnGuardar);
+      if (fallas.length) alert('El registro se guardó, pero hubo problemas con las fotos:\n- ' + fallas.join('\n- '));
       m.style.display='none'; cargarVigentes(); refreshInicioDashboard();
     }catch(err){ alert('No se pudo guardar'); }
+    finally { btnGuardar.disabled = false; btnGuardar.innerHTML = '<i class="fas fa-save"></i> Guardar'; }
   });
+}
+
+// ---- Fotos del estado de ingreso (R.Vigentes) ----
+// Se achican en el navegador antes de subirlas: una foto de celular (4-8 MB) queda en
+// ~300 KB, suficiente para ver el estado del equipo.
+const VIG_MAX_FOTOS = 10;
+const VIG_FOTO_LADO = 1600;
+const VIG_FOTO_CALIDAD = 0.82;
+// Miniatura para la columna "Foto" de la tabla (~8 KB)
+const VIG_MINI_LADO = 160;
+// Fotos del formulario abierto: las ya guardadas, las nuevas (sin subir: { data, mini })
+// y las quitadas
+let vigFotos = { existentes: [], nuevas: [], borrar: new Set() };
+
+// Devuelve { data, mini }: la foto achicada y su miniatura, en JPEG
+function achicarFotoVigente(file){
+  return new Promise((ok, mal) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      // El navegador ya aplica la orientacion de la foto del celular (EXIF)
+      const aJpeg = (lado, calidad) => {
+        const escala = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * escala);
+        c.height = Math.round(img.naturalHeight * escala);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        return c.toDataURL('image/jpeg', calidad);
+      };
+      const data = aJpeg(VIG_FOTO_LADO, VIG_FOTO_CALIDAD);
+      const mini = aJpeg(VIG_MINI_LADO, 0.75);
+      URL.revokeObjectURL(url);
+      ok({ data, mini });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); mal(new Error(`${file.name}: no es una imagen válida`)); };
+    img.src = url;
+  });
+}
+
+function pintarFotosVigenteABM(){
+  const cont = document.getElementById('vig-fotos');
+  if (!cont) return;
+  const visibles = [
+    ...vigFotos.existentes.filter(f => !vigFotos.borrar.has(f.id)).map(f => ({ src: f.url, tipo: 'existente', id: f.id })),
+    ...vigFotos.nuevas.map((f, i) => ({ src: f.data, tipo: 'nueva', id: i }))
+  ];
+  cont.innerHTML = visibles.length
+    ? visibles.map(f => `
+        <div class="vig-foto${f.tipo === 'nueva' ? ' nueva' : ''}">
+          <img src="${f.src}" alt="Foto de ingreso">
+          <button type="button" class="vig-foto-quitar" data-tipo="${f.tipo}" data-id="${f.id}" title="Quitar foto">&times;</button>
+          ${f.tipo === 'nueva' ? '<span class="vig-foto-etiqueta">Sin guardar</span>' : ''}
+        </div>`).join('')
+    : '<div class="vig-fotos-vacio">Sin fotos</div>';
+  const total = visibles.length;
+  ['vig-fotos-camara', 'vig-fotos-archivo'].forEach(idb => { const b = document.getElementById(idb); if (b) b.disabled = total >= VIG_MAX_FOTOS; });
+}
+
+function bindFotosVigenteABM(m){
+  const agregar = async (input) => {
+    const archivos = Array.from(input.files || []);
+    input.value = '';
+    const libres = VIG_MAX_FOTOS - (vigFotos.existentes.filter(f => !vigFotos.borrar.has(f.id)).length + vigFotos.nuevas.length);
+    if (archivos.length > libres) alert(`Se pueden cargar hasta ${VIG_MAX_FOTOS} fotos por equipo: se agregan ${Math.max(libres, 0)}.`);
+    for (const file of archivos.slice(0, Math.max(libres, 0))) {
+      try { vigFotos.nuevas.push(await achicarFotoVigente(file)); }
+      catch (e) { alert(e.message); }
+    }
+    pintarFotosVigenteABM();
+  };
+  const inCam = m.querySelector('#vig-fotos-input-camara');
+  const inArch = m.querySelector('#vig-fotos-input-archivo');
+  m.querySelector('#vig-fotos-camara').addEventListener('click', () => inCam.click());
+  m.querySelector('#vig-fotos-archivo').addEventListener('click', () => inArch.click());
+  inCam.addEventListener('change', () => agregar(inCam));
+  inArch.addEventListener('change', () => agregar(inArch));
+  m.querySelector('#vig-fotos').addEventListener('click', (e) => {
+    const b = e.target.closest('.vig-foto-quitar');
+    if (b) {
+      if (b.dataset.tipo === 'nueva') vigFotos.nuevas.splice(Number(b.dataset.id), 1);
+      else vigFotos.borrar.add(Number(b.dataset.id));
+      pintarFotosVigenteABM();
+      return;
+    }
+    const img = e.target.closest('.vig-foto img');
+    if (img) window.open(img.src, '_blank');
+  });
+}
+
+async function cargarFotosVigenteABM(id){
+  vigFotos = { existentes: [], nuevas: [], borrar: new Set() };
+  pintarFotosVigenteABM();
+  if (!id) return;
+  try {
+    const r = await fetch(`/api/reparaciones_dota/${id}/fotos`, { credentials:'include' });
+    const lista = await r.json();
+    vigFotos.existentes = Array.isArray(lista) ? lista : [];
+  } catch (_) { /* sin fotos se puede editar igual */ }
+  pintarFotosVigenteABM();
+}
+
+// Sube las nuevas y borra las quitadas. Devuelve la lista de problemas (vacia si todo ok).
+async function guardarFotosVigente(id, boton){
+  const fallas = [];
+  if (!id) return fallas;
+  for (const fotoId of vigFotos.borrar) {
+    try {
+      const r = await fetch(`/api/reparaciones_dota/${id}/fotos/${fotoId}`, { method:'DELETE', credentials:'include' });
+      if (!r.ok) throw new Error();
+    } catch (_) { fallas.push('No se pudo quitar una foto'); }
+  }
+  for (let i = 0; i < vigFotos.nuevas.length; i++) {
+    if (boton) boton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Subiendo foto ${i + 1} de ${vigFotos.nuevas.length}...`;
+    try {
+      const r = await fetch(`/api/reparaciones_dota/${id}/fotos`, {
+        method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ data: vigFotos.nuevas[i].data, miniatura: vigFotos.nuevas[i].mini })
+      });
+      const js = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(js.error || 'Error');
+    } catch (e) { fallas.push(`Foto ${i + 1}: ${e.message}`); }
+  }
+  return fallas;
 }
 
 async function abrirModalVigenteABM(data){
@@ -1050,6 +1191,7 @@ async function abrirModalVigenteABM(data){
     document.getElementById('vig-tipo').value = 'externo';
     if (selEquipo) selEquipo.value = '';
   }
+  cargarFotosVigenteABM(data && data.id ? data.id : null);
   m.style.display='flex';
 }
 // -------- Deseleccion al clickear fuera de la tabla --------
@@ -1191,13 +1333,13 @@ function setupLicitacionesTabs(){
 
 async function cargarVigentes(){
   const tb = document.getElementById('tbody-vigentes'); if(!tb) return;
-  tb.innerHTML = "<tr><td colspan='12' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  tb.innerHTML = "<tr><td colspan='13' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
   window.showSpinner && window.showSpinner();
   try{
     const res = await fetch('/api/reparaciones_dota', { credentials:'include' });
     const data = await res.json();
     const lista = Array.isArray(data)? data : [];
-    if(lista.length===0){ tb.innerHTML = "<tr><td colspan='12' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
+    if(lista.length===0){ tb.innerHTML = "<tr><td colspan='13' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
     const attr = v => String(v==null?'':v).replace(/"/g,'&quot;');
     tb.innerHTML = lista.map(r=>{
       const cotIcon = r.cotizacion_id
@@ -1220,19 +1362,26 @@ async function cargarVigentes(){
         + (r.devuelto_motivo ? ' - ' + r.devuelto_motivo : '');
       const marcaDevuelto = devuelto ? ` <span class="badge-devuelto" title="${attr(devueltoTitle)}"><i class="fas fa-rotate-left"></i> Devuelto</span>` : '';
       const claseFila = devuelto ? 'fila-devuelta' : (atrasado ? 'fila-atrasada' : '');
+      // Primera foto de ingreso (miniatura); clic: la foto en grande. Con mas de una, la cantidad
+      const fotoCelda = r.foto_id
+        ? `<a class="vig-mini" href="/api/reparaciones_dota/fotos/${r.foto_id}" target="_blank" rel="noopener" title="${r.fotos} foto${r.fotos === 1 ? '' : 's'} de ingreso (doble clic en la fila para ver todas)">
+             <img src="/api/reparaciones_dota/fotos/${r.foto_id}?mini=1" alt="" loading="lazy">${r.fotos > 1 ? `<span class="vig-mini-cant">${r.fotos}</span>` : ''}
+           </a>`
+        : `<span style="color:#cbd5e1;">—</span>`;
       return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-cliente-id="${attr(r.cliente_id)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}" data-fecha-limite="${attr(fechaLimiteIso)}" data-fecha-ingreso="${attr(fechaIngresoIso)}" data-cliente-tipo="${attr(r.cliente_tipo)}" data-devuelto="${devuelto ? '1' : ''}" class="${claseFila}">
         <td>${esc(r.nro_pedido) || '-'}${marcaDevuelto}</td>
         <td>${esc(r.codigo) || '-'}</td>
-        <td>${esc(r.descripcion) || '-'}</td>
+        <td class="vig-texto">${esc(r.descripcion) || '-'}</td>
         <td>${r.cantidad||'-'}</td>
         <td>${esc(r.destino) || '-'}</td>
-        <td>${esc(r.razon_social) || '-'}</td>
+        <td class="vig-texto">${esc(r.razon_social) || '-'}</td>
         <td>${tipoTxt}</td>
         <td>${r.pendientes!=null?r.pendientes:'-'}</td>
-        <td>${fechaIngresoTxt}</td>
-        <td>${fechaLimiteTxt}${devuelto ? '' : marcaAtraso}</td>
-        <td>${esc(r.observaciones) || '-'}</td>
+        <td class="vig-nowrap">${fechaIngresoTxt}</td>
+        <td class="vig-nowrap">${fechaLimiteTxt}${devuelto ? '' : marcaAtraso}</td>
+        <td class="vig-texto vig-obs"${r.observaciones ? ` title="${attr(r.observaciones)}"` : ''}><div>${esc(r.observaciones) || '-'}</div></td>
         <td style="text-align:center;">${cotIcon}</td>
+        <td class="vig-foto-celda">${fotoCelda}</td>
       </tr>`;
     }).join('');
     // selección de filas + click en icono cotización
@@ -1274,7 +1423,7 @@ async function cargarVigentes(){
     if (filtroActual && filtroActual.value) filtrarVigentes(filtroActual.value);
   } catch(err) {
     console.error('vigentes load', err);
-    tb.innerHTML = "<tr><td colspan='12' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+    tb.innerHTML = "<tr><td colspan='13' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
   } finally {
     window.hideSpinner && window.hideSpinner();
   }
@@ -1421,6 +1570,10 @@ function ensureVigenteDetalleModal(){
         <div style="grid-column:span 2"><label>Observaciones</label><span id="vig-det-observaciones">-</span></div>
       </div>
       <section class="detalle-card detalle-textos">
+        <h3><i class="fas fa-camera"></i> Fotos de ingreso</h3>
+        <div id="vig-det-fotos" class="vig-fotos">Sin fotos.</div>
+      </section>
+      <section class="detalle-card detalle-textos">
         <h3><i class="fas fa-history"></i> Auditoria</h3>
         <div id="vig-det-auditoria" class="detalle-texto">Sin movimientos.</div>
       </section>
@@ -1446,6 +1599,8 @@ function formatVigAuditAction(value){
   if (key === 'create') return 'Alta';
   if (key === 'update') return 'Edicion';
   if (key === 'delete') return 'Eliminacion';
+  if (key === 'foto_agregada') return 'Foto agregada';
+  if (key === 'foto_eliminada') return 'Foto eliminada';
   return value || '-';
 }
 
@@ -1529,7 +1684,30 @@ function abrirModalDetalleVigente(data){
   const fechaLimiteEl = document.getElementById('vig-det-fecha-limite');
   if (fechaLimiteEl) fechaLimiteEl.style.color = atrasado ? '#c0392b' : '';
   cargarVigenteAuditoria(data.id);
+  cargarFotosVigenteDetalle(data.id);
   modal.style.display = 'flex';
+}
+
+// Galeria de fotos de ingreso en el detalle (clic: la foto en grande en otra pestaña)
+async function cargarFotosVigenteDetalle(id){
+  const cont = document.getElementById('vig-det-fotos');
+  if (!cont) return;
+  if (!id) { cont.textContent = 'Sin fotos.'; return; }
+  cont.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  try {
+    const r = await fetch(`/api/reparaciones_dota/${id}/fotos`, { credentials:'include' });
+    const lista = r.ok ? await r.json() : [];
+    if (!Array.isArray(lista) || !lista.length) { cont.textContent = 'Sin fotos.'; return; }
+    cont.innerHTML = lista.map(f => {
+      const fecha = f.creado_en ? new Date(f.creado_en).toLocaleString('es-AR') : '';
+      const titulo = [fecha, f.usuario].filter(Boolean).join(' · ');
+      return `<a class="vig-foto" href="${f.url}" target="_blank" rel="noopener" title="${esc(titulo)}">
+          <img src="${f.url}" alt="Foto de ingreso"><span class="vig-foto-etiqueta">${esc(fecha.split(',')[0] || '')}</span>
+        </a>`;
+    }).join('');
+  } catch (_) {
+    cont.textContent = 'No se pudieron cargar las fotos.';
+  }
 }
 
 // -------- Deseleccion para R.Vigentes --------
