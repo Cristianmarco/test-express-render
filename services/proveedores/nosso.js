@@ -6,7 +6,9 @@
 // importacion al ERP no dependa de como esta armado el sitio del proveedor.
 const cheerio = require('cheerio');
 
-const BASE = 'https://www.nosso.com';
+// (en 10/2026 el sitio paso de www.nosso.com a nosso.com: www redirige y el POST del
+// login se pierde en la redireccion)
+const BASE = 'https://nosso.com';
 // Prefijo de marca del codigo en el ERP ("RNB 145298" -> "NOSSO RNB145298")
 const PREFIJO = 'NOSSO';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36';
@@ -80,12 +82,24 @@ async function login() {
   const home = await pedir('/esp');
   const token = extraerToken(home.text);
   if (!token) throw new Error('Nosso: no se encontro el token de login');
-  const res = await pedir('/login', {
+  // Se envia a donde apunta el formulario de la pagina (si cambian la direccion del
+  // login no se rompe); si no se encuentra, a /login
+  const $ = cheerio.load(home.text);
+  const accion = $('form').filter((_, f) => $(f).find('input[name="password"]').length > 0).first().attr('action');
+  const urlLogin = accion ? new URL(accion, home.url).href : BASE + '/login';
+  const res = await pedir(urlLogin, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Referer: BASE + '/esp' },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Referer: home.url },
     body: new URLSearchParams({ _token: token, email, password }).toString()
   });
-  if (!estaLogueado(res.text)) throw new Error('Nosso: usuario o contraseña incorrectos');
+  if (!estaLogueado(res.text)) {
+    // Solo se culpa a la contraseña si la pagina lo dice; si no, puede ser un cambio del sitio
+    const $r = cheerio.load(res.text);
+    const aviso = limpiar($r('.alert, .invalid-feedback, .text-danger, [role=alert]').first().text());
+    throw new Error(aviso
+      ? `Nosso: no se pudo iniciar sesión (${aviso.slice(0, 120)})`
+      : 'Nosso: no se pudo iniciar sesión. Revisá NOSSO_EMAIL / NOSSO_PASSWORD o si cambió la página de login de Nosso');
+  }
   csrfToken = extraerToken(res.text) || token;
   sesionDesde = Date.now();
 }

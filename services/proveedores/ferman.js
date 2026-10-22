@@ -20,16 +20,31 @@ function descuentoFerman() {
   return Number.isFinite(n) && n >= 0 && n < 100 ? n : 30;
 }
 
+// El servidor de Ferman (LiteSpeed) corta con 403/429 por un rato cuando recibe muchos
+// pedidos seguidos: se espera y se reintenta antes de dar error.
+const ESPERAS_BLOQUEO_MS = [2500, 6000];
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // fetch con un reintento ante cortes de conexion (el sitio a veces corta la primera
 // conexion: "fetch failed"), y con un mensaje de error que dice la causa real.
 async function fetchFerman(url, opts = {}) {
   let ultimo;
-  for (let intento = 0; intento < 2; intento++) {
+  for (let intento = 0, bloqueos = 0; intento < 2; intento++) {
     try {
-      return await fetch(url, { ...opts, signal: AbortSignal.timeout(25000) });
+      const res = await fetch(url, { ...opts, signal: AbortSignal.timeout(25000) });
+      if ((res.status === 403 || res.status === 429) && bloqueos < ESPERAS_BLOQUEO_MS.length) {
+        await esperar(ESPERAS_BLOQUEO_MS[bloqueos++]);
+        intento--; // los bloqueos no cuentan como cortes de conexion
+        continue;
+      }
+      if (res.status === 403 || res.status === 429) {
+        throw Object.assign(new Error('Ferman está limitando las consultas por exceso de pedidos. Esperá un minuto y probá de nuevo.'), { definitivo: true });
+      }
+      return res;
     } catch (e) {
+      if (e.definitivo) throw e;
       ultimo = e;
-      if (intento === 0) await new Promise((r) => setTimeout(r, 800));
+      if (intento === 0) await esperar(800);
     }
   }
   const causa = ultimo && ultimo.cause ? (ultimo.cause.code || ultimo.cause.message) : null;
@@ -589,7 +604,8 @@ async function precargarPaginas(productos) {
     .filter((u) => !precargando.has(u));
   faltan.forEach((u) => precargando.add(u));
   try {
-    await enParalelo(faltan, 6, (u) => datosPagina(u).catch(() => null));
+    // De a 2 y con una pausa: muchos pedidos juntos hacen que Ferman bloquee por un rato
+    await enParalelo(faltan, 2, async (u) => { await datosPagina(u).catch(() => null); await esperar(300); });
   } finally {
     faltan.forEach((u) => precargando.delete(u));
   }
@@ -660,7 +676,7 @@ async function buscarAvanzado({ categoria, filtros }) {
   const productos = (await productosDeCategoria(id)).filter((p) => p.permalink && slugDesdeUrl(p.permalink));
 
   // Datos de cada producto: tabla de la descripcion o, si no tiene y hay filtros, la de su pagina
-  const datos = await enParalelo(productos, 6, async (p) => {
+  const datos = await enParalelo(productos, 3, async (p) => {
     let filas = datosDescripcion(p.description);
     let originales = [];
     if (activos.length && !filas.length) {
