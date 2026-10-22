@@ -6,6 +6,10 @@
     "start": "node app.js",
     "dev": "nodemon app.js"
   },
+  "nodemonConfig": {
+    "ext": "js,mjs,cjs,json,ejs",
+    "ignore": ["public/uploads/*"]
+  },
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "cheerio": "^1.2.0",
