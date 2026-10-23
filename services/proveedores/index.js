@@ -10,11 +10,12 @@ const bmh = require('./bmh');
 const dipra = require('./dipra');
 const exintrader = require('./exintrader');
 const rodaser = require('./rodaser');
+const hardimpex = require('./hardimpex');
 // Catalogos tecnicos de fabricantes: solo busqueda avanzada (se importan desde Nosso)
 const zen = require('./zen');
 const zm = require('./zm');
 
-const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser, zen, zm];
+const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser, hardimpex, zen, zm];
 
 function lectorPorId(id) {
   const k = String(id || '').trim().toLowerCase();
