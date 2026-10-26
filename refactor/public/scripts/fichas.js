@@ -98,6 +98,7 @@
     plantillaForm && (plantillaForm.onsubmit = agregarPlantilla);
     plantillaCancelBtn && (plantillaCancelBtn.onclick = resetPlantillaForm);
     btnEditarFicha && (btnEditarFicha.onclick = abrirModalFicha);
+    bindProveedor();
     modalClose && (modalClose.onclick = () => (modalFicha.style.display = 'none'));
     formFichaBasica && (formFichaBasica.onsubmit = guardarFichaBasica);
     backBtn && (backBtn.onclick = () => mostrarListado());
@@ -404,6 +405,7 @@
     renderRepuestos(repuestos);
     renderPlantillas(plantillas);
     resetPlantillaForm();
+    resetRepuestoForm();
   }
 
   function parseTiposRepuesto(value) {
@@ -794,23 +796,61 @@
     if (!String(data.tipo_repuesto || '').trim()) return alert('Selecciona un tipo de repuesto');
     const indiceUso = Number(data.indice_uso);
     if (!Number.isFinite(indiceUso) || indiceUso <= 0) return alert('Ingresa un indice de uso valido');
-    const productoId = buscarProductoId(data.producto);
-    if (!productoId) return alert('Selecciona un producto valido');
+    const editId = state.repuestoEditId;
+    // Al editar el producto queda fijo: para cambiarlo se elimina y se vuelve a vincular
+    const productoId = editId ? null : buscarProductoId(data.producto);
+    if (!editId && !productoId) return alert('Selecciona un producto valido');
+    const familiaId = encodeURIComponent(state.detalle.ficha.familia_id);
     try {
-      const res = await fetch(`/api/fichas/${encodeURIComponent(state.detalle.ficha.familia_id)}/repuestos`, {
-        method: 'POST',
+      const res = await fetch(editId ? `/api/fichas/${familiaId}/repuestos/${encodeURIComponent(editId)}` : `/api/fichas/${familiaId}/repuestos`, {
+        method: editId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ producto_id: productoId, tipo_repuesto: data.tipo_repuesto, indice_uso: indiceUso, alias_codigo: data.alias_codigo, nota: data.nota }),
         credentials: 'include',
       });
       const payload = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(payload.error || 'No se pudo vincular');
-      repuestoForm.reset();
+      if (!res.ok) throw new Error(payload.error || 'No se pudo guardar');
+      resetRepuestoForm();
       await cargarDetalle(state.detalle.ficha.familia_id);
     } catch (err) {
       console.error(err);
-      alert('No se pudo vincular el repuesto');
+      alert(editId ? 'No se pudo actualizar el repuesto' : 'No se pudo vincular el repuesto');
     }
+  }
+
+  function resetRepuestoForm() {
+    if (!repuestoForm) return;
+    repuestoForm.reset();
+    state.repuestoEditId = null;
+    if (productoInput) productoInput.disabled = false;
+    const submitBtn = repuestoForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-link"></i> Vincular';
+  }
+
+  function editarRepuesto(id) {
+    const item = (state.detalle?.repuestos || []).find(r => Number(r.id) === Number(id));
+    if (!item || !repuestoForm) return;
+    const tipoSelect = repuestoForm.elements['tipo_repuesto'];
+    // El tipo puede no estar en la lista si se borro de los tipos de la ficha
+    if (item.tipo_repuesto && ![...tipoSelect.options].some(o => o.value === item.tipo_repuesto)) {
+      const opt = document.createElement('option');
+      opt.value = item.tipo_repuesto;
+      opt.textContent = item.tipo_repuesto;
+      tipoSelect.appendChild(opt);
+      tipoSelect.disabled = false;
+    }
+    if (productoInput) {
+      productoInput.value = `${item.codigo || ''} - ${item.descripcion || ''}`;
+      productoInput.disabled = true;
+    }
+    tipoSelect.value = item.tipo_repuesto || '';
+    repuestoForm.elements['indice_uso'].value = item.indice_uso ?? 1;
+    repuestoForm.elements['alias_codigo'].value = item.alias_codigo || '';
+    repuestoForm.elements['nota'].value = item.nota || '';
+    state.repuestoEditId = item.id;
+    const submitBtn = repuestoForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save"></i> Actualizar';
+    try { repuestoForm.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {}
   }
 
   function renderRepuestos(list) {
@@ -823,17 +863,21 @@
     list.forEach(item => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${item.tipo_repuesto || '-'}</td>
+        <td>${escapeHtml(item.tipo_repuesto || '-')}</td>
         <td>${item.indice_uso ?? '-'}</td>
-        <td>${item.codigo || '-'}</td>
-        <td>${item.descripcion || '-'}</td>
-        <td>${item.alias_codigo || '-'}</td>
-        <td>${item.nota || '-'}</td>
+        <td>${escapeHtml(item.codigo || '-')}</td>
+        <td>${escapeHtml(item.descripcion || '-')}</td>
+        <td>${escapeHtml(item.alias_codigo || '-')}</td>
+        <td>${escapeHtml(item.nota || '-')}</td>
         <td style="text-align:right;">
-          <button class="btn-ghost" data-id="${item.id}"><i class="fas fa-trash"></i></button>
+          <div style="display:flex; gap:6px; justify-content:flex-end;">
+            <button class="btn-ghost btn-repuesto-edit" title="Editar"><i class="fas fa-pen"></i></button>
+            <button class="btn-ghost btn-repuesto-del" title="Eliminar"><i class="fas fa-trash"></i></button>
+          </div>
         </td>
       `;
-      tr.querySelector('button').addEventListener('click', () => eliminarRepuesto(item.id));
+      tr.querySelector('.btn-repuesto-edit').addEventListener('click', () => editarRepuesto(item.id));
+      tr.querySelector('.btn-repuesto-del').addEventListener('click', () => eliminarRepuesto(item.id));
       repuestosBody.appendChild(tr);
     });
   }
@@ -1009,6 +1053,210 @@
     const payload = await res.json().catch(() => ({}));
     if (!res.ok || !payload.url) throw new Error(payload.error || 'Error al subir');
     return payload.url;
+  }
+
+  // ---- Completar desde proveedor ----
+  // Busca el equipo en un proveedor (mismo buscador que el importador de productos),
+  // muestra lo que traeria y aplica solo lo que se marque.
+  const prov = { modal: null, form: null, select: null, q: null, estado: null, resultados: null, preview: null, cargados: false, url: null };
+
+  function bindProveedor() {
+    prov.modal = host.querySelector('#modal-ficha-proveedor');
+    if (!prov.modal) return;
+    prov.form = host.querySelector('#fprov-buscar-form');
+    prov.select = host.querySelector('#fprov-proveedor');
+    prov.q = host.querySelector('#fprov-q');
+    prov.estado = host.querySelector('#fprov-estado');
+    prov.resultados = host.querySelector('#fprov-resultados');
+    prov.preview = host.querySelector('#fprov-preview');
+    const btn = host.querySelector('#btn-ficha-proveedor');
+    btn && (btn.onclick = abrirModalProveedor);
+    host.querySelector('#modal-ficha-proveedor-close').onclick = cerrarModalProveedor;
+    window.addEventListener('click', (e) => { if (e.target === prov.modal) cerrarModalProveedor(); });
+    prov.form.onsubmit = (e) => { e.preventDefault(); buscarEnProveedor(); };
+  }
+
+  function cerrarModalProveedor() { prov.modal.style.display = 'none'; }
+
+  function provEstado(texto, error) {
+    prov.estado.textContent = texto || '';
+    prov.estado.style.color = error ? '#b91c1c' : '';
+  }
+
+  async function abrirModalProveedor() {
+    const ficha = state.detalle?.ficha;
+    if (!ficha?.familia_id) return alert('Selecciona una ficha');
+    prov.resultados.innerHTML = '';
+    prov.preview.style.display = 'none';
+    prov.preview.innerHTML = '';
+    provEstado('');
+    // Si ya se completo antes, se ofrece volver a leer la misma ficha del proveedor
+    prov.q.value = ficha.proveedor_url || '';
+    prov.modal.style.display = 'flex';
+    if (!prov.cargados) {
+      try {
+        const res = await fetch('/api/productos/importar/proveedores', { credentials: 'include' });
+        const lista = await res.json();
+        prov.select.innerHTML = lista
+          .filter((p) => !p.solo_avanzada)
+          .map((p) => `<option value="${escapeHtml(p.id)}"${p.configurado ? '' : ' disabled'}>${escapeHtml(p.nombre)}${p.configurado ? '' : ' (sin credenciales)'}</option>`)
+          .join('');
+        prov.cargados = true;
+      } catch (err) {
+        console.error(err);
+        provEstado('No se pudo cargar la lista de proveedores', true);
+      }
+    }
+    if (ficha.proveedor_url) verPreviewProveedor(ficha.proveedor_url);
+    else prov.q.focus();
+  }
+
+  async function buscarEnProveedor() {
+    const q = prov.q.value.trim();
+    if (q.length < 2) return;
+    prov.preview.style.display = 'none';
+    prov.resultados.innerHTML = '';
+    // Una URL pegada va directo a la vista previa
+    if (/^https?:\/\//i.test(q)) return verPreviewProveedor(q);
+    provEstado('Buscando...');
+    try {
+      const res = await fetch(`/api/productos/importar/buscar?proveedor=${encodeURIComponent(prov.select.value)}&q=${encodeURIComponent(q)}`, { credentials: 'include' });
+      const items = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(items.error || 'No se pudo buscar');
+      if (!items.length) return provEstado('Sin resultados en el proveedor');
+      provEstado(`${items.length} resultado(s). Elegí el equipo:`);
+      prov.resultados.innerHTML = '';
+      items.slice(0, 30).forEach((it) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'fprov-item';
+        b.innerHTML = `
+          <img src="${escapeHtml(it.foto || '')}" alt="" onerror="this.style.visibility='hidden'">
+          <div class="fprov-item-txt">
+            <strong>${escapeHtml(it.codigo || '')}</strong> <span class="tiny">${escapeHtml(it.prefijo || it.proveedor_nombre || '')}</span>
+            <div>${escapeHtml(it.descripcion || '')}</div>
+          </div>
+          <span class="tiny">${escapeHtml(it.stock || '')}</span>`;
+        b.onclick = () => verPreviewProveedor(it.url);
+        prov.resultados.appendChild(b);
+      });
+    } catch (err) {
+      console.error(err);
+      provEstado(err.message || 'No se pudo buscar', true);
+    }
+  }
+
+  async function verPreviewProveedor(url) {
+    const familiaId = state.detalle?.ficha?.familia_id;
+    if (!familiaId) return;
+    provEstado('Leyendo la ficha del proveedor...');
+    prov.resultados.innerHTML = '';
+    try {
+      const res = await fetch(`/api/fichas/${encodeURIComponent(familiaId)}/proveedor?url=${encodeURIComponent(url)}`, { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo leer la ficha');
+      prov.url = data.proveedor.url;
+      provEstado('');
+      renderPreviewProveedor(data);
+    } catch (err) {
+      console.error(err);
+      provEstado(err.message || 'No se pudo leer la ficha', true);
+    }
+  }
+
+  function renderPreviewProveedor(data) {
+    const p = data.proveedor;
+    const filas = data.campos.map((c) => {
+      let propuesto;
+      let hayCambio;
+      if (c.lista) {
+        hayCambio = c.nuevos.length > 0;
+        propuesto = hayCambio
+          ? `<div class="tiny">+${c.nuevos.length} nuevo(s)</div><div class="fprov-valor fprov-nuevo">${escapeHtml(c.nuevos.join('\n'))}</div>`
+          : '<span class="muted">Ya está cargado</span>';
+      } else {
+        hayCambio = String(c.propuesto).trim().toLowerCase() !== String(c.actual).trim().toLowerCase();
+        propuesto = hayCambio ? `<div class="fprov-valor fprov-nuevo">${escapeHtml(c.propuesto)}</div>` : '<span class="muted">Igual</span>';
+      }
+      // Se marca lo que suma sin pisar: listas con items nuevos o campos vacios
+      const marcar = hayCambio && (c.lista || !String(c.actual).trim());
+      return `
+        <tr>
+          <td><input type="checkbox" data-campo="${escapeHtml(c.campo)}"${marcar ? ' checked' : ''}${hayCambio ? '' : ' disabled'}></td>
+          <td><strong>${escapeHtml(c.etiqueta)}</strong>${c.lista ? '<div class="tiny">se suma a lo cargado</div>' : '<div class="tiny">reemplaza</div>'}</td>
+          <td><div class="fprov-valor">${escapeHtml(c.actual || '-')}</div></td>
+          <td>${propuesto}</td>
+        </tr>`;
+    }).join('');
+    const fotos = data.fotos.map((f) => `
+      <label class="fprov-foto${f.ya_cargada ? ' ya-cargada' : ''}" title="${f.ya_cargada ? 'Ya está en la ficha' : escapeHtml(f.url)}">
+        <input type="checkbox" data-foto="${escapeHtml(f.url)}"${f.ya_cargada ? ' disabled' : ' checked'}>
+        <img src="${escapeHtml(f.url)}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="tiny">${f.tipo === 'plano' ? 'Plano' : 'Foto'}${f.ya_cargada ? ' · ya cargada' : ''}</div>
+      </label>`).join('');
+    const partes = (data.partes || []).map((pt) => `<span class="pill">${escapeHtml(pt.tipo || '')}: ${escapeHtml(pt.codigo || '')}</span>`).join(' ');
+    const otroProveedor = data.proveedor_actual && data.proveedor_actual !== p.url
+      ? `<div class="tiny" style="color:#b45309;">Esta ficha se completó antes desde otra ficha del proveedor: ${escapeHtml(data.proveedor_actual)}</div>`
+      : '';
+
+    prov.preview.innerHTML = `
+      <div class="fprov-cabecera">
+        <div>
+          <strong>${escapeHtml(p.nombre)} · ${escapeHtml(p.codigo || '')}</strong> <span class="muted">${escapeHtml(p.descripcion || '')}</span>
+          ${otroProveedor}
+        </div>
+        <a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" class="btn-ghost"><i class="fas fa-up-right-from-square"></i> Ver en proveedor</a>
+      </div>
+      ${filas ? `
+      <div class="tabla-scroll">
+        <table class="tabla-erp fprov-campos">
+          <thead><tr><th></th><th>Dato</th><th>En la ficha</th><th>Del proveedor</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>` : '<div class="muted">El proveedor no tiene datos técnicos para esta ficha.</div>'}
+      ${fotos ? `<div style="margin-top:12px;"><strong>Fotos y planos</strong><div class="fprov-fotos">${fotos}</div></div>` : ''}
+      ${partes ? `<div style="margin-top:12px;"><strong>Partes del equipo según el proveedor</strong> <span class="tiny">(para vincular repuestos más adelante)</span><div class="info-multi" style="margin-top:6px;">${partes}</div></div>` : ''}
+      <div class="fprov-acciones">
+        <button type="button" class="btn-ghost" id="fprov-volver"><i class="fas fa-arrow-left"></i> Buscar otro</button>
+        <button type="button" class="btn-guardar" id="fprov-aplicar"><i class="fas fa-check"></i> Aplicar a la ficha</button>
+      </div>`;
+    prov.preview.style.display = '';
+    prov.preview.querySelector('#fprov-volver').onclick = () => {
+      prov.preview.style.display = 'none';
+      if (/^https?:\/\//i.test(prov.q.value.trim())) prov.q.value = '';
+      prov.q.focus();
+    };
+    prov.preview.querySelector('#fprov-aplicar').onclick = aplicarProveedor;
+  }
+
+  async function aplicarProveedor() {
+    const familiaId = state.detalle?.ficha?.familia_id;
+    if (!familiaId || !prov.url) return;
+    const campos = [...prov.preview.querySelectorAll('input[data-campo]:checked')].map((i) => i.dataset.campo);
+    const fotos = [...prov.preview.querySelectorAll('input[data-foto]:checked')].map((i) => i.dataset.foto);
+    const btn = prov.preview.querySelector('#fprov-aplicar');
+    btn.disabled = true;
+    provEstado(fotos.length ? 'Guardando y descargando fotos...' : 'Guardando...');
+    try {
+      const res = await fetch(`/api/fichas/${encodeURIComponent(familiaId)}/proveedor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: prov.url, campos, fotos }),
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo aplicar');
+      cerrarModalProveedor();
+      await cargarDetalle(familiaId);
+      await cargarListado();
+      const fallidas = (data.fotos_fallidas || []).length;
+      alert(`Ficha actualizada: ${data.campos} dato(s) y ${data.fotos} foto(s).${fallidas ? `\n${fallidas} foto(s) no se pudieron descargar.` : ''}`);
+    } catch (err) {
+      console.error(err);
+      provEstado(err.message || 'No se pudo aplicar', true);
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   if (document.querySelector('.tab-content[data-view="fichas"]')) init();

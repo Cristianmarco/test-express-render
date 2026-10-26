@@ -48,6 +48,7 @@
         <button type="button" id="ficha-media-config" class="btn-ghost btn-square" title="Administrar medias">
           <i class="fas fa-gear"></i>
         </button>
+        <button id="btn-ficha-proveedor" class="btn-ghost" title="Traer datos y fotos desde la ficha de un proveedor"><i class="fas fa-cloud-arrow-down"></i> Completar desde proveedor</button>
         <button id="btn-editar-ficha" class="btn-ghost"><i class="fas fa-pen"></i> Editar ficha</button>
       </div>
     </div>
@@ -319,6 +320,22 @@
           <p><b>Precio de lista:</b> <span id="fp-precio">-</span></p>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal completar desde proveedor -->
+  <div id="modal-ficha-proveedor" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor modal-erp-producto" style="max-width:980px; max-height:88vh; overflow-y:auto;">
+      <span class="cerrar" id="modal-ficha-proveedor-close">&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-cloud-arrow-down"></i> Completar desde proveedor</h2>
+      <form id="fprov-buscar-form" class="ficha-inline-form">
+        <select id="fprov-proveedor"></select>
+        <input id="fprov-q" type="text" placeholder="Código del proveedor, Nº original o URL de la ficha" autocomplete="off" style="flex:1; min-width:260px;" required />
+        <button type="submit" class="btn-guardar" style="min-width:120px;"><i class="fas fa-search"></i> Buscar</button>
+      </form>
+      <div id="fprov-estado" class="tiny" style="margin-top:8px;"></div>
+      <div id="fprov-resultados" class="fprov-resultados"></div>
+      <div id="fprov-preview" style="display:none;"></div>
     </div>
   </div>
 
