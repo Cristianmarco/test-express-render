@@ -281,6 +281,175 @@ async function leerFicha(urlEntrada) {
   };
 }
 
+// ---- Busqueda avanzada: bobinados (rotores, estatores, inducidos, campos) por medida ----
+// La pagina de cada categoria (/productos?categoria=N) tiene filtros por atributo que aplica
+// el servidor (atributo[columna_N]=valor exacto). Se usa el filtro del dato mas selectivo y
+// el resto de los datos se comparan contra las caracteristicas de cada tarjeta.
+const CATEGORIAS_AVANZADAS = [
+  { id: '41', nombre: 'Rotores' },
+  { id: '26', nombre: 'Estatores' },
+  { id: '40', nombre: 'Inducidos' },
+  { id: '44', nombre: 'Campos (bobinas de campo)' }
+];
+const TOLERANCIA_MM = 0.5;
+const MAX_PEDIDOS = 25;
+const MAX_RESULTADOS_AV = 200;
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const CAMPO_TEXTO = { id: 'texto', nombre: 'Código / descripción / marca / vehículo', tipo: 'texto', ejemplo: 'bosch' };
+const filtrosCache = new Map(); // categoria -> { at, datos }
+
+const sinAcentos = (s) => limpiar(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+// "88.3MM" / "95,5" / "12V" -> numero
+const numeroDe = (v) => {
+  const m = String(v).trim().match(/^(\d+(?:[.,]\d+)?)\s*(mm|v|a)?$/i);
+  return m ? Number(m[1].replace(',', '.')) : null;
+};
+// "42X21.5" -> [42, 21.5]
+const numerosDe = (v) => (String(v).match(/\d+(?:[.,]\d+)?/g) || []).map((n) => Number(n.replace(',', '.')));
+
+// Datos de busqueda de una categoria, leidos de los filtros de su pagina
+async function datosCategoria(cat) {
+  const c = filtrosCache.get(cat);
+  if (c && Date.now() - c.at < CACHE_TTL_MS) return c.datos;
+  if (!CATEGORIAS_AVANZADAS.some((x) => x.id === cat)) throw new Error('Elegí una categoría de BMH');
+  const $ = cheerio.load((await pedirLogueado(`/productos?categoria=${cat}`)).text);
+  const datos = $('select[name^="atributo["]').toArray().map((s) => {
+    const S = $(s);
+    const columna = (S.attr('name').match(/atributo\[(columna_\d+)\]/) || [])[1];
+    const nombre = etiqueta($(`label[for="${S.attr('id')}"]`).text()) || columna;
+    const opciones = S.find('option').toArray().map((o) => ({ v: limpiar($(o).attr('value')), n: Number((limpiar($(o).text()).match(/\((\d+)\)$/) || [])[1]) || 1 })).filter((o) => o.v);
+    const valores = opciones.map((o) => o.v);
+    const cantidad = Object.fromEntries(opciones.map((o) => [o.v, o.n]));
+    const nums = valores.map(numeroDe).filter((n) => n != null);
+    let tipo = 'texto';
+    if (/medidas/i.test(nombre) && valores.some((v) => /x/i.test(v))) tipo = 'doble';
+    else if (valores.length && nums.length / valores.length >= 0.6) tipo = 'numero';
+    // Diametros, anchos y largos en mm con tolerancia; voltaje, amperes, estrias, ranuras exactos
+    const tolerancia = tipo === 'doble' || (tipo === 'numero' && /diametro|ancho|largo/i.test(sinAcentos(nombre))) ? TOLERANCIA_MM : 0;
+    return { id: `a:${columna}`, columna, nombre, tipo, tolerancia, valores, cantidad };
+  }).filter((d) => d.columna && d.valores.length);
+  filtrosCache.set(cat, { at: Date.now(), datos });
+  return datos;
+}
+
+async function categoriasAvanzadas() {
+  return CATEGORIAS_AVANZADAS.map((c) => ({ id: c.id, nombre: c.nombre, campos: null }));
+}
+
+async function camposCategoria(cat) {
+  const datos = await datosCategoria(String(cat));
+  return [CAMPO_TEXTO, ...datos.map((d) => ({
+    id: d.id,
+    nombre: d.nombre,
+    tipo: d.tipo === 'texto' ? 'texto' : 'medida',
+    ayuda: d.tolerancia ? (d.tipo === 'doble' ? `±${String(d.tolerancia).replace('.', ',')} en cada medida` : `±${String(d.tolerancia).replace('.', ',')} o rango 90-100`) : '',
+    ejemplo: d.valores[Math.floor(d.valores.length / 2)] || ''
+  }))];
+}
+
+// Valores del filtro que corresponden a lo buscado
+function valoresQueCoinciden(dato, buscado) {
+  if (dato.tipo === 'doble') {
+    const q = numerosDe(buscado);
+    if (!q.length) throw new Error(`"${dato.nombre}": escribí las medidas (ej: 42x21,5)`);
+    return dato.valores.filter((v) => { const n = numerosDe(v); return q.every((x, i) => n[i] != null && Math.abs(n[i] - x) <= dato.tolerancia + 1e-9); });
+  }
+  if (dato.tipo === 'numero') {
+    const nums = numerosDe(buscado);
+    if (!nums.length) throw new Error(`"${dato.nombre}": escribí un número`);
+    const [desde, hasta] = nums.length >= 2
+      ? [Math.min(nums[0], nums[1]), Math.max(nums[0], nums[1])]
+      : [nums[0] - dato.tolerancia, nums[0] + dato.tolerancia];
+    return dato.valores.filter((v) => { const n = numeroDe(v); return n != null && n >= desde - 1e-9 && n <= hasta + 1e-9; });
+  }
+  const palabras = sinAcentos(buscado).split(/\s+/).filter(Boolean);
+  return dato.valores.filter((v) => palabras.every((w) => sinAcentos(v).includes(w)));
+}
+
+// Pagina JSON del catalogo ({ html, siguiente }); si la sesion vencio vuelve HTML de login
+async function pedirPaginaJson(ruta) {
+  await asegurarSesion();
+  for (let intento = 0; intento < 2; intento++) {
+    const res = await pedir(ruta, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+    try { return JSON.parse(res.text); } catch (_) { await asegurarSesion(true); }
+  }
+  throw new Error('BMH: respuesta inesperada del catálogo');
+}
+
+// Todas las tarjetas de una categoria con un filtro (recorre las paginas)
+async function tarjetasCategoria(cat, columna, valor, presupuesto) {
+  const tarjetas = [];
+  let ruta = `/productos?categoria=${cat}${columna ? `&${encodeURIComponent(`atributo[${columna}]`)}=${encodeURIComponent(valor)}` : ''}&page=1&parcial=pagina`;
+  while (ruta && presupuesto.pedidos < MAX_PEDIDOS) {
+    presupuesto.pedidos++;
+    const j = await pedirPaginaJson(ruta);
+    const $ = cheerio.load(j.html || '');
+    tarjetas.push(...$('.pbmh-card').toArray().map((c) => leerTarjeta($, c)).filter((t) => t.codigo));
+    ruta = j.siguiente ? j.siguiente.replace(BASE, '') : null;
+  }
+  if (ruta) presupuesto.cortado = true;
+  return tarjetas;
+}
+
+// Valor de una caracteristica de la tarjeta por el nombre del filtro ("Diametro Interno")
+const valorTarjeta = (t, nombre) => {
+  const e = t.especificaciones.find((x) => sinAcentos(x.clave) === sinAcentos(nombre));
+  return e ? e.valor : null;
+};
+
+// cat: "41" (Rotores); filtros: { "a:columna_2": "88", texto: "bosch" }
+async function buscarAvanzado({ categoria, filtros }) {
+  const cat = String(categoria || '');
+  const datos = await datosCategoria(cat);
+  const activos = [];
+  let texto = '';
+  for (const [k, v] of Object.entries(filtros || {})) {
+    const valor = limpiar(v);
+    if (!valor) continue;
+    if (k === CAMPO_TEXTO.id) { texto = valor; continue; }
+    const dato = datos.find((d) => d.id === k);
+    if (!dato) throw new Error('Dato de búsqueda no válido para esta categoría de BMH');
+    const valores = valoresQueCoinciden(dato, valor);
+    if (!valores.length) return []; // ningun producto de BMH tiene ese valor
+    activos.push({ dato, valores: new Set(valores), productos: valores.reduce((t, v) => t + (dato.cantidad[v] || 1), 0) });
+  }
+
+  // El servidor filtra por un valor exacto: se pide cada valor del dato mas selectivo
+  const presupuesto = { pedidos: 0, cortado: false };
+  const guia = activos.slice().sort((a, b) => a.productos - b.productos)[0];
+  let tarjetas = [];
+  if (guia) {
+    if (guia.valores.size > 15) throw new Error(`"${guia.dato.nombre}": hay ${guia.valores.size} medidas distintas en ese rango; achicá el rango o escribí el valor exacto`);
+    for (const v of guia.valores) tarjetas.push(...await tarjetasCategoria(cat, guia.dato.columna, v, presupuesto));
+  } else {
+    tarjetas = await tarjetasCategoria(cat, null, null, presupuesto);
+  }
+  const vistos = new Set();
+  tarjetas = tarjetas.filter((t) => (vistos.has(t.codigo) ? false : vistos.add(t.codigo)));
+
+  // El resto de los datos, contra las caracteristicas de cada tarjeta
+  const palabras = sinAcentos(texto).split(/\s+/).filter(Boolean);
+  const resultados = tarjetas.filter((t) => activos.every((a) => {
+    if (a === guia) return true;
+    const v = valorTarjeta(t, a.dato.nombre);
+    return v != null && [...a.valores].some((x) => sinAcentos(x) === sinAcentos(v));
+  }) && palabras.every((w) => sinAcentos([t.codigo, t.descripcion, ...t.especificaciones.map((e) => e.valor), ...t.aplicaciones.map((x) => `${x.marca} ${x.modelo}`)].join(' ')).includes(w)));
+
+  if (presupuesto.cortado && !resultados.length) {
+    throw new Error('Hay demasiados productos para revisar: cargá una medida para acotar la búsqueda');
+  }
+  return resultados.slice(0, MAX_RESULTADOS_AV).map((t) => ({
+    id: t.id,
+    url: urlBusqueda(t.codigo),
+    codigo: t.codigo,
+    descripcion: t.descripcion,
+    detalle: t.especificaciones.filter((e) => !/^(marca|modelo)$/i.test(e.clave) && e.valor !== '-').map((e) => `${e.clave}: ${e.valor}`).join(' · ').slice(0, 240),
+    foto: t.fotos[0] || null,
+    precio_lista: t.lista,
+    precio_costo: t.lista != null ? Math.round(t.lista * (1 - (t.descuento || 0) / 100) * 100) / 100 : null
+  }));
+}
+
 async function descargarImagen(url) {
   let u;
   try { u = new URL(url); } catch { throw new Error('URL de imagen inválida'); }
@@ -304,5 +473,9 @@ module.exports = {
   buscar,
   leerFicha,
   descargarImagen,
-  urlFicha
+  urlFicha,
+  AYUDA_AVANZADA: `Rotores, estatores, inducidos y campos de BMH con los filtros de su catálogo. Diámetros, anchos y largos con ±${String(TOLERANCIA_MM).replace('.', ',')} mm o rango (ej: 85-90); voltaje, amperes, estrías y ranuras exactos. Sin datos lista toda la categoría.`,
+  categoriasAvanzadas,
+  camposCategoria,
+  buscarAvanzado
 };
