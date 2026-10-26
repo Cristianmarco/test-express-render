@@ -11,11 +11,13 @@ const dipra = require('./dipra');
 const exintrader = require('./exintrader');
 const rodaser = require('./rodaser');
 const hardimpex = require('./hardimpex');
+// Catalogo impreso (sin pagina): bujes autolubricados BYC
+const byc = require('./byc');
 // Catalogos tecnicos de fabricantes: solo busqueda avanzada (se importan desde Nosso)
 const zen = require('./zen');
 const zm = require('./zm');
 
-const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser, hardimpex, zen, zm];
+const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser, hardimpex, byc, zen, zm];
 
 function lectorPorId(id) {
   const k = String(id || '').trim().toLowerCase();

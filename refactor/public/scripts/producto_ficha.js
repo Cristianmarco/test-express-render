@@ -89,7 +89,7 @@
           <button class="pf-btn-link" data-act="volver"><i class="fas fa-arrow-left"></i> Volver a productos</button>
           <div class="pf-toolbar-right">
             ${d.proveedor_url ? `
-              <a class="pf-btn" href="${esc(d.proveedor_url)}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Ver en proveedor</a>
+              ${/^https?:\/\//i.test(d.proveedor_url) ? `<a class="pf-btn" href="${esc(d.proveedor_url)}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Ver en proveedor</a>` : ''}
               <button class="pf-btn" data-act="sync" ${ed ? 'disabled' : ''}><i class="fas fa-rotate"></i> Actualizar desde proveedor</button>`
               : `<button class="pf-btn" data-act="vincular" ${ed ? 'disabled' : ''} title="Buscar este producto en la página de un proveedor y completar la ficha"><i class="fas fa-cloud-arrow-down"></i> Buscar en proveedor</button>`}
             ${ed ? '' : '<button class="pf-btn primario" data-act="editar"><i class="fas fa-pen"></i> Editar</button>'}

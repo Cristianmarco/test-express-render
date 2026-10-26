@@ -436,7 +436,7 @@ async function marcarExistentes(lector, items) {
     ...it,
     proveedor: lector.ID,
     proveedor_nombre: lector.NOMBRE,
-    codigo_erp: codigoErp(prefijoDe(it), it.codigo),
+    codigo_erp: codigoErpDe(it, prefijoDe(it)),
     producto_id: existentes.get(i) || null
   }));
 }
@@ -528,6 +528,12 @@ function codigoErp(prefijo, codigoFabricante) {
   return prefijo ? `${String(prefijo).toUpperCase()} ${cod}` : cod;
 }
 
+// Codigo del ERP de un articulo o ficha: el que arma el lector si lo trae (BYC: "BYC 0594 2X")
+// o PREFIJO + codigo de fabricante
+function codigoErpDe(x, prefijo = x.prefijo) {
+  return x.codigo_erp ? String(x.codigo_erp).toUpperCase() : codigoErp(prefijo, x.codigo);
+}
+
 // Vista previa: ficha normalizada + producto del ERP que coincide (si hay)
 router.get('/importar/ficha', async (req, res) => {
   try {
@@ -535,7 +541,7 @@ router.get('/importar/ficha', async (req, res) => {
     if (!lector) return res.status(400).json({ error: 'URL de proveedor no soportada' });
     const ficha = await lector.leerFicha(req.query.url);
     const existente = await buscarExistente(ficha);
-    res.json({ ficha: { ...ficha, codigo_erp: codigoErp(ficha.prefijo, ficha.codigo) }, existente });
+    res.json({ ficha: { ...ficha, codigo_erp: codigoErpDe(ficha) }, existente });
   } catch (e) {
     console.error('Error GET /api/productos/importar/ficha', e);
     res.status(502).json({ error: e.message || 'No se pudo leer la ficha del proveedor' });
@@ -587,7 +593,7 @@ router.post('/importar', async (req, res) => {
       // Con forzar_nuevo (el usuario confirmo que el que coincide es de otra marca) solo
       // se impide duplicar el mismo codigo del ERP
       const dup = body.forzar_nuevo
-        ? (await client.query(`SELECT id, codigo FROM productos x WHERE ${NORM('x.codigo')} = $1 LIMIT 1`, [codigoNormalizado(codigoErp(ficha.prefijo, ficha.codigo))])).rows[0]
+        ? (await client.query(`SELECT id, codigo FROM productos x WHERE ${NORM('x.codigo')} = $1 LIMIT 1`, [codigoNormalizado(codigoErpDe(ficha))])).rows[0]
         : await buscarExistente({ ...ficha, ean: null }, client);
       if (dup) {
         await client.query('ROLLBACK');
@@ -596,7 +602,7 @@ router.post('/importar', async (req, res) => {
       const ins = await client.query(
         `INSERT INTO productos (codigo, codigo_fabricante, descripcion, marca_id, proveedor_id, iva_tipo, proveedor_url, proveedor_sync_at, fecha_alta)
          VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW()) RETURNING id`,
-        [codigoErp(ficha.prefijo, ficha.codigo), ficha.codigo, ficha.descripcion || ficha.codigo, marcaId, proveedorId, iva, ficha.url]
+        [codigoErpDe(ficha), ficha.codigo, ficha.descripcion || ficha.codigo, marcaId, proveedorId, iva, ficha.url]
       );
       pid = ins.rows[0].id;
     } else {
