@@ -829,6 +829,17 @@ function collectItems(){
 }
 
 // Modal ABM para R.Vigentes (agregar/editar manualmente)
+// Etapas del taller (misma lista que utils/etapas_reparacion.js). "Reparado" y
+// "Devuelto" no son etapas: salen de pendientes y de la devolucion.
+const ETAPAS_VIGENTE = [
+  ['ingresado', 'Ingresado'], ['diagnostico', 'En diagnóstico'], ['presupuesto', 'Esperando aprobación'],
+  ['repuestos', 'Esperando repuestos'], ['reparacion', 'En reparación'], ['prueba', 'En prueba'], ['listo', 'Listo para retirar']
+];
+function opcionesEtapa(actual){
+  return (actual ? '' : '<option value="">Sin etapa</option>')
+    + ETAPAS_VIGENTE.map(([id, nombre]) => `<option value="${id}" ${id === actual ? 'selected' : ''}>${nombre}</option>`).join('');
+}
+
 function ensureVigenteModal(){
   if (document.getElementById('modal-vigente-abm')) return;
   const m = document.createElement('div');
@@ -892,23 +903,20 @@ function ensureVigenteModal(){
             <input type="date" id="vig-fecha-limite" />
           </div>
         </div>
+        <div class="form-grid doble">
+          <div>
+            <label>Etapa <small>(la ve el cliente en el portal)</small></label>
+            <select id="vig-etapa">${opcionesEtapa('ingresado')}</select>
+          </div>
+          <div></div>
+        </div>
         <div class="form-grid">
           <div>
             <label>Observaciones</label>
             <textarea id="vig-observaciones" rows="2" style="resize:vertical;"></textarea>
           </div>
         </div>
-        <div class="vig-fotos-bloque">
-          <label>Fotos de ingreso <small>(estado del equipo al ingresar, hasta ${VIG_MAX_FOTOS})</small></label>
-          <div id="vig-fotos" class="vig-fotos"></div>
-          <div class="vig-fotos-botones">
-            <!-- En el celular "Tomar foto" abre la camara; en la PC los dos abren el explorador -->
-            <button type="button" class="btn-secundario" id="vig-fotos-camara"><i class="fas fa-camera"></i> Tomar foto</button>
-            <button type="button" class="btn-secundario" id="vig-fotos-archivo"><i class="fas fa-images"></i> Elegir archivos</button>
-            <input type="file" id="vig-fotos-input-camara" accept="image/*" capture="environment" hidden />
-            <input type="file" id="vig-fotos-input-archivo" accept="image/*" multiple hidden />
-          </div>
-        </div>
+        ${bloqueFotosHtml('vig', 'Fotos de ingreso <small>(estado del equipo al ingresar)</small>')}
         <input type="hidden" id="vig-codigo" />
         <div style="display:flex; justify-content:flex-end; gap:8px;">
           <button type="submit" class="btn-aceptar" id="vig-guardar"><i class="fas fa-save"></i> Guardar</button>
@@ -917,7 +925,7 @@ function ensureVigenteModal(){
     </div>`;
   document.body.appendChild(m);
   m.querySelector('#btn-close-vigente').addEventListener('click', ()=> m.style.display='none');
-  bindFotosVigenteABM(m);
+  fotosVigenteABM.bind();
 
   // Equipo → auto-fill código y descripción
   const equipoSel = m.querySelector('#vig-equipo-sel');
@@ -970,7 +978,8 @@ function ensureVigenteModal(){
       observaciones: document.getElementById('vig-observaciones').value.trim()||null,
       fecha_limite_entrega: document.getElementById('vig-fecha-limite').value || null,
       fecha_ingreso: document.getElementById('vig-fecha-ingreso').value || null,
-      cliente_tipo: document.getElementById('vig-tipo').value || null
+      cliente_tipo: document.getElementById('vig-tipo').value || null,
+      etapa: document.getElementById('vig-etapa').value || undefined
     };
     if (!payload.codigo || !payload.descripcion){ alert('Seleccione un equipo'); return; }
 
@@ -986,7 +995,7 @@ function ensureVigenteModal(){
       const js = await r.json().catch(()=>({}));
       if(!r.ok) throw new Error(js.error||'Error');
       // Fotos: se suben (y se borran las quitadas) recien con el registro guardado
-      const fallas = await guardarFotosVigente(js.id || id, btnGuardar);
+      const fallas = await fotosVigenteABM.guardar(js.id || id, btnGuardar);
       if (fallas.length) alert('El registro se guardó, pero hubo problemas con las fotos:\n- ' + fallas.join('\n- '));
       m.style.display='none'; cargarVigentes(); refreshInicioDashboard();
     }catch(err){ alert('No se pudo guardar'); }
@@ -994,127 +1003,16 @@ function ensureVigenteModal(){
   });
 }
 
-// ---- Fotos del estado de ingreso (R.Vigentes) ----
-// Se achican en el navegador antes de subirlas: una foto de celular (4-8 MB) queda en
-// ~300 KB, suficiente para ver el estado del equipo.
-const VIG_MAX_FOTOS = 10;
-const VIG_FOTO_LADO = 1600;
-const VIG_FOTO_CALIDAD = 0.82;
-// Miniatura para la columna "Foto" de la tabla (~8 KB)
-const VIG_MINI_LADO = 160;
-// Fotos del formulario abierto: las ya guardadas, las nuevas (sin subir: { data, mini })
-// y las quitadas
-let vigFotos = { existentes: [], nuevas: [], borrar: new Set() };
+const fotosVigenteABM = crearEditorFotos({ prefijo: 'vig', api: '/api/reparaciones_dota' });
+const fotosGarantiaExterna = crearEditorFotos({ prefijo: 'gar-ext', api: '/api/garantias_externas' });
+const fotosGarantiaDota = crearEditorFotos({ prefijo: 'gar-dota', api: '/api/licitaciones/garantias' });
 
-// Devuelve { data, mini }: la foto achicada y su miniatura, en JPEG
-function achicarFotoVigente(file){
-  return new Promise((ok, mal) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      // El navegador ya aplica la orientacion de la foto del celular (EXIF)
-      const aJpeg = (lado, calidad) => {
-        const escala = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight));
-        const c = document.createElement('canvas');
-        c.width = Math.round(img.naturalWidth * escala);
-        c.height = Math.round(img.naturalHeight * escala);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        return c.toDataURL('image/jpeg', calidad);
-      };
-      const data = aJpeg(VIG_FOTO_LADO, VIG_FOTO_CALIDAD);
-      const mini = aJpeg(VIG_MINI_LADO, 0.75);
-      URL.revokeObjectURL(url);
-      ok({ data, mini });
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); mal(new Error(`${file.name}: no es una imagen válida`)); };
-    img.src = url;
-  });
-}
-
-function pintarFotosVigenteABM(){
-  const cont = document.getElementById('vig-fotos');
-  if (!cont) return;
-  const visibles = [
-    ...vigFotos.existentes.filter(f => !vigFotos.borrar.has(f.id)).map(f => ({ src: f.url, tipo: 'existente', id: f.id })),
-    ...vigFotos.nuevas.map((f, i) => ({ src: f.data, tipo: 'nueva', id: i }))
-  ];
-  cont.innerHTML = visibles.length
-    ? visibles.map(f => `
-        <div class="vig-foto${f.tipo === 'nueva' ? ' nueva' : ''}">
-          <img src="${f.src}" alt="Foto de ingreso">
-          <button type="button" class="vig-foto-quitar" data-tipo="${f.tipo}" data-id="${f.id}" title="Quitar foto">&times;</button>
-          ${f.tipo === 'nueva' ? '<span class="vig-foto-etiqueta">Sin guardar</span>' : ''}
-        </div>`).join('')
-    : '<div class="vig-fotos-vacio">Sin fotos</div>';
-  const total = visibles.length;
-  ['vig-fotos-camara', 'vig-fotos-archivo'].forEach(idb => { const b = document.getElementById(idb); if (b) b.disabled = total >= VIG_MAX_FOTOS; });
-}
-
-function bindFotosVigenteABM(m){
-  const agregar = async (input) => {
-    const archivos = Array.from(input.files || []);
-    input.value = '';
-    const libres = VIG_MAX_FOTOS - (vigFotos.existentes.filter(f => !vigFotos.borrar.has(f.id)).length + vigFotos.nuevas.length);
-    if (archivos.length > libres) alert(`Se pueden cargar hasta ${VIG_MAX_FOTOS} fotos por equipo: se agregan ${Math.max(libres, 0)}.`);
-    for (const file of archivos.slice(0, Math.max(libres, 0))) {
-      try { vigFotos.nuevas.push(await achicarFotoVigente(file)); }
-      catch (e) { alert(e.message); }
-    }
-    pintarFotosVigenteABM();
-  };
-  const inCam = m.querySelector('#vig-fotos-input-camara');
-  const inArch = m.querySelector('#vig-fotos-input-archivo');
-  m.querySelector('#vig-fotos-camara').addEventListener('click', () => inCam.click());
-  m.querySelector('#vig-fotos-archivo').addEventListener('click', () => inArch.click());
-  inCam.addEventListener('change', () => agregar(inCam));
-  inArch.addEventListener('change', () => agregar(inArch));
-  m.querySelector('#vig-fotos').addEventListener('click', (e) => {
-    const b = e.target.closest('.vig-foto-quitar');
-    if (b) {
-      if (b.dataset.tipo === 'nueva') vigFotos.nuevas.splice(Number(b.dataset.id), 1);
-      else vigFotos.borrar.add(Number(b.dataset.id));
-      pintarFotosVigenteABM();
-      return;
-    }
-    const img = e.target.closest('.vig-foto img');
-    if (img) window.open(img.src, '_blank');
-  });
-}
-
-async function cargarFotosVigenteABM(id){
-  vigFotos = { existentes: [], nuevas: [], borrar: new Set() };
-  pintarFotosVigenteABM();
-  if (!id) return;
-  try {
-    const r = await fetch(`/api/reparaciones_dota/${id}/fotos`, { credentials:'include' });
-    const lista = await r.json();
-    vigFotos.existentes = Array.isArray(lista) ? lista : [];
-  } catch (_) { /* sin fotos se puede editar igual */ }
-  pintarFotosVigenteABM();
-}
-
-// Sube las nuevas y borra las quitadas. Devuelve la lista de problemas (vacia si todo ok).
-async function guardarFotosVigente(id, boton){
-  const fallas = [];
-  if (!id) return fallas;
-  for (const fotoId of vigFotos.borrar) {
-    try {
-      const r = await fetch(`/api/reparaciones_dota/${id}/fotos/${fotoId}`, { method:'DELETE', credentials:'include' });
-      if (!r.ok) throw new Error();
-    } catch (_) { fallas.push('No se pudo quitar una foto'); }
-  }
-  for (let i = 0; i < vigFotos.nuevas.length; i++) {
-    if (boton) boton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Subiendo foto ${i + 1} de ${vigFotos.nuevas.length}...`;
-    try {
-      const r = await fetch(`/api/reparaciones_dota/${id}/fotos`, {
-        method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ data: vigFotos.nuevas[i].data, miniatura: vigFotos.nuevas[i].mini })
-      });
-      const js = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(js.error || 'Error');
-    } catch (e) { fallas.push(`Foto ${i + 1}: ${e.message}`); }
-  }
-  return fallas;
+// Celda de tabla con la primera foto (miniatura) y la cantidad; clic: la foto en grande
+function miniaturaFotos(api, r){
+  if (!r.foto_id) return '<span style="color:#cbd5e1;">—</span>';
+  return `<a class="vig-mini" href="${api}/fotos/${r.foto_id}" target="_blank" rel="noopener" title="${r.fotos} foto${r.fotos === 1 ? '' : 's'} (Editar para ver todas)">
+      <img src="${api}/fotos/${r.foto_id}?mini=1" alt="" loading="lazy">${r.fotos > 1 ? `<span class="vig-mini-cant">${r.fotos}</span>` : ''}
+    </a>`;
 }
 
 async function abrirModalVigenteABM(data){
@@ -1166,6 +1064,7 @@ async function abrirModalVigenteABM(data){
     document.getElementById('vig-fecha-limite').value = fechaLimiteToInputValue(data.fecha_limite_entrega);
     document.getElementById('vig-fecha-ingreso').value = fechaLimiteToInputValue(data.fecha_ingreso);
     document.getElementById('vig-tipo').value = data.cliente_tipo || '';
+    document.getElementById('vig-etapa').innerHTML = opcionesEtapa(data.etapa || '');
     // Preseleccionar por cliente_id (dato confiable); las filas viejas sin
     // cliente_id quedan en "Seleccione cliente" en vez de adivinar por nombre.
     if (selRazon && data.cliente_id) selRazon.value = String(data.cliente_id);
@@ -1189,9 +1088,10 @@ async function abrirModalVigenteABM(data){
     // Alta manual: por defecto es un ingreso externo, con fecha de hoy.
     document.getElementById('vig-fecha-ingreso').value = new Date().toISOString().slice(0, 10);
     document.getElementById('vig-tipo').value = 'externo';
+    document.getElementById('vig-etapa').innerHTML = opcionesEtapa('ingresado');
     if (selEquipo) selEquipo.value = '';
   }
-  cargarFotosVigenteABM(data && data.id ? data.id : null);
+  fotosVigenteABM.cargar(data && data.id ? data.id : null);
   m.style.display='flex';
 }
 // -------- Deseleccion al clickear fuera de la tabla --------
@@ -1333,13 +1233,13 @@ function setupLicitacionesTabs(){
 
 async function cargarVigentes(){
   const tb = document.getElementById('tbody-vigentes'); if(!tb) return;
-  tb.innerHTML = "<tr><td colspan='13' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  tb.innerHTML = "<tr><td colspan='14' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
   window.showSpinner && window.showSpinner();
   try{
     const res = await fetch('/api/reparaciones_dota', { credentials:'include' });
     const data = await res.json();
     const lista = Array.isArray(data)? data : [];
-    if(lista.length===0){ tb.innerHTML = "<tr><td colspan='13' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
+    if(lista.length===0){ tb.innerHTML = "<tr><td colspan='14' style='text-align:center; padding:10px; color:#666'>Sin vigentes.</td></tr>"; return; }
     const attr = v => String(v==null?'':v).replace(/"/g,'&quot;');
     tb.innerHTML = lista.map(r=>{
       const cotIcon = r.cotizacion_id
@@ -1379,11 +1279,20 @@ async function cargarVigentes(){
         <td>${r.pendientes!=null?r.pendientes:'-'}</td>
         <td class="vig-nowrap">${fechaIngresoTxt}</td>
         <td class="vig-nowrap">${fechaLimiteTxt}${devuelto ? '' : marcaAtraso}</td>
+        <td>${celdaEtapa(r, devuelto)}</td>
         <td class="vig-texto vig-obs"${r.observaciones ? ` title="${attr(r.observaciones)}"` : ''}><div>${esc(r.observaciones) || '-'}</div></td>
         <td style="text-align:center;">${cotIcon}</td>
         <td class="vig-foto-celda">${fotoCelda}</td>
       </tr>`;
     }).join('');
+    // Cambio de etapa desde la tabla
+    if (!tb._etapaBound){
+      tb._etapaBound = true;
+      tb.addEventListener('change', (e) => {
+        const sel = e.target.closest('.vig-etapa-sel');
+        if (sel) cambiarEtapaVigente(sel);
+      });
+    }
     // selección de filas + click en icono cotización
     if (!tb._selBound){
       tb._selBound = true;
@@ -1423,9 +1332,39 @@ async function cargarVigentes(){
     if (filtroActual && filtroActual.value) filtrarVigentes(filtroActual.value);
   } catch(err) {
     console.error('vigentes load', err);
-    tb.innerHTML = "<tr><td colspan='13' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+    tb.innerHTML = "<tr><td colspan='14' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
   } finally {
     window.hideSpinner && window.hideSpinner();
+  }
+}
+
+// Etapa en la tabla: un select para cambiarla al instante. Lo ya reparado o devuelto
+// no tiene etapa que cambiar.
+function celdaEtapa(r, devuelto){
+  if (devuelto) return '<span class="vig-etapa-fin" style="color:#64748b;">Devuelto</span>';
+  if (r.pendientes != null && Number(r.pendientes) <= 0) return '<span class="vig-etapa-fin">Reparado</span>';
+  return `<select class="vig-etapa-sel${r.etapa === 'listo' ? ' listo' : ''}" data-id="${r.id}" data-actual="${r.etapa || ''}" title="Etapa del taller">${opcionesEtapa(r.etapa || '')}</select>`;
+}
+
+async function cambiarEtapaVigente(sel){
+  sel.disabled = true;
+  try {
+    const r = await fetch(`/api/reparaciones_dota/${sel.dataset.id}/etapa`, {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ etapa: sel.value })
+    });
+    const js = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(js.error || 'Error');
+    sel.dataset.actual = sel.value;
+    sel.classList.toggle('listo', sel.value === 'listo');
+    // Ya tiene etapa: se saca la opcion "Sin etapa"
+    const vacia = sel.querySelector('option[value=""]');
+    if (vacia) vacia.remove();
+  } catch (err) {
+    alert('No se pudo cambiar la etapa: ' + err.message);
+    sel.value = sel.dataset.actual;
+  } finally {
+    sel.disabled = false;
   }
 }
 
@@ -1601,6 +1540,7 @@ function formatVigAuditAction(value){
   if (key === 'delete') return 'Eliminacion';
   if (key === 'foto_agregada') return 'Foto agregada';
   if (key === 'foto_eliminada') return 'Foto eliminada';
+  if (key === 'etapa') return 'Cambio de etapa';
   return value || '-';
 }
 
@@ -1622,8 +1562,11 @@ function renderVigenteAuditoria(items){
     const detail = item.detail || {};
     const changes = detail.changes && typeof detail.changes === 'object' ? detail.changes : null;
     const snapshot = detail.snapshot && typeof detail.snapshot === 'object' ? detail.snapshot : null;
+    const nombreEtapa = (id) => (ETAPAS_VIGENTE.find(([k]) => k === id) || [null, id || '-'])[1];
     const resumen = changes
       ? Object.entries(changes).map(([campo, diff]) => `<li><b>${campo}</b>: ${formatVigAuditValue(diff.before)} -> ${formatVigAuditValue(diff.after)}</li>`).join('')
+      : item.action === 'etapa'
+        ? `<li>${esc(nombreEtapa(detail.desde))} -> <b>${esc(nombreEtapa(detail.hasta))}</b></li>`
       : snapshot
         ? Object.entries(snapshot).map(([campo, valor]) => `<li><b>${campo}</b>: ${formatVigAuditValue(valor)}</li>`).join('')
         : '<li>Sin detalle.</li>';
@@ -1924,6 +1867,7 @@ async function cargarGarantias() {
           <td>${html(g.detalle || '')}</td>
           <td>${html(g.ref_proveedor || '')}</td>
           <td>${html(g.id_reparacion || '')}</td>
+          <td class="vig-foto-celda">${miniaturaFotos('/api/licitaciones/garantias', g)}</td>
         </tr>`;
     }).join('');
     tbody.innerHTML = rows;
@@ -2058,7 +2002,7 @@ async function cargarGarantiasExternos() {
   if (clienteId) params.set('cliente_id', clienteId);
   if (desde) params.set('desde', desde);
   if (hasta) params.set('hasta', hasta);
-  tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
+  tb.innerHTML = "<tr><td colspan='10' style='text-align:center; padding:10px; color:#666'><i class='fas fa-spinner fa-spin'></i> Cargando...</td></tr>";
   window.showSpinner && window.showSpinner();
   try {
     const qs = params.toString();
@@ -2066,7 +2010,7 @@ async function cargarGarantiasExternos() {
     const data = await res.json();
     const lista = Array.isArray(data) ? data : [];
     if (!lista.length) {
-      tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:#666'>Sin garantias de externos.</td></tr>";
+      tb.innerHTML = "<tr><td colspan='10' style='text-align:center; padding:10px; color:#666'>Sin garantias de externos.</td></tr>";
       return;
     }
     const fmt = (d) => {
@@ -2096,6 +2040,7 @@ async function cargarGarantiasExternos() {
         <td>${r.cantidad ?? '-'}</td>
         <td>${r.pendiente ?? '-'}</td>
         <td>${esc(r.observaciones) || '-'}</td>
+        <td class="vig-foto-celda">${miniaturaFotos('/api/garantias_externas', r)}</td>
       </tr>
     `).join('');
     if (!tb._extSelBound) {
@@ -2123,7 +2068,7 @@ async function cargarGarantiasExternos() {
     }
   } catch (err) {
     console.error('garantias externos load', err);
-    tb.innerHTML = "<tr><td colspan='9' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
+    tb.innerHTML = "<tr><td colspan='10' style='text-align:center; padding:10px; color:red'>Error al cargar.</td></tr>";
   } finally {
     window.hideSpinner && window.hideSpinner();
   }
@@ -2208,6 +2153,12 @@ function openGarantiaExternaModal(edit = false) {
     form._bound = true;
     form.addEventListener('submit', guardarGarantiaExterna);
   }
+  const fotosWrap = document.getElementById('gar-ext-fotos-wrap');
+  if (fotosWrap && !fotosWrap.childElementCount) {
+    fotosWrap.innerHTML = bloqueFotosHtml('gar-ext', 'Fotos del equipo <small>(las ve el cliente en el portal)</small>');
+    fotosGarantiaExterna.bind();
+  }
+  fotosGarantiaExterna.cargar(edit && garExtSeleccionada ? garExtSeleccionada.id : null);
   const title = document.getElementById('gar-ext-modal-title');
   if (title) title.textContent = edit ? 'Editar garantia externa' : 'Nueva garantia externa';
   modal.style.display = 'flex';
@@ -2231,10 +2182,15 @@ async function guardarGarantiaExterna(e) {
   const isEdit = form.dataset.mode === 'edit' && garExtSeleccionada && garExtSeleccionada.id;
   const url = isEdit ? `/api/garantias_externas/${garExtSeleccionada.id}` : '/api/garantias_externas';
   const method = isEdit ? 'PUT' : 'POST';
+  const btnGuardar = document.getElementById('gar-ext-guardar');
+  if (btnGuardar) btnGuardar.disabled = true;
   try {
     const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'Error al guardar');
+    // Fotos: se suben (y se borran las quitadas) recien con la garantia guardada
+    const fallas = await fotosGarantiaExterna.guardar(body.id || (isEdit && garExtSeleccionada.id), btnGuardar);
+    if (fallas.length) alert('La garantía se guardó, pero hubo problemas con las fotos:\n- ' + fallas.join('\n- '));
     document.getElementById('modal-garantia-externa').style.display = 'none';
     garExtSeleccionada = null;
     cargarGarantiasExternos();
@@ -2242,6 +2198,8 @@ async function guardarGarantiaExterna(e) {
   } catch (err) {
     console.error('guardar garantia externa', err);
     alert(err.message || 'No se pudo guardar la garantia externa');
+  } finally {
+    if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar'; }
   }
 }
 
@@ -2358,6 +2316,12 @@ function openGarantiaModal(edit = false) {
     form._bound = true;
     form.addEventListener('submit', guardarGarantia);
   }
+  const fotosWrap = document.getElementById('gar-dota-fotos-wrap');
+  if (fotosWrap && !fotosWrap.childElementCount) {
+    fotosWrap.innerHTML = bloqueFotosHtml('gar-dota', 'Fotos del equipo <small>(las ve Dota en el portal)</small>');
+    fotosGarantiaDota.bind();
+  }
+  fotosGarantiaDota.cargar(edit && garSeleccionada ? garSeleccionada.id : null);
   const title = document.getElementById('gar-modal-title');
   if (title) title.textContent = edit ? 'Editar garantia' : 'Nueva garantia';
   modal.style.display = 'flex';
@@ -2391,11 +2355,15 @@ async function guardarGarantia(e) {
   const isEdit = form.dataset.mode === 'edit' && garSeleccionada && garSeleccionada.id;
   const url = isEdit ? `/api/licitaciones/garantias/${garSeleccionada.id}` : '/api/licitaciones/garantias';
   const method = isEdit ? 'PUT' : 'POST';
+  const btnGuardar = document.getElementById('gar-dota-guardar');
+  if (btnGuardar) btnGuardar.disabled = true;
   try {
     const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'Error al guardar');
-    alert('Garantia guardada');
+    // Fotos: se suben (y se borran las quitadas) recien con la garantia guardada
+    const fallas = await fotosGarantiaDota.guardar(body.id || (isEdit && garSeleccionada.id), btnGuardar);
+    alert(fallas.length ? 'La garantía se guardó, pero hubo problemas con las fotos:\n- ' + fallas.join('\n- ') : 'Garantia guardada');
     document.getElementById('modal-garantia').style.display = 'none';
     garSeleccionada = null;
     cargarGarantias();
@@ -2403,6 +2371,8 @@ async function guardarGarantia(e) {
   } catch (err) {
     console.error('guardar garantia', err);
     alert('No se pudo guardar la garantia');
+  } finally {
+    if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar'; }
   }
 }
 

@@ -9,7 +9,27 @@ const {
   insertDomainAudit
 } = require('../utils/domain-audit');
 
+const { fotosDeRegistro } = require('../utils/fotos_registro');
+
 const AUDIT_DOMAIN_LICITACIONES = 'licitaciones';
+
+// Fotos del equipo al ingresar una garantia de Dota. Sin cascada: al resolverse, la
+// garantia sale de la cola (va a licitacion_garantias_archive con garantia_original_id)
+// y las fotos tienen que seguir. Solo se borran si se elimina la garantia a mano.
+const fotosGarantiaDota = fotosDeRegistro({
+  tabla: 'licitacion_garantias_fotos',
+  columna: 'garantia_id',
+  tablaPadre: 'licitacion_garantias',
+  cascada: false,
+  // En la cola o ya archivada (desde la planilla se cargan con la reparacion)
+  existeSql: `SELECT 1 FROM licitacion_garantias WHERE id = $1
+              UNION ALL SELECT 1 FROM licitacion_garantias_archive WHERE garantia_original_id = $1`,
+  urlBase: '/api/licitaciones/garantias',
+  auditDomain: 'garantias_dota'
+});
+// Al arrancar: el portal de clientes la lee aunque nadie haya abierto Garantias
+fotosGarantiaDota.asegurarTabla(db)
+  .catch((err) => console.error('licitaciones: no se pudo asegurar la tabla de fotos de garantias', err));
 
 let garantiasTableReady = false;
 const GARANTIA_ARCHIVE_TABLE_SQL = `
@@ -62,6 +82,7 @@ async function ensureGarantiasTable() {
   `);
   await db.query(`ALTER TABLE licitacion_garantias ADD COLUMN IF NOT EXISTS id_cliente TEXT`);
   await db.query(`ALTER TABLE licitacion_garantias ADD COLUMN IF NOT EXISTS id_reparacion TEXT`);
+  await fotosGarantiaDota.asegurarTabla(db);
   garantiasTableReady = true;
 }
 
@@ -335,6 +356,9 @@ router.use('/garantias', async (req, res, next) => {
     next(err);
   }
 });
+const garantiasFotosRouter = express.Router();
+fotosGarantiaDota.montar(garantiasFotosRouter);
+router.use('/garantias', garantiasFotosRouter);
 
 router.get('/garantias', async (req, res, next) => {
   try {
@@ -346,7 +370,8 @@ router.get('/garantias', async (req, res, next) => {
            WHEN cat.descripcion ILIKE '%bomba%' THEN 'bombas'
            WHEN cat.descripcion ILIKE '%instalaci%' THEN 'instalaciones'
            ELSE 'otros'
-         END AS categoria_grupo
+         END AS categoria_grupo,
+         ${fotosGarantiaDota.sqlResumen('lg')}
        FROM licitacion_garantias lg
        LEFT JOIN familia f ON btrim(COALESCE(f.codigo, '')) = btrim(COALESCE(lg.codigo, ''))
        LEFT JOIN categoria cat ON cat.id = f.categoria_id
@@ -439,6 +464,7 @@ router.delete('/garantias/:id', async (req, res, next) => {
   try {
     const del = await db.query('DELETE FROM licitacion_garantias WHERE id=$1 RETURNING id', [id]);
     if (!del.rowCount) return res.status(404).json({ error: 'Garantia no encontrada' });
+    await fotosGarantiaDota.borrarDe(db, [del.rows[0].id]);
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -454,6 +480,7 @@ router.post('/garantias/bulk-delete', async (req, res, next) => {
       `DELETE FROM licitacion_garantias WHERE id IN (${params}) RETURNING id`,
       ids
     );
+    await fotosGarantiaDota.borrarDe(db, result.rows.map((r) => r.id));
     res.json({ deleted: result.rowCount });
   } catch (err) {
     next(err);

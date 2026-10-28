@@ -8,6 +8,9 @@ const {
   insertDomainAudit
 } = require('../utils/domain-audit');
 
+const { fotosDeRegistro } = require('../utils/fotos_registro');
+const { ETAPAS, esEtapa } = require('../utils/etapas_reparacion');
+
 const AUDIT_DOMAIN = 'reparaciones_dota';
 
 function normalizeFechaLimite(value) {
@@ -44,31 +47,48 @@ async function ensureNuevasColumnas(dbClient) {
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS devuelto_pendientes_previos INTEGER');
 }
 
-// Fotos del estado de ingreso del equipo. Se guardan en la base (los archivos en disco
-// se pierden con los deploys de Render) y se borran junto con el registro.
-const MAX_FOTO_BYTES = 5 * 1024 * 1024;
-const MAX_FOTOS_POR_VIGENTE = 10;
-async function ensureTablaFotos(dbClient) {
+// Etapa del taller (ver utils/etapas_reparacion.js). La columna tiene la etapa actual y
+// reparaciones_dota_etapas el recorrido (quien la marco y cuando). Mas adelante la
+// podra registrar cada sector escaneando el codigo del equipo.
+async function ensureEtapas(dbClient) {
+  await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS etapa TEXT');
+  await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS etapa_at TIMESTAMPTZ');
   await dbClient.query(`
-    CREATE TABLE IF NOT EXISTS reparaciones_dota_fotos (
+    CREATE TABLE IF NOT EXISTS reparaciones_dota_etapas (
       id SERIAL PRIMARY KEY,
       vigente_id INTEGER NOT NULL REFERENCES reparaciones_dota(id) ON DELETE CASCADE,
-      data BYTEA NOT NULL,
-      mime TEXT NOT NULL,
-      creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
-      usuario TEXT
+      etapa TEXT NOT NULL,
+      usuario TEXT,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
-  await dbClient.query('CREATE INDEX IF NOT EXISTS idx_rep_dota_fotos_vigente ON reparaciones_dota_fotos(vigente_id)');
-  // Miniatura (la arma el navegador al subir) para mostrar en la tabla sin bajar la foto entera
-  await dbClient.query('ALTER TABLE reparaciones_dota_fotos ADD COLUMN IF NOT EXISTS miniatura BYTEA');
+  await dbClient.query('CREATE INDEX IF NOT EXISTS idx_rep_dota_etapas_vigente ON reparaciones_dota_etapas(vigente_id)');
 }
-const MAX_MINIATURA_BYTES = 200 * 1024;
-const urlFotoVigente = (fotoId) => `/api/reparaciones_dota/fotos/${fotoId}`;
+
+// Cambia la etapa si es distinta de la actual. Devuelve true si cambio.
+async function registrarEtapa(dbClient, req, id, etapa, actual) {
+  if (!esEtapa(etapa) || etapa === actual) return false;
+  const usuario = (req.session && req.session.user && (req.session.user.email || req.session.user.nombre)) || null;
+  await dbClient.query('UPDATE reparaciones_dota SET etapa = $1, etapa_at = now() WHERE id = $2', [etapa, id]);
+  await dbClient.query('INSERT INTO reparaciones_dota_etapas (vigente_id, etapa, usuario) VALUES ($1, $2, $3)', [id, etapa, usuario]);
+  await insertDomainAudit(dbClient, req, AUDIT_DOMAIN, id, 'etapa', { desde: actual || null, hasta: etapa });
+  return true;
+}
+
+// Fotos del estado de ingreso del equipo; se borran junto con el registro
+const fotos = fotosDeRegistro({
+  tabla: 'reparaciones_dota_fotos',
+  columna: 'vigente_id',
+  tablaPadre: 'reparaciones_dota',
+  indice: 'idx_rep_dota_fotos_vigente',
+  urlBase: '/api/reparaciones_dota',
+  auditDomain: AUDIT_DOMAIN
+});
 
 // Se asegura al cargar el modulo para que el recalculo de pendientes (aca y en
 // la planilla diaria) pueda filtrar por "devuelto" sin depender de un POST/PUT previo.
 ensureNuevasColumnas(db)
-  .then(() => ensureTablaFotos(db))
+  .then(() => fotos.asegurarTabla(db))
+  .then(() => ensureEtapas(db))
   .catch(err => console.error('reparaciones_dota: no se pudieron asegurar columnas', err));
 
 // POST: crear reparación vigente
@@ -90,8 +110,11 @@ router.post('/', async (req, res, next) => {
     await insertDomainAudit(client, req, AUDIT_DOMAIN, q.rows[0].id, 'create', {
       snapshot: q.rows[0]
     });
+    // Todo equipo arranca en una etapa (la elegida en el alta, o "Ingresado")
+    const etapa = esEtapa(req.body.etapa) ? req.body.etapa : 'ingresado';
+    await registrarEtapa(client, req, q.rows[0].id, etapa, null);
     await client.query('COMMIT');
-    res.status(201).json(q.rows[0]);
+    res.status(201).json({ ...q.rows[0], etapa });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     next(err);
@@ -190,76 +213,43 @@ router.get('/auditoria/:id', async (req, res, next) => {
 });
 
 // ---- Fotos del estado de ingreso ----
+fotos.montar(router);
 
-// Imagen de una foto (?mini=1: la miniatura, o la foto si no tiene)
-router.get('/fotos/:fotoId(\\d+)', async (req, res, next) => {
-  try {
-    const mini = req.query.mini === '1';
-    const { rows } = await db.query(
-      `SELECT ${mini ? 'COALESCE(miniatura, data) AS data, CASE WHEN miniatura IS NULL THEN mime ELSE \'image/jpeg\' END AS mime' : 'data, mime'}
-         FROM reparaciones_dota_fotos WHERE id = $1`,
-      [req.params.fotoId]
-    );
-    if (!rows.length) return res.status(404).end();
-    res.set('Content-Type', rows[0].mime || 'image/jpeg');
-    // Una foto no cambia (no se edita: se borra y se sube otra)
-    res.set('Cache-Control', 'private, max-age=31536000, immutable');
-    res.send(rows[0].data);
-  } catch (err) { next(err); }
-});
+// ---- Etapas del taller ----
+router.get('/etapas', (req, res) => res.json(ETAPAS));
 
-// Fotos de un registro: [{ id, url, creado_en, usuario }]
-router.get('/:id(\\d+)/fotos', async (req, res, next) => {
+// Recorrido de un equipo por las etapas
+router.get('/:id(\\d+)/etapas', async (req, res, next) => {
   try {
     const { rows } = await db.query(
-      'SELECT id, creado_en, usuario FROM reparaciones_dota_fotos WHERE vigente_id = $1 ORDER BY id',
+      'SELECT etapa, usuario, creado_en FROM reparaciones_dota_etapas WHERE vigente_id = $1 ORDER BY creado_en, id',
       [req.params.id]
     );
-    res.json(rows.map((f) => ({ ...f, url: urlFotoVigente(f.id) })));
+    res.json(rows);
   } catch (err) { next(err); }
 });
 
-// Sube una foto: { data: "data:image/jpeg;base64,...", miniatura: "data:image/jpeg;base64,..." }
-// (el navegador ya la achica y arma la miniatura)
-router.post('/:id(\\d+)/fotos', async (req, res, next) => {
+// Cambia la etapa: { etapa }
+router.post('/:id(\\d+)/etapa', async (req, res, next) => {
+  const etapa = String((req.body && req.body.etapa) || '');
+  if (!esEtapa(etapa)) return res.status(400).json({ error: 'Etapa inválida' });
+  const client = await db.connect();
   try {
-    const id = Number(req.params.id);
-    const m = String((req.body && req.body.data) || '').match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
-    if (!m) return res.status(400).json({ error: 'Imagen inválida (JPG, PNG o WEBP)' });
-    const buf = Buffer.from(m[2], 'base64');
-    if (!buf.length || buf.length > MAX_FOTO_BYTES) return res.status(400).json({ error: 'La imagen supera los 5 MB' });
-    // La miniatura es opcional: si no viene o es invalida, la tabla usa la foto
-    const mm = String((req.body && req.body.miniatura) || '').match(/^data:image\/jpeg;base64,(.+)$/);
-    const miniatura = mm ? Buffer.from(mm[1], 'base64') : null;
-    const miniValida = miniatura && miniatura.length && miniatura.length <= MAX_MINIATURA_BYTES ? miniatura : null;
-    const cant = await db.query('SELECT count(*)::int AS n FROM reparaciones_dota_fotos WHERE vigente_id = $1', [id]);
-    if (cant.rows[0].n >= MAX_FOTOS_POR_VIGENTE) {
-      return res.status(400).json({ error: `Se pueden cargar hasta ${MAX_FOTOS_POR_VIGENTE} fotos por equipo` });
+    await client.query('BEGIN');
+    const before = await client.query('SELECT etapa FROM reparaciones_dota WHERE id = $1 FOR UPDATE', [req.params.id]);
+    if (!before.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Reparación no encontrada' });
     }
-    const usuario = (req.session && req.session.user && (req.session.user.email || req.session.user.nombre)) || null;
-    const { rows } = await db.query(
-      `INSERT INTO reparaciones_dota_fotos (vigente_id, data, mime, usuario, miniatura) VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, creado_en, usuario`,
-      [id, buf, m[1], usuario, miniValida]
-    );
-    await insertDomainAudit(db, req, AUDIT_DOMAIN, id, 'foto_agregada', { foto_id: rows[0].id });
-    res.status(201).json({ ...rows[0], url: urlFotoVigente(rows[0].id) });
+    await registrarEtapa(client, req, Number(req.params.id), etapa, before.rows[0].etapa);
+    await client.query('COMMIT');
+    res.json({ ok: true, etapa });
   } catch (err) {
-    if (err && err.code === '23503') return res.status(404).json({ error: 'Reparación no encontrada' });
+    try { await client.query('ROLLBACK'); } catch (_) {}
     next(err);
+  } finally {
+    client.release();
   }
-});
-
-router.delete('/:id(\\d+)/fotos/:fotoId(\\d+)', async (req, res, next) => {
-  try {
-    const del = await db.query(
-      'DELETE FROM reparaciones_dota_fotos WHERE id = $1 AND vigente_id = $2 RETURNING id',
-      [req.params.fotoId, req.params.id]
-    );
-    if (!del.rowCount) return res.status(404).json({ error: 'Foto no encontrada' });
-    await insertDomainAudit(db, req, AUDIT_DOMAIN, req.params.id, 'foto_eliminada', { foto_id: Number(req.params.fotoId) });
-    res.json({ ok: true });
-  } catch (err) { next(err); }
 });
 
 // POST: marcar como devuelto sin reparar (pendientes = 0) o revertir la devolucion
@@ -365,8 +355,10 @@ router.put('/:id', async (req, res, next) => {
     await insertDomainAudit(client, req, AUDIT_DOMAIN, id, 'update', {
       changes: buildAuditChanges(before.rows[0], q.rows[0])
     });
+    // La etapa solo cambia si el formulario la manda
+    const cambioEtapa = await registrarEtapa(client, req, Number(id), req.body.etapa, before.rows[0].etapa);
     await client.query('COMMIT');
-    res.json(q.rows[0]);
+    res.json(cambioEtapa ? { ...q.rows[0], etapa: req.body.etapa } : q.rows[0]);
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     next(e);

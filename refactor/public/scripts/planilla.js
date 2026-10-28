@@ -163,6 +163,43 @@ let repuestosFiltro = null;
 let repuestosSeleccionIds = new Set();
 let fichaTecnicaActual = null;
 
+// Fotos de la garantia (fotos_editor.js). No se guardan en la reparacion sino en la
+// garantia de Dota o externa que corresponde al ID (asi se ven igual desde Garantias y
+// desde el portal del cliente). La garantia se busca con /garantia-destino.
+const fotosGarantiaPlanilla = crearEditorFotos({ prefijo: 'pla-gar', api: '' });
+
+async function destinoFotosGarantia({ id_dota, cliente_tipo, reparacion_id }) {
+  if (!String(id_dota || '').trim()) return { id: null };
+  const qs = new URLSearchParams({ id_dota: String(id_dota).trim(), cliente_tipo: cliente_tipo || '', reparacion_id: reparacion_id || '' });
+  const res = await fetch(`/api/reparaciones_planilla/garantia-destino?${qs}`, { credentials: 'include' });
+  return res.ok ? res.json() : { id: null };
+}
+
+// Arma el bloque de fotos (una vez) y carga las de la garantia de la reparacion
+async function cargarFotosGarantiaPlanilla(rep) {
+  const wrap = document.getElementById('pla-gar-fotos-wrap');
+  if (wrap && !wrap.childElementCount) {
+    wrap.innerHTML = bloqueFotosHtml('pla-gar', 'Fotos del equipo <small>(se guardan en la garantía y las ve el cliente en el portal)</small>');
+    fotosGarantiaPlanilla.bind();
+  }
+  await fotosGarantiaPlanilla.cargar(null);
+  if (!rep || String(rep.garantia || '').toLowerCase() !== 'si') return;
+  try {
+    const destino = await destinoFotosGarantia({ id_dota: rep.id_dota, cliente_tipo: rep.cliente_tipo, reparacion_id: rep.id });
+    if (destino.id) await fotosGarantiaPlanilla.cargar(destino.id, destino.api);
+  } catch (_) { /* sin fotos se puede editar igual */ }
+}
+
+// Despues de guardar la reparacion: sube las fotos a su garantia. Devuelve los problemas.
+async function guardarFotosGarantiaPlanilla(datos, reparacionId) {
+  if (String(datos.garantia || '').toLowerCase() !== 'si' || !fotosGarantiaPlanilla.hayCambios()) return [];
+  const destino = await destinoFotosGarantia({ id_dota: datos.id_dota, cliente_tipo: datos.cliente_tipo, reparacion_id: reparacionId });
+  if (!destino.id) {
+    return [`No hay una garantía cargada con el ${String(datos.cliente_tipo || '').toLowerCase() === 'externo' ? 'Nro de Garantía' : 'ID DOTA'} ${datos.id_dota || ''}: las fotos no se guardaron. Cargala en Garantías y subí las fotos desde ahí.`];
+  }
+  return fotosGarantiaPlanilla.guardar(destino.id, null, destino.api);
+}
+
 function formatResolucionLabel(value) {
   const key = String(value || '').trim().toLowerCase();
   if (!key) return '-';
@@ -1264,6 +1301,7 @@ function bindPlanillaActions() {
       const infObs = document.getElementById('garantia_informe_observaciones'); if (infObs) infObs.value = '';
       const fallaInput = document.getElementById('garantia_falla'); if (fallaInput) fallaInput.value = '';
       limpiarFichaTecnicaSugerida();
+      cargarFotosGarantiaPlanilla(null);
     }
     prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
     bindPedidoFamiliaAutofill();
@@ -1331,6 +1369,7 @@ function bindPlanillaActions() {
     const tec=document.getElementById('tecnico_id'); if(tec && seleccion.tecnico_id) tec.value=String(seleccion.tecnico_id);
     const ult=document.getElementById('ultimo_reparador'); if(ult && seleccion.ultimo_reparador) ult.value=String(seleccion.ultimo_reparador);
     setVal("select[name='resolucion']", seleccion.resolucion);
+    cargarFotosGarantiaPlanilla({ ...seleccion, garantia: selGar ? selGar.value : seleccion.garantia });
     if (String(seleccion.garantia || '').toLowerCase().startsWith('s')) {
       setVal("input[name='nro_pedido_ref']", '');
     } else {
@@ -1411,6 +1450,12 @@ function bindPlanillaActions() {
           const t = await res.text().catch(()=> '');
           throw new Error(`Error al guardar reparacion (${res.status}) ${t}`);
         }
+        // Fotos de la garantia: van a la garantia (ya cerrada/archivada por este guardado)
+        const guardada = await res.json().catch(() => ({}));
+        let fallasFotos = [];
+        try { fallasFotos = await guardarFotosGarantiaPlanilla(datos, guardada.id || editingId); }
+        catch (errFotos) { fallasFotos = ['No se pudieron subir las fotos: ' + errFotos.message]; }
+        if (fallasFotos.length) alert('La reparación se guardó, pero hubo problemas con las fotos:\n- ' + fallasFotos.join('\n- '));
         // Cerrar modal y recargar lista del dia
         cerrarModalReparacion();
         // limpiar modo edicion

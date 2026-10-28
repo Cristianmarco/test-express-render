@@ -81,7 +81,7 @@
           <colgroup>
             <col class="vc-nro"><col class="vc-codigo"><col class="vc-descripcion"><col class="vc-cantidad">
             <col class="vc-destino"><col class="vc-razon"><col class="vc-tipo"><col class="vc-pendientes">
-            <col class="vc-fecha"><col class="vc-limite"><col class="vc-obs"><col class="vc-cotiz"><col class="vc-foto">
+            <col class="vc-fecha"><col class="vc-limite"><col class="vc-etapa"><col class="vc-obs"><col class="vc-cotiz"><col class="vc-foto">
           </colgroup>
           <thead>
             <tr>
@@ -95,6 +95,7 @@
               <th title="Pendientes">Pend.</th>
               <th title="Fecha de ingreso">Ingreso</th>
               <th title="Fecha límite de entrega">Límite</th>
+              <th title="Etapa del taller (la ve el cliente en el portal)">Etapa</th>
               <th>Observaciones</th>
               <th title="Cotización asociada">Cotiz.</th>
               <th title="Foto del estado de ingreso">Foto</th>
@@ -130,6 +131,7 @@
                 <th>Detalle</th>
                 <th>Fecha proveedor</th>
                 <th>ID reparacion</th>
+                <th title="Fotos del equipo (las ve Dota en el portal)">Fotos</th>
               </tr>
             </thead>
             <tbody id="tbody-garantias"></tbody>
@@ -151,6 +153,7 @@
                 <th>Cantidad</th>
                 <th>Pendiente</th>
                 <th>Observación</th>
+                <th title="Fotos del equipo (las ve el cliente en el portal)">Fotos</th>
               </tr>
             </thead>
             <tbody id="tbody-garantias-externos"></tbody>
@@ -265,8 +268,10 @@
             <input type="text" name="id_reparacion" />
           </div>
         </div>
+        <!-- Fotos del equipo: el bloque lo arma licitaciones.js (bloqueFotosHtml) -->
+        <div id="gar-dota-fotos-wrap"></div>
         <div style="text-align:right; margin-top:16px;">
-          <button type="submit" class="btn-guardar">Guardar</button>
+          <button type="submit" class="btn-guardar" id="gar-dota-guardar">Guardar</button>
         </div>
       </form>
     </div>
@@ -331,8 +336,10 @@
             <textarea name="observaciones" rows="2"></textarea>
           </div>
         </div>
+        <!-- Fotos del equipo: el bloque lo arma licitaciones.js (bloqueFotosHtml) -->
+        <div id="gar-ext-fotos-wrap"></div>
         <div style="text-align:right; margin-top:16px;">
-          <button type="submit" class="btn-guardar">Guardar</button>
+          <button type="submit" class="btn-guardar" id="gar-ext-guardar">Guardar</button>
         </div>
       </form>
     </div>

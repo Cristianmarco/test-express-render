@@ -220,3 +220,36 @@ body.portal-body {
   .portal-table th, .portal-table td { padding: 10px 10px; }
   .portal-header-user { display: none; }
 }
+
+/* Texto secundario en celdas (código, fechas, parciales) */
+.portal-sub { font-size: 0.78rem; color: #64748b; margin-top: 3px; }
+.portal-section-title small { font-weight: 400; color: #64748b; font-size: 0.8em; }
+
+/* Miniatura que abre las fotos */
+.portal-btn-fotos {
+  position: relative; display: inline-block; padding: 0; border: 1px solid #e2e8f0;
+  border-radius: 6px; background: #fff; cursor: pointer; line-height: 0;
+}
+.portal-btn-fotos img { width: 44px; height: 44px; object-fit: cover; border-radius: 5px; }
+.portal-btn-fotos span {
+  position: absolute; right: -6px; top: -6px; background: #1d4ed8; color: #fff;
+  font-size: 0.7rem; line-height: 1; padding: 3px 5px; border-radius: 10px;
+}
+
+/* Visor de fotos */
+.portal-visor {
+  display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, 0.8);
+  align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;
+}
+.portal-visor-caja {
+  position: relative; background: #fff; border-radius: 12px; padding: 14px;
+  max-width: 960px; width: 100%; max-height: 100%; overflow: auto; box-sizing: border-box;
+}
+.portal-visor-img { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: 8px; }
+.portal-visor-thumbs { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+.portal-visor-thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid transparent; }
+.portal-visor-thumbs img:hover { border-color: #1d4ed8; }
+.portal-visor-cerrar {
+  position: absolute; right: 8px; top: 6px; border: none; background: #fff; font-size: 1.8rem;
+  line-height: 1; cursor: pointer; color: #334155; border-radius: 50%; width: 36px; height: 36px; z-index: 1;
+}

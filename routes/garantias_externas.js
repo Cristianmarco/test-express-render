@@ -8,6 +8,8 @@ const {
   insertDomainAudit
 } = require('../utils/domain-audit');
 
+const { fotosDeRegistro } = require('../utils/fotos_registro');
+
 const AUDIT_DOMAIN = 'garantias_externas';
 
 const TABLE_SQL = `
@@ -37,6 +39,20 @@ async function ensureTable(dbClient) {
   await dbClient.query("ALTER TABLE garantias_externas ALTER COLUMN ingreso TYPE DATE USING ingreso::date");
 }
 
+// Fotos del equipo al ingresar la garantia (las ve el cliente en el portal)
+const fotos = fotosDeRegistro({
+  tabla: 'garantias_externas_fotos',
+  columna: 'garantia_id',
+  tablaPadre: 'garantias_externas',
+  urlBase: '/api/garantias_externas',
+  auditDomain: AUDIT_DOMAIN
+});
+
+// La tabla se asegura una vez al cargar el modulo (antes se hacia en cada pedido)
+const listo = ensureTable(db)
+  .then(() => fotos.asegurarTabla(db))
+  .catch((err) => console.error('garantias_externas: no se pudo asegurar la tabla', err));
+
 function normalizeOptionalText(value) {
   const text = String(value ?? '').trim();
   return text || null;
@@ -52,16 +68,19 @@ function normalizeCantidad(value, fallback) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+fotos.montar(router);
+
 // GET: listar garantias externas pendientes (filtro opcional cliente/fechas)
 router.get('/', async (req, res, next) => {
   try {
-    await ensureTable(db);
+    await listo;
     const clienteId = normalizeClienteId(req.query.cliente_id);
     const desde = normalizeOptionalText(req.query.desde);
     const hasta = normalizeOptionalText(req.query.hasta);
     const params = [];
     let sql = `
-      SELECT ge.*, COALESCE(c.fantasia, c.razon_social) AS cliente
+      SELECT ge.*, COALESCE(c.fantasia, c.razon_social) AS cliente,
+             ${fotos.sqlResumen('ge')}
       FROM garantias_externas ge
       LEFT JOIN clientes c ON c.id = ge.cliente_id
       WHERE 1=1
@@ -96,7 +115,7 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Ingrese el codigo o el equipo.' });
     }
     const cantidadNorm = normalizeCantidad(cantidad, 1) || 1;
-    await ensureTable(client);
+    await listo;
     await client.query('BEGIN');
     const q = await client.query(
       `INSERT INTO garantias_externas
@@ -138,7 +157,7 @@ router.put('/:id', async (req, res, next) => {
     if (!clienteIdNorm) {
       return res.status(400).json({ error: 'Seleccione un cliente.' });
     }
-    await ensureTable(client);
+    await listo;
     await client.query('BEGIN');
     const before = await client.query('SELECT * FROM garantias_externas WHERE id=$1', [id]);
     if (!before.rowCount) {
@@ -181,7 +200,7 @@ router.delete('/:id', async (req, res, next) => {
   const id = req.params.id;
   const client = await db.connect();
   try {
-    await ensureTable(client);
+    await listo;
     await client.query('BEGIN');
     const q = await client.query('DELETE FROM garantias_externas WHERE id=$1 RETURNING *', [id]);
     if (q.rowCount === 0) {

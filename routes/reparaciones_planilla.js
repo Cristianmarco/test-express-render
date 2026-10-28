@@ -588,6 +588,44 @@ router.get("/auditoria/:id", async (req, res) => {
 // un alternador con el mismo numero); asi cada uno queda como resultado aparte
 // y el frontend puede ofrecer el paso de "elegir cual" en vez de mezclarlos.
 // ============================
+// Garantia a la que van las fotos que se cargan desde la planilla: las fotos se guardan
+// en la garantia (no en la reparacion) para verlas igual desde Garantias y el portal.
+//  - externo: garantias_externas por Nro de ID/Pedido
+//  - Dota: la que archivo esta reparacion; si no, la de la cola o la ultima archivada
+// Devuelve { api, id } o { id: null } si no hay una garantia cargada con ese ID.
+router.get("/garantia-destino", async (req, res) => {
+  const idDota = normalizeOptionalText(req.query.id_dota);
+  const reparacionId = normalizeOptionalInteger(req.query.reparacion_id);
+  if (!idDota) return res.json({ id: null });
+  try {
+    if (String(req.query.cliente_tipo || '').toLowerCase() === 'externo') {
+      const r = await pool.query(
+        `SELECT id FROM garantias_externas WHERE btrim(nro_id) = $1 ORDER BY id DESC LIMIT 1`,
+        [idDota]
+      );
+      return res.json({ api: '/api/garantias_externas', id: r.rows[0] ? r.rows[0].id : null });
+    }
+    const r = await pool.query(
+      `SELECT id FROM (
+         SELECT garantia_original_id AS id, 1 AS prioridad, archived_at AS fecha
+           FROM licitacion_garantias_archive WHERE reparacion_id = $2
+         UNION ALL
+         SELECT id, 2, NULL FROM licitacion_garantias WHERE btrim(id_cliente) = $1
+         UNION ALL
+         SELECT garantia_original_id, 3, archived_at FROM licitacion_garantias_archive WHERE btrim(id_cliente) = $1
+       ) g
+       WHERE id IS NOT NULL
+       ORDER BY prioridad, fecha DESC NULLS LAST
+       LIMIT 1`,
+      [idDota, reparacionId]
+    );
+    res.json({ api: '/api/licitaciones/garantias', id: r.rows[0] ? r.rows[0].id : null });
+  } catch (err) {
+    console.error('garantia-destino', err);
+    res.status(500).json({ error: 'No se pudo buscar la garantía' });
+  }
+});
+
 router.get("/buscar", async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.json([]);
@@ -2019,9 +2057,10 @@ router.delete("/:id", async (req, res) => {
           INSERT INTO licitacion_garantias
             (id_cliente, ingreso, cabecera, interno, codigo, alt, cantidad, notificacion, notificado_en, detalle, recepcion, cod_proveedor, proveedor, ref_proveedor, ref_proveedor_alt, resolucion)
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+          RETURNING id
         `;
         for (const row of archived.rows) {
-          await client.query(insertGarantia, [
+          const restaurada = await client.query(insertGarantia, [
             row.id_cliente,
             row.ingreso,
             row.cabecera,
@@ -2039,6 +2078,13 @@ router.delete("/:id", async (req, res) => {
             row.ref_proveedor_alt,
             row.resolucion
           ]);
+          // Vuelve a la cola con otro id: sus fotos lo siguen
+          if (row.garantia_original_id) {
+            await client.query(
+              'UPDATE licitacion_garantias_fotos SET garantia_id = $1 WHERE garantia_id = $2',
+              [restaurada.rows[0].id, row.garantia_original_id]
+            );
+          }
         }
         await client.query('DELETE FROM licitacion_garantias_archive WHERE reparacion_id=$1', [deletedRow.id]);
       } else if (deletedRow.id_dota) {
