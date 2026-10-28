@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { insertDomainAudit, buildAuditChanges } = require('../utils/domain-audit');
 const { lectorDesdeUrl } = require('../services/proveedores');
-const { propuestaDesdeProveedor, valorAplicado, nuevosDeLista, nombreFoto, CAMPOS } = require('../services/fichas_proveedor');
+const { propuestaDesdeProveedor, valorAplicado, nuevosDeLista, despieceNuevo, nombreFoto, CAMPOS } = require('../services/fichas_proveedor');
 
 const AUDIT_DOMAIN = 'fichas';
 // La auditoria no debe frenar el guardado
@@ -122,6 +122,23 @@ async function ensureTables() {
   await db.query(`ALTER TABLE familia_ficha ADD COLUMN IF NOT EXISTS proveedor_url TEXT;`);
   // URL de origen de una foto traida de un proveedor (para no traerla dos veces)
   await db.query(`ALTER TABLE familia_ficha_media ADD COLUMN IF NOT EXISTS origen_url TEXT;`);
+  // Piezas del despiece con su codigo original (ej: tabla de service parts de Delco Remy)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS familia_ficha_despiece (
+      id SERIAL PRIMARY KEY,
+      familia_id INTEGER REFERENCES familia(id) ON DELETE CASCADE,
+      ref TEXT,
+      pieza TEXT,
+      descripcion TEXT,
+      codigo TEXT NOT NULL,
+      fabricante TEXT,
+      url TEXT,
+      origen_url TEXT,
+      orden INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_ficha_despiece_familia ON familia_ficha_despiece(familia_id);`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS familia_ficha_archivos (
       id SERIAL PRIMARY KEY,
@@ -260,11 +277,20 @@ router.get('/:familiaId', async (req, res, next) => {
       [familiaId]
     );
 
+    const despiece = await db.query(
+      `SELECT id, ref, pieza, descripcion, codigo, fabricante, url, origen_url
+         FROM familia_ficha_despiece
+        WHERE familia_id = $1
+        ORDER BY orden ASC, id ASC`,
+      [familiaId]
+    );
+
     res.json({
       ficha: ficha.rows[0],
       media: media.rows,
       repuestos: repuestos.rows,
-      plantillas: plantillas.rows
+      plantillas: plantillas.rows,
+      despiece: despiece.rows
     });
   } catch (err) {
     next(err);
@@ -393,19 +419,23 @@ router.get('/:familiaId(\\d+)/proveedor', async (req, res) => {
         nuevos: def.lista ? nuevosDeLista(campo, propuesta[campo], actualCampo) : null
       };
     }).filter((c) => (c.lista ? c.propuesto.length : c.propuesto));
+    const despieceActual = (await db.query(
+      'SELECT codigo, fabricante FROM familia_ficha_despiece WHERE familia_id = $1', [familiaId]
+    )).rows;
     res.json({
       proveedor: { nombre: ficha.proveedor_nombre, codigo: ficha.codigo, marca: ficha.marca, descripcion: ficha.descripcion, url: ficha.url },
       proveedor_actual: actual.proveedor_url || null,
       campos,
       fotos: propuesta.fotos.map((f) => ({ ...f, ya_cargada: yaCargada(f.url) })),
-      partes: propuesta.partes
+      despiece: propuesta.despiece,
+      despiece_nuevos: despieceNuevo(propuesta.despiece, despieceActual).length
     });
   } catch (err) {
     errorProveedor(res, err);
   }
 });
 
-// Aplica: { url, campos: ['voltaje', ...], fotos: [url, ...] }
+// Aplica: { url, campos: ['voltaje', ...], fotos: [url, ...], despiece: true }
 // La ficha se vuelve a leer en el servidor (no se confia en datos del navegador)
 router.post('/:familiaId(\\d+)/proveedor', async (req, res) => {
   const familiaId = Number(req.params.familiaId);
@@ -477,17 +507,52 @@ router.post('/:familiaId(\\d+)/proveedor', async (req, res) => {
         [familiaId, foto.tipo, urlArchivo(arch.rows[0].id), `${ficha.proveedor_nombre} ${ficha.codigo}`, ++orden, foto.url]
       );
     }
+
+    // Tabla del despiece: se suman las piezas que no esten (por fabricante + codigo)
+    let piezas = [];
+    if (body.despiece === true && propuesta.despiece.length) {
+      const actuales = (await client.query(
+        'SELECT codigo, fabricante FROM familia_ficha_despiece WHERE familia_id = $1', [familiaId]
+      )).rows;
+      piezas = despieceNuevo(propuesta.despiece, actuales);
+      let ordenPieza = Number((await client.query(
+        'SELECT COALESCE(max(orden), 0) AS n FROM familia_ficha_despiece WHERE familia_id = $1', [familiaId]
+      )).rows[0].n);
+      for (const p of piezas) {
+        await client.query(
+          `INSERT INTO familia_ficha_despiece (familia_id, ref, pieza, descripcion, codigo, fabricante, url, origen_url, orden)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [familiaId, p.ref, p.pieza, p.descripcion, p.codigo, p.fabricante, p.url, ficha.url, ++ordenPieza]
+        );
+      }
+    }
     await client.query('COMMIT');
     await auditar(req, familiaId, 'completar_proveedor', {
-      proveedor_url: ficha.url, cambios, fotos: descargadas.map((f) => f.url)
+      proveedor_url: ficha.url, cambios, fotos: descargadas.map((f) => f.url), piezas: piezas.map((p) => p.codigo)
     });
-    res.json({ ok: true, campos: Object.keys(cambios).length, fotos: descargadas.length, fotos_fallidas: fallidas });
+    res.json({ ok: true, campos: Object.keys(cambios).length, fotos: descargadas.length, piezas: piezas.length, fotos_fallidas: fallidas });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('fichas: error aplicando datos del proveedor', err);
     res.status(500).json({ error: 'No se pudieron guardar los datos' });
   } finally {
     client.release();
+  }
+});
+
+// Eliminar una pieza de la tabla del despiece
+router.delete('/:familiaId(\\d+)/despiece/:id(\\d+)', async (req, res, next) => {
+  const familiaId = Number(req.params.familiaId);
+  try {
+    const del = await db.query(
+      'DELETE FROM familia_ficha_despiece WHERE id = $1 AND familia_id = $2 RETURNING *',
+      [Number(req.params.id), familiaId]
+    );
+    if (!del.rowCount) return res.status(404).json({ error: 'No encontrado' });
+    await auditar(req, familiaId, 'pieza_despiece_eliminada', del.rows[0]);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
   }
 });
 

@@ -401,6 +401,7 @@
     renderMedia(media, ficha);
     renderMediaConfig(media);
     renderDespieceRepuestos(ficha.tipos_repuesto);
+    renderDespieceTabla(state.detalle?.despiece || []);
     renderTipoRepuestoOptions(ficha.tipos_repuesto);
     renderRepuestos(repuestos);
     renderPlantillas(plantillas);
@@ -528,6 +529,47 @@
         img.removeAttribute('src');
         img.alt = 'Sin despiece';
       }
+    }
+  }
+
+  // Tabla de piezas con codigo original (traida del proveedor: Ref = numero en el dibujo)
+  function renderDespieceTabla(list) {
+    const wrap = host.querySelector('#despiece-tabla-wrap');
+    const body = host.querySelector('#despiece-tabla-body');
+    if (!wrap || !body) return;
+    wrap.style.display = list.length ? '' : 'none';
+    body.innerHTML = list.map((p) => `
+      <tr>
+        <td>${escapeHtml(p.ref || '-')}</td>
+        <td>${escapeHtml(p.pieza || '-')}</td>
+        <td>${escapeHtml(p.descripcion || '-')}</td>
+        <td>${p.url
+          ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener"><strong>${escapeHtml(p.codigo)}</strong></a>`
+          : `<strong>${escapeHtml(p.codigo)}</strong>`}</td>
+        <td>${escapeHtml(p.fabricante || '-')}</td>
+        <td style="text-align:right;">
+          <button class="btn-ghost btn-despiece-del" data-id="${p.id}" title="Quitar de la tabla"><i class="fas fa-trash"></i></button>
+        </td>
+      </tr>`).join('');
+    body.querySelectorAll('.btn-despiece-del').forEach((btn) => {
+      btn.addEventListener('click', () => eliminarPiezaDespiece(btn.dataset.id));
+    });
+  }
+
+  async function eliminarPiezaDespiece(id) {
+    const familiaId = state.detalle?.ficha?.familia_id;
+    if (!familiaId || !confirm('Quitar la pieza de la tabla del despiece?')) return;
+    try {
+      const res = await fetch(`/api/fichas/${encodeURIComponent(familiaId)}/despiece/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error || 'No se pudo quitar');
+      await cargarDetalle(familiaId);
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo quitar la pieza');
     }
   }
 
@@ -1194,7 +1236,23 @@
         <img src="${escapeHtml(f.url)}" alt="" onerror="this.style.visibility='hidden'">
         <div class="tiny">${f.tipo === 'plano' ? 'Plano' : 'Foto'}${f.ya_cargada ? ' · ya cargada' : ''}</div>
       </label>`).join('');
-    const partes = (data.partes || []).map((pt) => `<span class="pill">${escapeHtml(pt.tipo || '')}: ${escapeHtml(pt.codigo || '')}</span>`).join(' ');
+    const piezas = data.despiece || [];
+    const despiece = piezas.length ? `
+      <div style="margin-top:12px;">
+        <label style="display:flex; gap:8px; align-items:center; font-weight:600;">
+          <input type="checkbox" id="fprov-despiece"${data.despiece_nuevos ? ' checked' : ' disabled'}>
+          Tabla del despiece (${piezas.length} pieza${piezas.length === 1 ? '' : 's'} con código original)
+          <span class="tiny" style="font-weight:normal;">${data.despiece_nuevos ? `+${data.despiece_nuevos} nueva(s), se suman a la tabla` : 'ya está cargada'}</span>
+        </label>
+        <div class="tabla-scroll" style="max-height:220px; overflow-y:auto; margin-top:6px;">
+          <table class="tabla-erp">
+            <thead><tr><th>Ref</th><th>Pieza</th><th>Descripción original</th><th>Código</th></tr></thead>
+            <tbody>${piezas.map((pz) => `
+              <tr><td>${escapeHtml(pz.ref || '-')}</td><td>${escapeHtml(pz.pieza || '-')}</td><td>${escapeHtml(pz.descripcion || '-')}</td><td><strong>${escapeHtml(pz.codigo)}</strong></td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>` : '';
     const otroProveedor = data.proveedor_actual && data.proveedor_actual !== p.url
       ? `<div class="tiny" style="color:#b45309;">Esta ficha se completó antes desde otra ficha del proveedor: ${escapeHtml(data.proveedor_actual)}</div>`
       : '';
@@ -1215,7 +1273,7 @@
         </table>
       </div>` : '<div class="muted">El proveedor no tiene datos técnicos para esta ficha.</div>'}
       ${fotos ? `<div style="margin-top:12px;"><strong>Fotos y planos</strong><div class="fprov-fotos">${fotos}</div></div>` : ''}
-      ${partes ? `<div style="margin-top:12px;"><strong>Partes del equipo según el proveedor</strong> <span class="tiny">(para vincular repuestos más adelante)</span><div class="info-multi" style="margin-top:6px;">${partes}</div></div>` : ''}
+      ${despiece}
       <div class="fprov-acciones">
         <button type="button" class="btn-ghost" id="fprov-volver"><i class="fas fa-arrow-left"></i> Buscar otro</button>
         <button type="button" class="btn-guardar" id="fprov-aplicar"><i class="fas fa-check"></i> Aplicar a la ficha</button>
@@ -1234,6 +1292,7 @@
     if (!familiaId || !prov.url) return;
     const campos = [...prov.preview.querySelectorAll('input[data-campo]:checked')].map((i) => i.dataset.campo);
     const fotos = [...prov.preview.querySelectorAll('input[data-foto]:checked')].map((i) => i.dataset.foto);
+    const despiece = !!prov.preview.querySelector('#fprov-despiece:checked');
     const btn = prov.preview.querySelector('#fprov-aplicar');
     btn.disabled = true;
     provEstado(fotos.length ? 'Guardando y descargando fotos...' : 'Guardando...');
@@ -1241,7 +1300,7 @@
       const res = await fetch(`/api/fichas/${encodeURIComponent(familiaId)}/proveedor`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: prov.url, campos, fotos }),
+        body: JSON.stringify({ url: prov.url, campos, fotos, despiece }),
         credentials: 'include',
       });
       const data = await res.json().catch(() => ({}));
@@ -1250,7 +1309,7 @@
       await cargarDetalle(familiaId);
       await cargarListado();
       const fallidas = (data.fotos_fallidas || []).length;
-      alert(`Ficha actualizada: ${data.campos} dato(s) y ${data.fotos} foto(s).${fallidas ? `\n${fallidas} foto(s) no se pudieron descargar.` : ''}`);
+      alert(`Ficha actualizada: ${data.campos} dato(s), ${data.fotos} foto(s) y ${data.piezas || 0} pieza(s) del despiece.${fallidas ? `\n${fallidas} foto(s) no se pudieron descargar.` : ''}`);
     } catch (err) {
       console.error(err);
       provEstado(err.message || 'No se pudo aplicar', true);

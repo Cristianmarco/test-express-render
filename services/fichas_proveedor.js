@@ -22,14 +22,16 @@ function unirLineas(...listas) {
 }
 const lineasDe = (texto) => String(texto || '').split(/[\n,;]+/).map(itemLista).filter(Boolean);
 
+// "24" -> "24V"; "110 Amps" -> "110A"; otro texto queda como vino
 function conUnidad(valor, unidad) {
   const v = limpiar(valor);
   if (vacio(v)) return '';
-  return /^\d+([.,]\d+)?$/.test(v) ? `${v}${unidad}` : v;
+  const m = v.match(/^(\d+(?:[.,]\d+)?)\s*(?:v|volts?|a|amps?)?$/i);
+  return m ? `${m[1]}${unidad}` : v;
 }
 
 const ES_VOLTAJE = /volt|tensi[oó]n/i;
-const ES_AMPERAJE = /^amp|amperaje|corriente/i;
+const ES_AMPERAJE = /^amp|amperaje|corriente|rated output/i;
 // En Nosso las fotos FT_xx son la hoja tecnica con las cotas: van como plano
 const ES_PLANO = /\/FT_[^/]*$/i;
 
@@ -52,17 +54,36 @@ function propuestaDesdeProveedor(ficha) {
     .filter(Boolean)
     .map((t) => t.charAt(0).toUpperCase() + t.slice(1));
 
+  const fotos = (ficha.fotos || []).map((url) => ({ url, tipo: ES_PLANO.test(url) ? 'plano' : 'foto' }));
+  if (ficha.despiece) fotos.push({ url: ficha.despiece, tipo: 'despiece' });
+
   return {
-    categoria: limpiar(ficha.descripcion),
+    // El lector puede dar la categoria aparte (Delco Remy: "Alternador"); si no, la descripcion
+    categoria: limpiar(ficha.categoria || ficha.descripcion),
     voltaje: volt ? conUnidad(volt.valor, 'V') : '',
     amperaje: amp ? conUnidad(amp.valor, 'A') : '',
     id_original: unirLineas(codigoProveedor, equivalencias),
     aplicaciones: unirLineas(aplicaciones),
     tipos_repuesto: unirLineas(tipos),
     datos_tecnicos: otras.map((s) => `${limpiar(s.clave)}: ${limpiar(s.valor)}`),
-    fotos: (ficha.fotos || []).map((url) => ({ url, tipo: ES_PLANO.test(url) ? 'plano' : 'foto' })),
-    partes: (ficha.partes || []).map((p) => ({ codigo: p.codigo, fabricante: p.fabricante, tipo: p.tipo, url: p.url || null }))
+    fotos,
+    // Piezas del equipo con su codigo original (tabla del despiece)
+    despiece: (ficha.partes || []).filter((p) => limpiar(p.codigo)).map((p) => ({
+      ref: limpiar(p.ref) || null,
+      pieza: limpiar(p.tipo) || limpiar(p.descripcion) || null,
+      descripcion: limpiar(p.descripcion || p.tipo) || null,
+      codigo: limpiar(p.codigo),
+      fabricante: limpiar(p.fabricante) || null,
+      url: p.url || null
+    }))
   };
+}
+
+const claveDespiece = (fila) => `${String(fila.fabricante || '').toLowerCase()}|${String(fila.codigo || '').toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
+// Filas del despiece del proveedor que la ficha todavia no tiene (por fabricante + codigo)
+function despieceNuevo(propuesto, actuales) {
+  const ya = new Set((actuales || []).map(claveDespiece));
+  return propuesto.filter((f) => !ya.has(claveDespiece(f)));
 }
 
 // Campos que se pueden aplicar. Las listas se suman a lo que ya tiene la ficha;
@@ -124,4 +145,4 @@ const nombreFoto = (urlOnombre) => {
   return n.toLowerCase().replace(/[^a-z0-9.]+/g, '_');
 };
 
-module.exports = { propuestaDesdeProveedor, valorAplicado, nuevosDeLista, nombreFoto, CAMPOS };
+module.exports = { propuestaDesdeProveedor, valorAplicado, nuevosDeLista, despieceNuevo, nombreFoto, CAMPOS };
