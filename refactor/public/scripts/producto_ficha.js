@@ -36,16 +36,19 @@
   // ------------------------------------------------------------------
   // Abrir ficha
   // ------------------------------------------------------------------
-  async function abrirFichaProducto(id, etiqueta) {
+  // opts.editar: abre la ficha directo en modo Editar, en "Datos generales"
+  async function abrirFichaProducto(id, etiqueta, opts = {}) {
     if (!id) return;
     const view = `producto_ficha:${id}`;
     await window.loadView(view, { label: etiqueta || 'Producto', html: '<div class="pf-root"></div>' });
     const sec = document.querySelector(`.tab-content[data-view="${view}"]`);
     const root = sec && sec.querySelector('.pf-root');
-    if (root && !root._pf) {
+    if (!root) return;
+    if (!root._pf) {
       root._pf = { id: Number(id), editando: false, tab: 'tecnica', fotoActiva: 0, data: null, draft: null };
-      cargar(root);
+      await cargar(root);
     }
+    if (opts.editar && root._pf.data && !root._pf.editando) empezarEdicion(root, 'datos');
   }
 
   async function cargar(root) {
@@ -79,6 +82,7 @@
       historial: null
     };
     const tabs = [
+      ...(ed ? [['datos', 'Datos generales']] : []),
       ['tecnica', 'Técnica'], ['aplicaciones', 'Aplicaciones'], ['equivalencias', 'Equivalencias'],
       ['relacionados', 'Relacionados'], ['stock', 'Stock'], ['historial', 'Historial']
     ];
@@ -202,6 +206,8 @@
     const d = st.data;
     const ed = st.editando;
     switch (st.tab) {
+      case 'datos':
+        return ed ? renderDatos(st) : '';
       case 'tecnica': {
         if (ed) {
           return `<div class="pf-nota" style="margin-bottom:8px;">La <b>cota</b> es la letra del plano (A, B, C…). Las medidas se guardan como número para el buscador técnico; los nombres se unifican solos (ej: "Diametro fijacion" → "Distancia entre fijación").</div>`
@@ -352,6 +358,90 @@
     return cuadro + carbon + resto;
   }
 
+  // ---- Datos generales (lo que antes se editaba en el modal "Modificar") ----
+  // Listas de grupos, marcas, familias, categorias y proveedores: se piden una vez
+  const catalogos = { data: null, cargando: null };
+  const IVAS = ['0', '10.5', '21'];
+
+  function cargarCatalogos(root) {
+    if (catalogos.data || catalogos.cargando) return;
+    const lista = (url) => api(url).then((l) => (Array.isArray(l) ? l : [])).catch(() => []);
+    catalogos.cargando = Promise.all(['/api/grupo', '/api/marca', '/api/familias', '/api/categoria', '/api/proveedores'].map(lista))
+      .then(([grupos, marcas, familias, categorias, proveedores]) => {
+        catalogos.data = { grupos, marcas, familias, categorias, proveedores };
+        const st = root._pf;
+        if (st.editando && st.tab === 'datos') { leerTablas(root); render(root); }
+      })
+      .finally(() => { catalogos.cargando = null; });
+  }
+
+  function opciones(lista, actual, texto) {
+    const items = lista.map((x) => {
+      const t = texto(x);
+      return `<option value="${esc(x.id)}" ${String(x.id) === String(actual) ? 'selected' : ''}>${esc(t)}</option>`;
+    }).join('');
+    return `<option value="">—</option>${items}`;
+  }
+  const conCodigo = (x) => (x.codigo ? `${x.codigo} - ${x.descripcion}` : x.descripcion);
+
+  function renderDatos(st) {
+    const dd = st.draft.datos;
+    const cat = catalogos.data;
+    if (!cat) return '<div class="pf-vacio"><i class="fas fa-spinner fa-spin"></i> Cargando listas...</div>';
+
+    // Familias del grupo elegido (mas las que ya tiene el producto)
+    const elegidas = new Set(dd.familias.map(String));
+    const grupo = cat.grupos.find((g) => String(g.id) === String(dd.grupo_id));
+    let permitidas = null;
+    if (grupo && Array.isArray(grupo.familias) && grupo.familias.length) permitidas = new Set(grupo.familias.map((f) => String(f.id)));
+    else if (grupo && grupo.familia_id) permitidas = new Set([String(grupo.familia_id)]);
+    const familias = cat.familias.filter((f) => !permitidas || permitidas.has(String(f.id)) || elegidas.has(String(f.id)));
+
+    // Categorias de las familias elegidas (si tienen); si no, todas
+    const catIds = new Set(cat.familias.filter((f) => elegidas.has(String(f.id)) && f.categoria_id != null).map((f) => String(f.categoria_id)));
+    const categorias = cat.categorias.filter((c) => !catIds.size || catIds.has(String(c.id)) || String(c.id) === String(dd.categoria_id));
+
+    const ivas = IVAS.includes(String(Number(dd.iva_tipo))) || !dd.iva_tipo ? IVAS : [...IVAS, dd.iva_tipo];
+    const ivaActual = dd.iva_tipo === '' || dd.iva_tipo == null ? '' : String(Number(dd.iva_tipo));
+    const campo = (k, t, extra = '') => `<div><label>${t}</label><input data-dato="${k}" value="${esc(dd[k])}" ${extra}></div>`;
+
+    return `
+      <div class="pf-datos">
+        ${campo('codigo', 'Código *', 'required')}
+        ${campo('codigo_fabricante', 'Código de fabricante')}
+        <div class="ancho"><label>Descripción *</label><input data-dato="descripcion" value="${esc(dd.descripcion)}" required></div>
+        <div class="ancho"><label>Descripción adicional</label><textarea data-dato="descripcion_adicional" rows="2">${esc(dd.descripcion_adicional)}</textarea></div>
+        ${campo('equivalencia', 'Equivalencia')}
+        <div><label>Códigos de barras <small>(uno por línea)</small></label><textarea data-dato="codigos_barra" rows="2">${esc(dd.codigos_barra)}</textarea></div>
+        <div><label>Grupo</label><select data-dato="grupo_id">${opciones(cat.grupos, dd.grupo_id, conCodigo)}</select></div>
+        <div><label>Marca</label><select data-dato="marca_id">${opciones(cat.marcas, dd.marca_id, conCodigo)}</select></div>
+        <div><label>Categoría</label><select data-dato="categoria_id">${opciones(categorias, dd.categoria_id, conCodigo)}</select></div>
+        <div><label>Proveedor</label><select data-dato="proveedor_id">${opciones(cat.proveedores, dd.proveedor_id, (x) => (x.codigo ? `${x.codigo} - ${x.nombre}` : x.nombre))}</select></div>
+        ${campo('origen', 'Origen')}
+        <div><label>IVA</label><select data-dato="iva_tipo"><option value="">—</option>${ivas.map((v) => `<option value="${esc(v)}" ${String(v) === ivaActual || String(v) === String(dd.iva_tipo) ? 'selected' : ''}>${esc(v)}%</option>`).join('')}</select></div>
+        <div class="ancho">
+          <label>Familias ${grupo ? '<small>(las del grupo elegido)</small>' : ''}</label>
+          <input class="pf-filtro" data-filtro="familias" placeholder="Filtrar familias...">
+          <div class="pf-familias" data-lista="familias">${familias.map((f) => `
+            <label data-texto="${esc(`${f.codigo || ''} ${f.descripcion || ''}`.toLowerCase())}">
+              <input type="checkbox" data-familia="${esc(f.id)}" ${elegidas.has(String(f.id)) ? 'checked' : ''}> ${esc(conCodigo(f))}
+            </label>`).join('') || '<div class="pf-nota">No hay familias para este grupo.</div>'}</div>
+        </div>
+      </div>`;
+  }
+
+  function datosDesdeFicha(d) {
+    const v = (x) => (x == null ? '' : String(x));
+    const barras = d.codigos_barra && d.codigos_barra.length ? d.codigos_barra : (d.codigo_barra ? [d.codigo_barra] : []);
+    return {
+      codigo: v(d.codigo), codigo_fabricante: v(d.codigo_fabricante), descripcion: v(d.descripcion),
+      descripcion_adicional: v(d.descripcion_adicional), equivalencia: v(d.equivalencia),
+      codigos_barra: barras.join('\n'), grupo_id: v(d.grupo_id), marca_id: v(d.marca_id),
+      categoria_id: v(d.categoria_id), proveedor_id: v(d.proveedor_id), origen: v(d.origen), iva_tipo: v(d.iva_tipo),
+      familias: (d.familias || []).map((f) => String(f.id))
+    };
+  }
+
   function tablaEditable(nombre, cols, filas) {
     return `
       <table class="pf-tabla" data-editable="${nombre}">
@@ -433,6 +523,8 @@
 
     pf.addEventListener('change', (e) => {
       if (e.target.dataset.act === 'foto-subir') subirFotos(root, e.target.files);
+      // El grupo filtra las familias y las familias filtran las categorias
+      if (e.target.dataset.dato === 'grupo_id' || e.target.dataset.familia) { leerTablas(root); render(root); }
     });
 
     pf.addEventListener('submit', (e) => {
@@ -440,19 +532,23 @@
     });
   }
 
-  function empezarEdicion(root) {
+  function empezarEdicion(root, tab) {
     const st = root._pf;
     const d = st.data;
     const p = d.precios || {};
     st.draft = {
+      datos: datosDesdeFicha(d),
       precios: { precio_lista: p.precio_lista ?? '', desc_suma: p.desc_suma ?? '', desc_pago: p.desc_pago ?? '', margen1: p.margen1 ?? '', margen2: p.margen2 ?? '', margen3: p.margen3 ?? '', margen4: p.margen4 ?? '', margen5: p.margen5 ?? '', margen6: p.margen6 ?? '' },
       caracteristicas: d.caracteristicas.map((x) => ({ ...x })),
       aplicaciones: d.aplicaciones.map((x) => ({ ...x })),
       equivalencias: d.equivalencias.map((x) => ({ ...x }))
     };
     st.preciosOriginales = JSON.stringify(st.draft.precios);
+    st.datosOriginales = JSON.stringify(st.draft.datos);
     st.editando = true;
-    if (!['tecnica', 'aplicaciones', 'equivalencias', 'relacionados'].includes(st.tab)) st.tab = 'tecnica';
+    if (tab) st.tab = tab;
+    if (!['datos', 'tecnica', 'aplicaciones', 'equivalencias', 'relacionados'].includes(st.tab)) st.tab = 'datos';
+    cargarCatalogos(root);
     // Lista de productos para el buscador de "Vincular repuesto" (se pide una vez)
     if (!cacheProductos.lista && !cacheProductos.cargando) {
       cacheProductos.cargando = api('/api/productos')
@@ -473,13 +569,39 @@
         if (filas[i]) filas[i][inp.dataset.campo] = inp.value;
       });
     });
+    const datos = root.querySelector('.pf-datos');
+    if (datos) {
+      datos.querySelectorAll('[data-dato]').forEach((el) => { st.draft.datos[el.dataset.dato] = el.value; });
+      st.draft.datos.familias = [...datos.querySelectorAll('input[data-familia]:checked')].map((el) => el.dataset.familia);
+    }
   }
 
   async function guardar(root, btn) {
     const st = root._pf;
     leerTablas(root);
+    const dd = st.draft.datos;
+    const datosCambiados = JSON.stringify(dd) !== st.datosOriginales;
+    if (datosCambiados && (!dd.codigo.trim() || !dd.descripcion.trim())) {
+      st.tab = 'datos';
+      render(root);
+      alert('El código y la descripción son obligatorios.');
+      return;
+    }
     btn.disabled = true;
     try {
+      // Primero los datos generales: si el codigo o un codigo de barras esta repetido, no se guarda nada
+      if (datosCambiados) {
+        await api(`/api/productos/${st.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            ...dd,
+            codigo: dd.codigo.trim(),
+            descripcion: dd.descripcion.trim(),
+            codigos_barra: dd.codigos_barra.split(/[\n,;]+/).map((c) => c.trim()).filter(Boolean)
+          })
+        });
+        st.datosOriginales = JSON.stringify(dd);
+      }
       await api(`/api/productos/${st.id}/ficha`, {
         method: 'PUT',
         body: JSON.stringify({ caracteristicas: st.draft.caracteristicas, aplicaciones: st.draft.aplicaciones, equivalencias: st.draft.equivalencias })
@@ -491,6 +613,7 @@
       st.editando = false;
       st.draft = null;
       await cargar(root);
+      if (datosCambiados) document.dispatchEvent(new CustomEvent('productos:cambiados', { detail: { id: st.id } }));
     } catch (e) {
       alert(e.message || 'No se pudo guardar');
       btn.disabled = false;

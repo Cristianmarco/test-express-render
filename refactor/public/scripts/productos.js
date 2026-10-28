@@ -426,43 +426,8 @@
     };
 
     const btnModificar = qs("btn-prod-modificar");
-    if (btnModificar) btnModificar.onclick = async () => {
-      if (!productoSeleccionado) return alert("Selecciona un producto");
-      forceCreate = false;
-      await Promise.all([
-        cargarOpcionesSelect("/api/familias", "prod-familia_id", "id", "descripcion", "codigo"),
-        cargarOpcionesSelect("/api/grupo", "prod-grupo_id", "id", "descripcion", "codigo"),
-        cargarOpcionesSelect("/api/marca", "prod-marca_id", "id", "descripcion", "codigo"),
-        cargarOpcionesSelect("/api/categoria", "prod-categoria_id", "id", "descripcion", "codigo"),
-        cargarOpcionesSelect("/api/proveedores", "prod-proveedor_id", "id", "nombre", "codigo"),
-      ]);
-      const form = qs("form-producto-refactor");
-      if (form) {
-        for (const [k, v] of Object.entries(productoSeleccionado)) {
-          const input = form.querySelector(`[name='${k}']`);
-          if (input) input.value = v || "";
-        }
-        setCodigosBarraForm(codigosBarraDe(productoSeleccionado));
-        // categoría principal si viene en arreglo (M2M)
-        if (productoSeleccionado.categorias && productoSeleccionado.categorias.length) {
-          qs('prod-categoria_id').value = String(productoSeleccionado.categorias[0].id);
-        }
-        // aplicar filtros dependientes según grupo del producto
-        poblarFamiliasFiltradas(qs('prod-grupo_id')?.value);
-        poblarCategoriasDesdeFamilias();
-        // seleccionar familia principal si viene en arreglo (M2M)
-        if (productoSeleccionado.familias && productoSeleccionado.familias.length) {
-          setSelectedFamiliasIds(productoSeleccionado.familias.map(f => f.id));
-          poblarCategoriasDesdeFamilias();
-        }
-      }
-      // bind dependencias si no están
-      const gSel = qs('prod-grupo_id');
-      if (gSel && !gSel._bound) { gSel._bound = true; gSel.addEventListener('change', () => { poblarFamiliasFiltradas(gSel.value); poblarCategoriasDesdeFamilias(); }); }
-      const famBox = qs('prod-familias-checklist');
-      if (famBox && !famBox._bound) { famBox._bound = true; famBox.addEventListener('change', poblarCategoriasDesdeFamilias); }
-      qs("modal-agregar-producto").style.display = "flex";
-    };
+    // Modificar abre la ficha completa en modo Editar (datos generales, técnica, precios, fotos...)
+    if (btnModificar) btnModificar.onclick = () => abrirFicha(productoSeleccionado, { editar: true });
 
     const btnEliminar = qs("btn-prod-eliminar");
     if (btnEliminar) btnEliminar.onclick = async () => {
@@ -564,11 +529,6 @@
   // ---- Codigos de barras (varios por producto) ----
   let codigosBarraForm = [];
 
-  function codigosBarraDe(prod) {
-    if (prod && Array.isArray(prod.codigos_barra) && prod.codigos_barra.length) return prod.codigos_barra.map(String);
-    return prod && prod.codigo_barra ? [String(prod.codigo_barra)] : [];
-  }
-
   function renderCodigosBarraForm() {
     const hidden = qs('prod-codigos-barra');
     if (hidden) hidden.value = JSON.stringify(codigosBarraForm);
@@ -636,9 +596,9 @@
 
   // ======= Ficha completa e importador =======
   // La ficha completa (pantalla completa, con pestañas y modo Editar) vive en producto_ficha.js
-  function abrirFicha(prod) {
+  function abrirFicha(prod, opts) {
     if (!prod) return alert('Selecciona un producto');
-    if (window.abrirFichaProducto) window.abrirFichaProducto(prod.id, prod.codigo);
+    if (window.abrirFichaProducto) window.abrirFichaProducto(prod.id, prod.codigo, opts);
     else alert('La ficha no está disponible. Recargá la página (Ctrl+F5).');
   }
 
