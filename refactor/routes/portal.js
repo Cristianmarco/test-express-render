@@ -3,6 +3,8 @@ const router = express.Router();
 const db = require('../../db');
 const { nombreEtapa } = require('../../utils/etapas_reparacion');
 const { fotosDeRegistro } = require('../../utils/fotos_registro');
+const { garantiaResolucionLabel } = require('../../utils/garantia-resoluciones');
+const { armarReporte } = require('../../utils/garantia_reporte');
 
 // Mismas tablas de fotos que usa el ERP (las crean sus routers al arrancar)
 const fotosVigente = fotosDeRegistro({ tabla: 'reparaciones_dota_fotos', columna: 'vigente_id', tablaPadre: 'reparaciones_dota', urlBase: '' });
@@ -116,8 +118,41 @@ router.get('/api/historial', requireCliente, async (req, res) => {
   }
 });
 
+// Reparacion de la planilla que resolvio una garantia (tiene la resolucion y el informe):
+//  - externa: la reparacion en garantia del cliente con ID = Nro de Garantia
+//  - Dota: la que la archivo (licitacion_garantias_archive.reparacion_id)
+const SQL_REPARACION_EXTERNA = (alias) => `
+  SELECT er.id, er.resolucion, er.fecha
+    FROM equipos_reparaciones er
+   WHERE LOWER(COALESCE(er.cliente_tipo, '')) = 'externo'
+     AND er.cliente_id = ${alias}.cliente_id
+     AND btrim(er.id_dota::text) = btrim(${alias}.nro_id)
+     AND LOWER(COALESCE(er.garantia, '')) = 'si'
+   ORDER BY er.fecha DESC, er.id DESC
+   LIMIT 1`;
+
+async function reparacionDeGarantia(tipo, id) {
+  const { rows } = tipo === 'garantia_dota'
+    ? await db.query(
+      `SELECT reparacion_id AS id FROM licitacion_garantias_archive
+        WHERE garantia_original_id = $1 ORDER BY archived_at DESC LIMIT 1`, [id])
+    : await db.query(
+      `SELECT rep.id FROM garantias_externas ge
+         JOIN LATERAL (${SQL_REPARACION_EXTERNA('ge')}) rep ON true
+        WHERE ge.id = $1`, [id]);
+  return rows[0] ? rows[0].id : null;
+}
+
+// Clase de color de la resolucion para el portal
+function claseResolucion(clave) {
+  const k = String(clave || '').toLowerCase();
+  if (k.startsWith('aceptada')) return 'aceptada';
+  if (k === 'rechazada') return 'rechazada';
+  return k ? 'otra' : null;
+}
+
 // Garantías del cliente (garantias_externas), con las fotos de ingreso. tipo_fotos
-// dice de donde se piden las fotos.
+// dice de donde se piden las fotos. Las resueltas traen la resolucion.
 router.get('/api/garantias', requireCliente, async (req, res) => {
   try {
     const cid = await clienteId(req);
@@ -125,8 +160,10 @@ router.get('/api/garantias', requireCliente, async (req, res) => {
     const { rows } = await db.query(
       `SELECT ge.id, ge.ingreso, ge.nro_id, ge.interno, ge.codigo, ge.equipo,
               ge.cantidad, ge.pendiente, ge.observaciones, 'garantia' AS tipo_fotos,
+              rep.id IS NOT NULL AS tiene_informe, rep.resolucion, rep.fecha AS fecha_resolucion,
               ${fotosGarantia.sqlResumen('ge')}
          FROM garantias_externas ge
+         LEFT JOIN LATERAL (${SQL_REPARACION_EXTERNA('ge')}) rep ON ge.nro_id IS NOT NULL
         WHERE ge.cliente_id = $1`,
       [cid]
     );
@@ -136,14 +173,17 @@ router.get('/api/garantias', requireCliente, async (req, res) => {
       const dota = await db.query(
         `SELECT lg.id, lg.ingreso, lg.id_cliente AS nro_id, lg.interno, lg.codigo, fam.descripcion AS equipo,
                 lg.cantidad, 1 AS pendiente, lg.detalle AS observaciones, 'garantia_dota' AS tipo_fotos,
+                false AS tiene_informe, NULL AS resolucion, NULL::timestamp AS fecha_resolucion,
                 ${fotosGarantiaDota.sqlResumen('lg')}
            FROM licitacion_garantias lg
            LEFT JOIN LATERAL (SELECT descripcion FROM familia WHERE btrim(codigo) = btrim(lg.codigo) LIMIT 1) fam ON true
          UNION ALL
          SELECT a.garantia_original_id, a.ingreso, a.id_cliente, a.interno, a.codigo, fam.descripcion,
                 a.cantidad, 0, a.detalle, 'garantia_dota',
+                rep.id IS NOT NULL, rep.resolucion, rep.fecha,
                 ${fotosGarantiaDota.sqlResumen('a', 'a.garantia_original_id')}
            FROM licitacion_garantias_archive a
+           LEFT JOIN equipos_reparaciones rep ON rep.id = a.reparacion_id
            LEFT JOIN LATERAL (SELECT descripcion FROM familia WHERE btrim(codigo) = btrim(a.codigo) LIMIT 1) fam ON true
           WHERE a.garantia_original_id IS NOT NULL
             AND a.archived_at >= now() - make_interval(days => $1::int)`,
@@ -152,7 +192,12 @@ router.get('/api/garantias', requireCliente, async (req, res) => {
       rows.push(...dota.rows);
     }
     rows.sort((x, y) => (y.ingreso ? new Date(y.ingreso) : 0) - (x.ingreso ? new Date(x.ingreso) : 0));
-    res.json(rows);
+    res.json(rows.map((r) => ({
+      ...r,
+      resolucion_texto: r.resolucion ? garantiaResolucionLabel(r.resolucion) : null,
+      resolucion_clase: claseResolucion(r.resolucion),
+      resolucion: undefined
+    })));
   } catch (err) {
     console.error('portal/garantias', err);
     res.status(500).json({ error: 'Error al cargar garantías' });
@@ -230,6 +275,48 @@ router.get('/api/:tipo(vigente|garantia|garantia_dota)/foto/:fotoId(\\d+)', requ
   } catch (err) {
     console.error('portal/foto', err);
     res.status(500).end();
+  }
+});
+
+// Informe de una garantia resuelta: resolucion, texto del informe y fotos
+router.get('/api/:tipo(garantia|garantia_dota)/:id(\\d+)/informe', requireCliente, async (req, res) => {
+  try {
+    const { tipo, id } = req.params;
+    if (!(await esDelCliente(req, tipo, id))) return res.status(404).json({ error: 'No encontrado' });
+    const reparacionId = await reparacionDeGarantia(tipo, id);
+    const reporte = reparacionId ? await armarReporte(reparacionId) : null;
+    if (!reporte) return res.status(404).json({ error: 'La garantía todavía no tiene informe' });
+    const fotos = await FOTOS[tipo].fotos.listar(id);
+    res.json({
+      fecha: reporte.fecha,
+      equipo: reporte.equipo,
+      equipo_codigo: reporte.equipoCodigo,
+      coche: reporte.coche,
+      id_reparacion: reporte.idReparacion,
+      resolucion: reporte.resolucionTexto,
+      resolucion_clase: claseResolucion(reporte.resolucionClave),
+      parrafos: reporte.parrafos,
+      fotos: fotos.map((f) => ({ id: f.id, url: `/portal/api/${tipo}/foto/${f.id}` })),
+      imprimir: `/portal/informe/${tipo}/${id}`
+    });
+  } catch (err) {
+    console.error('portal/informe', err);
+    res.status(500).json({ error: 'Error al cargar el informe' });
+  }
+});
+
+// Informe para imprimir (el mismo del ERP, con la resolucion)
+router.get('/informe/:tipo(garantia|garantia_dota)/:id(\\d+)', requireCliente, async (req, res) => {
+  try {
+    const { tipo, id } = req.params;
+    if (!(await esDelCliente(req, tipo, id))) return res.status(404).send('No encontrado');
+    const reparacionId = await reparacionDeGarantia(tipo, id);
+    const reporte = reparacionId ? await armarReporte(reparacionId) : null;
+    if (!reporte) return res.status(404).send('La garantía todavía no tiene informe');
+    res.render('reports/garantia', { reporte: { ...reporte, mostrarResolucion: true } });
+  } catch (err) {
+    console.error('portal/informe imprimir', err);
+    res.status(500).send('Error al generar el informe');
   }
 });
 

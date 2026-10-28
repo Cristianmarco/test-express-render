@@ -253,3 +253,18 @@ body.portal-body {
   position: absolute; right: 8px; top: 6px; border: none; background: #fff; font-size: 1.8rem;
   line-height: 1; cursor: pointer; color: #334155; border-radius: 50%; width: 36px; height: 36px; z-index: 1;
 }
+
+/* Informe de garantia */
+.portal-btn-informe {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #cbd5e1;
+  border-radius: 6px; background: #fff; color: #1d4ed8; font-size: 0.85rem; cursor: pointer;
+  text-decoration: none; white-space: nowrap;
+}
+.portal-btn-informe:hover { background: #eff6ff; }
+.portal-informe h3 { margin: 0 40px 12px 0; font-size: 1.1rem; color: #0f172a; }
+.portal-informe-meta { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-bottom: 12px; }
+.portal-informe-meta span { display: block; font-size: 0.75rem; color: #64748b; }
+.portal-informe-resolucion { margin: 4px 0 12px; font-size: 0.95rem; }
+.portal-informe-texto { background: #f8fafc; border-radius: 8px; padding: 12px 14px; }
+.portal-informe-texto p { margin: 0 0 8px; white-space: pre-line; line-height: 1.5; }
+.portal-informe-texto p:last-child { margin-bottom: 0; }

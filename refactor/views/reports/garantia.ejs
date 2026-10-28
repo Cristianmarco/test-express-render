@@ -65,6 +65,9 @@
         </div>
       <% } %>
       <div class="meta-line">ID (DOTA): <strong><%= reporte.idDota || '-' %></strong></div>
+      <% if (reporte.mostrarResolucion && reporte.resolucionTexto) { %>
+        <div class="meta-line">Resolución: <strong><%= reporte.resolucionTexto %></strong></div>
+      <% } %>
     </div>
 
     <div class="detalle">

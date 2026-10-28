@@ -163,6 +163,18 @@ function historial(data) {
     <div id="portal-historial-tabla">${tabla(data)}</div>`;
 }
 
+const CLASE_RESOLUCION = { aceptada: 'badge-verde', rechazada: 'badge-rojo', otra: 'badge-gris' };
+
+function badgeResolucion(texto, clase) {
+  return `<span class="badge ${CLASE_RESOLUCION[clase] || 'badge-gris'}">${esc(texto)}</span>`;
+}
+
+function estadoGarantia(g) {
+  if (Number(g.pendiente) > 0) return '<span class="badge badge-naranja">Pendiente</span>';
+  if (!g.resolucion_texto) return '<span class="badge badge-verde">Resuelta</span>';
+  return `${badgeResolucion(g.resolucion_texto, g.resolucion_clase)}${g.fecha_resolucion ? `<div class="portal-sub">${fmt(g.fecha_resolucion)}</div>` : ''}`;
+}
+
 function garantias(data) {
   if (!data.length) return empty('No hay garantías registradas.');
   return `
@@ -171,28 +183,32 @@ function garantias(data) {
       <table class="portal-table">
         <thead>
           <tr>
-            <th>#</th>
+            <th>Nro Garantía</th>
             <th>Ingreso</th>
             <th>Código</th>
             <th>Equipo</th>
             <th>Interno</th>
             <th>Cantidad</th>
             <th>Observaciones</th>
-            <th>Estado</th>
+            <th>Estado / Resolución</th>
+            <th>Informe</th>
             <th>Fotos</th>
           </tr>
         </thead>
         <tbody>
-          ${data.map((g, i) => `
+          ${data.map((g) => `
             <tr>
-              <td>${i + 1}</td>
+              <td><b>${esc(g.nro_id)}</b></td>
               <td>${fmt(g.ingreso)}</td>
               <td>${esc(g.codigo)}</td>
               <td>${esc(g.equipo)}</td>
               <td>${esc(g.interno)}</td>
               <td>${g.cantidad ?? '-'}</td>
               <td>${esc(g.observaciones)}</td>
-              <td>${Number(g.pendiente) > 0 ? '<span class="badge badge-naranja">Pendiente</span>' : '<span class="badge badge-verde">Resuelta</span>'}</td>
+              <td>${estadoGarantia(g)}</td>
+              <td>${g.tiene_informe
+                ? `<button type="button" class="portal-btn-informe" data-informe="${g.tipo_fotos || 'garantia'}" data-id="${g.id}"><i class="fas fa-file-alt"></i> Ver informe</button>`
+                : '<span class="portal-sub">—</span>'}</td>
               <td>${botonFotos(g.tipo_fotos || 'garantia', g)}</td>
             </tr>
           `).join('')}
@@ -244,7 +260,7 @@ function esc(v) {
 }
 
 // ── Visor de fotos ──
-async function abrirFotos(tipo, id) {
+function asegurarVisor() {
   let visor = document.getElementById('portal-visor');
   if (!visor) {
     visor = document.createElement('div');
@@ -260,6 +276,18 @@ async function abrirFotos(tipo, id) {
   }
   visor.innerHTML = '<div class="portal-visor-caja"><div class="portal-spinner">Cargando</div></div>';
   visor.style.display = 'flex';
+  return visor;
+}
+
+// Foto grande con las miniaturas abajo (clic en una miniatura: se ve en grande)
+function galeriaFotos(fotos) {
+  return `
+    <img class="portal-visor-img" src="${fotos[0].url}" alt="Foto del equipo">
+    ${fotos.length > 1 ? `<div class="portal-visor-thumbs">${fotos.map(f => `<img src="${f.url}?mini=1" data-foto="${f.url}" alt="">`).join('')}</div>` : ''}`;
+}
+
+async function abrirFotos(tipo, id) {
+  const visor = asegurarVisor();
   try {
     const res = await fetch(`/portal/api/${tipo}/${id}/fotos`, { credentials: 'include' });
     const fotos = await res.json();
@@ -267,8 +295,38 @@ async function abrirFotos(tipo, id) {
     visor.innerHTML = `
       <div class="portal-visor-caja">
         <button type="button" class="portal-visor-cerrar" title="Cerrar">&times;</button>
-        <img class="portal-visor-img" src="${fotos[0].url}" alt="Foto del equipo">
-        ${fotos.length > 1 ? `<div class="portal-visor-thumbs">${fotos.map(f => `<img src="${f.url}?mini=1" data-foto="${f.url}" alt="">`).join('')}</div>` : ''}
+        ${galeriaFotos(fotos)}
+      </div>`;
+  } catch (err) {
+    visor.innerHTML = `<div class="portal-visor-caja"><button type="button" class="portal-visor-cerrar">&times;</button>${empty(esc(err.message))}</div>`;
+  }
+}
+
+// Informe de una garantia resuelta: resolucion, informe tecnico y las fotos
+async function abrirInforme(tipo, id) {
+  const visor = asegurarVisor();
+  try {
+    const res = await fetch(`/portal/api/${tipo}/${id}/informe`, { credentials: 'include' });
+    const inf = await res.json();
+    if (!res.ok) throw new Error(inf.error || 'No se pudo cargar el informe');
+    visor.innerHTML = `
+      <div class="portal-visor-caja portal-informe">
+        <button type="button" class="portal-visor-cerrar" title="Cerrar">&times;</button>
+        <h3><i class="fas fa-file-alt"></i> Informe de garantía</h3>
+        <div class="portal-informe-meta">
+          <div><span>Equipo</span><b>${esc(inf.equipo_codigo)}${inf.equipo && inf.equipo !== inf.equipo_codigo ? ` · ${esc(inf.equipo)}` : ''}</b></div>
+          ${inf.coche ? `<div><span>Coche</span><b>${esc(inf.coche)}</b></div>` : ''}
+          <div><span>N° Reparación</span><b>${esc(inf.id_reparacion)}</b></div>
+          <div><span>Fecha</span><b>${esc(inf.fecha)}</b></div>
+        </div>
+        ${inf.resolucion ? `<div class="portal-informe-resolucion">Resolución: ${badgeResolucion(inf.resolucion, inf.resolucion_clase)}</div>` : ''}
+        <div class="portal-informe-texto">
+          ${inf.parrafos.length ? inf.parrafos.map(p => `<p>${esc(p)}</p>`).join('') : '<p>Sin observaciones específicas.</p>'}
+        </div>
+        ${inf.fotos.length ? `<div class="portal-section-title" style="margin-top:14px;"><i class="fas fa-camera"></i> Fotos</div>${galeriaFotos(inf.fotos)}` : ''}
+        <div style="text-align:right; margin-top:14px;">
+          <a class="portal-btn-informe" href="${inf.imprimir}" target="_blank" rel="noopener"><i class="fas fa-print"></i> Imprimir / PDF</a>
+        </div>
       </div>`;
   } catch (err) {
     visor.innerHTML = `<div class="portal-visor-caja"><button type="button" class="portal-visor-cerrar">&times;</button>${empty(esc(err.message))}</div>`;
@@ -277,7 +335,9 @@ async function abrirFotos(tipo, id) {
 
 content.addEventListener('click', (e) => {
   const b = e.target.closest('[data-fotos]');
-  if (b) abrirFotos(b.dataset.fotos, b.dataset.id);
+  if (b) { abrirFotos(b.dataset.fotos, b.dataset.id); return; }
+  const inf = e.target.closest('[data-informe]');
+  if (inf) abrirInforme(inf.dataset.informe, inf.dataset.id);
 });
 
 // Navegación entre tabs
