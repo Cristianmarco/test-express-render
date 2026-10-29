@@ -156,6 +156,10 @@
         <div><strong>Cliente:</strong> ${escapeHtml(cot.cliente_nombre || '-')}</div>
         <div><strong>Equipo:</strong> ${escapeHtml(resolveEquipo(cot))}</div>
       </div>
+      ${cot.respuesta_at && ['aprobada', 'rechazada'].includes(cot.estado) ? `<div style="border:1px solid ${cot.estado === 'aprobada' ? '#86efac' : '#fca5a5'}; background:${cot.estado === 'aprobada' ? '#f0fdf4' : '#fef2f2'}; border-radius:14px; padding:12px; margin-bottom:12px;">
+        <strong>${cot.estado === 'aprobada' ? 'Aprobado' : 'Rechazado'} por el cliente desde el portal</strong> el ${escapeHtml(new Date(cot.respuesta_at).toLocaleString('es-AR'))}
+        ${cot.respuesta_comentario ? `<div style="white-space:pre-wrap; margin-top:6px;">“${escapeHtml(cot.respuesta_comentario)}”</div>` : ''}
+      </div>` : ''}
       <div style="border:1px solid #d7e5ef; border-radius:14px; padding:12px; margin-bottom:12px;"><strong>Diagnóstico</strong><div style="white-space:pre-wrap; margin-top:6px;">${escapeHtml(cot.diagnostico || '-')}</div></div>
       <div style="border:1px solid #d7e5ef; border-radius:14px; padding:12px; margin-bottom:12px;"><strong>Detalle técnico</strong><div style="white-space:pre-wrap; margin-top:6px;">${escapeHtml(cot.detalle_reparacion || '-')}</div></div>
       <div style="overflow:auto;">

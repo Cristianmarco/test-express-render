@@ -1468,6 +1468,10 @@ async function abrirModalCotizacionDetalle(cotId) {
         ${c.contacto ? `<div><b>Contacto:</b> ${esc(c.contacto)}</div>` : ''}
         ${c.coche_numero ? `<div><b>Nº Coche:</b> ${esc(c.coche_numero)}</div>` : ''}
       </div>
+      ${c.respuesta_at && ['aprobada', 'rechazada'].includes(c.estado) ? `<div style="margin-bottom:12px;padding:8px 12px;border-radius:8px;font-size:0.88rem;${estadoBadge}">
+        <b>${c.estado === 'aprobada' ? 'Aprobado' : 'Rechazado'} por el cliente desde el portal</b> el ${new Date(c.respuesta_at).toLocaleString('es-AR')}
+        ${c.respuesta_comentario ? `<div style="margin-top:4px;white-space:pre-wrap;">“${esc(c.respuesta_comentario)}”</div>` : ''}
+      </div>` : ''}
       ${c.falla_reportada ? `<div style="margin-bottom:10px;font-size:0.88rem;"><b>Falla reportada:</b><br><span style="color:#475569;">${esc(c.falla_reportada)}</span></div>` : ''}
       ${c.diagnostico ? `<div style="margin-bottom:10px;font-size:0.88rem;"><b>Diagnóstico:</b><br><span style="color:#475569;">${esc(c.diagnostico)}</span></div>` : ''}
       <div style="margin-bottom:6px;font-size:0.88rem;font-weight:600;color:#1e293b;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">Repuestos</div>

@@ -268,3 +268,68 @@ body.portal-body {
 .portal-informe-texto { background: #f8fafc; border-radius: 8px; padding: 12px 14px; }
 .portal-informe-texto p { margin: 0 0 8px; white-space: pre-line; line-height: 1.5; }
 .portal-informe-texto p:last-child { margin-bottom: 0; }
+
+/* Resumen */
+.portal-resumen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+.portal-resumen:empty { display: none; }
+.portal-card {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center;
+  padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; cursor: pointer;
+  text-align: left; font: inherit; color: #1a2636; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.portal-card:hover { border-color: #94a3b8; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06); }
+.portal-card i { grid-row: span 2; font-size: 1.3rem; color: #64748b; }
+.portal-card b { font-size: 1.5rem; line-height: 1.1; }
+.portal-card span { font-size: 0.82rem; color: #64748b; }
+.portal-card-alerta { border-color: #fdba74; background: #fff7ed; }
+.portal-card-alerta i { color: #c2410c; }
+
+/* Licitaciones en curso */
+.portal-licis { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 26px; }
+.portal-lici {
+  padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; cursor: pointer;
+  text-align: left; font: inherit; color: #1a2636;
+}
+.portal-lici:hover { border-color: #94a3b8; }
+.portal-lici.activo { border-color: #1d4ed8; box-shadow: 0 0 0 2px #dbeafe; }
+.portal-lici-titulo { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 8px; }
+.portal-lici-titulo span { color: #15803d; }
+.portal-lici-barra { height: 8px; border-radius: 99px; background: #e2e8f0; overflow: hidden; margin-bottom: 6px; }
+.portal-lici-barra div { height: 100%; background: #22c55e; border-radius: 99px; }
+
+/* Filtro por empresa */
+.portal-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.portal-chip {
+  padding: 5px 10px; border: 1px solid #cbd5e1; border-radius: 99px; background: #fff; cursor: pointer;
+  font: inherit; font-size: 0.82rem; color: #334155;
+}
+.portal-chip span { color: #64748b; margin-left: 2px; }
+.portal-chip.activo { background: #1a2636; border-color: #1a2636; color: #fff; }
+.portal-chip.activo span { color: #cbd5e1; }
+
+/* Presupuestos: aprobar / rechazar */
+.portal-acciones { white-space: nowrap; }
+.portal-acciones > * { margin: 2px 0; }
+.portal-btn-aprobar, .portal-btn-rechazar {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px;
+  font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; color: #fff;
+}
+.portal-btn-aprobar { background: #16a34a; }
+.portal-btn-aprobar:hover { background: #15803d; }
+.portal-btn-rechazar { background: #dc2626; }
+.portal-btn-rechazar:hover { background: #b91c1c; }
+.portal-btn-aprobar:disabled, .portal-btn-rechazar:disabled { opacity: 0.6; cursor: wait; }
+.portal-comentario { font-style: italic; max-width: 220px; white-space: normal; }
+.portal-respuesta { max-width: 460px; width: 100%; }
+.portal-respuesta h3 { margin: 0 40px 10px 0; font-size: 1.1rem; color: #0f172a; }
+.portal-respuesta label { display: block; font-size: 0.85rem; color: #475569; margin: 10px 0 6px; }
+.portal-respuesta textarea {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px;
+  font: inherit; resize: vertical;
+}
+.portal-resp-error { color: #dc2626; font-size: 0.85rem; min-height: 1.2em; margin-top: 6px; }
+.portal-resp-acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+
+@media (max-width: 760px) {
+  .portal-resumen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

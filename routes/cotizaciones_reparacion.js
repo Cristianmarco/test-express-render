@@ -46,7 +46,11 @@ async function ensureTables() {
     `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS cliente_nombre TEXT`,
     `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS mano_obra NUMERIC(12,2) NOT NULL DEFAULT 0`,
     `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS observaciones TEXT`,
-    `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS vigente_id INTEGER`
+    `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS vigente_id INTEGER`,
+    // Respuesta del cliente desde el portal (aprobada / rechazada)
+    `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS respuesta_comentario TEXT`,
+    `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS respuesta_at TIMESTAMP`,
+    `ALTER TABLE cotizaciones_reparacion ADD COLUMN IF NOT EXISTS respuesta_usuario TEXT`
   ];
   for (const sql of alterStatements) await db.query(sql);
 
@@ -440,6 +444,9 @@ router.get('/', async (req, res, next) => {
         c.total,
         c.estado,
         c.vigente_id,
+        c.respuesta_comentario,
+        c.respuesta_at,
+        c.respuesta_usuario,
         COUNT(i.id)::int AS items_count,
         c.created_at,
         c.updated_at
@@ -488,7 +495,8 @@ router.get('/', async (req, res, next) => {
         c.id, c.numero, c.fecha, c.cliente_id, c.cliente_nombre, c.contacto, c.coche_numero,
         c.familia_id, f.codigo, f.descripcion, c.equipo_texto, c.falla_reportada, c.diagnostico,
         c.detalle_reparacion, c.observaciones, c.mano_obra, c.subtotal_productos, c.descuento,
-        c.recargo, c.total, c.estado, c.vigente_id, c.created_at, c.updated_at
+        c.recargo, c.total, c.estado, c.vigente_id, c.respuesta_comentario, c.respuesta_at,
+        c.respuesta_usuario, c.created_at, c.updated_at
       ORDER BY c.fecha DESC, c.id DESC
     `;
     const { rows } = await db.query(sql, params);
@@ -681,3 +689,7 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 module.exports = router;
+// El portal de clientes usa el mismo presupuesto y PDF
+module.exports.ensureTables = ensureTables;
+module.exports.getCotizacionById = getCotizacionById;
+module.exports.renderCotizacionPdf = renderCotizacionPdf;

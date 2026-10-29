@@ -5,6 +5,9 @@ const { nombreEtapa } = require('../../utils/etapas_reparacion');
 const { fotosDeRegistro } = require('../../utils/fotos_registro');
 const { garantiaResolucionLabel } = require('../../utils/garantia-resoluciones');
 const { armarReporte } = require('../../utils/garantia_reporte');
+const { insertDomainAudit } = require('../../utils/domain-audit');
+const cotizaciones = require('../../routes/cotizaciones_reparacion');
+const PDFDocument = require('pdfkit');
 
 // Mismas tablas de fotos que usa el ERP (las crean sus routers al arrancar)
 const fotosVigente = fotosDeRegistro({ tabla: 'reparaciones_dota_fotos', columna: 'vigente_id', tablaPadre: 'reparaciones_dota', urlBase: '' });
@@ -51,6 +54,18 @@ async function alcance(req) {
 // Historial: las reparaciones mas recientes que se mandan al portal
 const HISTORIAL_MAX = 1000;
 
+// Vigentes del cliente ($1 = ids de alcance, $2 = grupo)
+const SQL_VIGENTE_DEL_CLIENTE = (alias) =>
+  `(${alias}.cliente_id = ANY($1::int[]) OR ($2 AND LOWER(COALESCE(${alias}.cliente_tipo, '')) = 'dota'))`;
+
+// Presupuestos que ve el cliente ($1 = ids de alcance, $2 = nombre del cliente): los
+// borradores no; los viejos sin cliente vinculado se buscan por nombre
+const SQL_PRESUPUESTO_DEL_CLIENTE = `
+  (cliente_id = ANY($1::int[]) OR (cliente_id IS NULL AND $2 <> '' AND LOWER(TRIM(cliente_nombre)) = LOWER(TRIM($2))))
+  AND LOWER(COALESCE(estado, '')) <> 'borrador'`;
+
+const RESPUESTAS = { aprobar: 'aprobada', rechazar: 'rechazada' };
+
 // ── Vistas ────────────────────────────────────────────────────────────────────
 
 router.get('/login', (req, res) => {
@@ -82,7 +97,7 @@ router.get('/api/reparaciones', requireCliente, async (req, res) => {
               ${fotosVigente.sqlResumen('rd')}
          FROM reparaciones_dota rd
          LEFT JOIN clientes c ON c.id = rd.cliente_id
-        WHERE (rd.cliente_id = ANY($1::int[]) OR ($2 AND LOWER(COALESCE(rd.cliente_tipo, '')) = 'dota'))
+        WHERE ${SQL_VIGENTE_DEL_CLIENTE('rd')}
           AND COALESCE(rd.pendientes, 0) > 0
           AND NOT COALESCE(rd.devuelto, false)
         ORDER BY rd.fecha_ingreso DESC NULLS LAST, rd.id DESC`,
@@ -225,25 +240,131 @@ router.get('/api/garantias', requireCliente, async (req, res) => {
   }
 });
 
-// Presupuestos (cotizaciones de reparación). Los borradores no se muestran: el
-// cliente los ve cuando se marcan como enviados. Los viejos sin cliente vinculado
-// se buscan por nombre.
+// Resumen de arriba: equipos en el taller, listos, garantias y presupuestos por
+// responder. Las licitaciones en curso traen el avance (reparados de la cantidad).
+router.get('/api/resumen', requireCliente, async (req, res) => {
+  try {
+    const { ids, grupo } = await alcance(req);
+    const nombre = req.session.user.cliente_nombre || '';
+    await cotizaciones.ensureTables();
+    const [taller, licitaciones, garantias, presupuestos] = await Promise.all([
+      db.query(
+        `SELECT COALESCE(sum(rd.pendientes), 0)::int AS en_taller,
+                COALESCE(sum(rd.pendientes) FILTER (WHERE rd.etapa = 'listo'), 0)::int AS listos
+           FROM reparaciones_dota rd
+          WHERE ${SQL_VIGENTE_DEL_CLIENTE('rd')}
+            AND COALESCE(rd.pendientes, 0) > 0 AND NOT COALESCE(rd.devuelto, false)`,
+        [ids, grupo]),
+      db.query(
+        `SELECT rd.licitacion_nro, sum(rd.cantidad)::int AS cantidad, sum(rd.pendientes)::int AS pendientes,
+                min(rd.fecha_ingreso) AS ingreso, max(rd.fecha_limite_entrega) AS entrega
+           FROM reparaciones_dota rd
+          WHERE ${SQL_VIGENTE_DEL_CLIENTE('rd')}
+            AND NULLIF(btrim(rd.licitacion_nro), '') IS NOT NULL AND NOT COALESCE(rd.devuelto, false)
+          GROUP BY rd.licitacion_nro
+         HAVING sum(rd.pendientes) > 0
+          ORDER BY min(rd.fecha_ingreso) DESC NULLS LAST`,
+        [ids, grupo]),
+      db.query(
+        `SELECT (SELECT count(*) FROM garantias_externas WHERE cliente_id = ANY($1::int[]) AND COALESCE(pendiente, 0) > 0)
+              + (CASE WHEN $2 THEN (SELECT count(*) FROM licitacion_garantias) ELSE 0 END) AS pendientes`,
+        [ids, grupo]),
+      db.query(
+        `SELECT count(*)::int AS por_responder FROM cotizaciones_reparacion
+          WHERE ${SQL_PRESUPUESTO_DEL_CLIENTE} AND LOWER(estado) = 'enviada'`,
+        [ids, nombre])
+    ]);
+    res.json({
+      ...taller.rows[0],
+      garantias_pendientes: Number(garantias.rows[0].pendientes),
+      presupuestos_por_responder: presupuestos.rows[0].por_responder,
+      licitaciones: licitaciones.rows
+    });
+  } catch (err) {
+    console.error('portal/resumen', err);
+    res.status(500).json({ error: 'Error al cargar el resumen' });
+  }
+});
+
+// Presupuestos (cotizaciones de reparación). El cliente los ve cuando se marcan como
+// enviados y los puede aprobar o rechazar.
 router.get('/api/presupuestos', requireCliente, async (req, res) => {
   try {
     const { ids } = await alcance(req);
     const nombre = req.session.user.cliente_nombre || '';
+    await cotizaciones.ensureTables();
     const { rows } = await db.query(
-      `SELECT id, numero, fecha, coche_numero, equipo_texto, falla_reportada, total, estado, created_at
+      `SELECT id, numero, fecha, coche_numero, equipo_texto, falla_reportada, total, estado, created_at,
+              respuesta_comentario, respuesta_at
          FROM cotizaciones_reparacion
-        WHERE (cliente_id = ANY($1::int[]) OR (cliente_id IS NULL AND $2 <> '' AND LOWER(TRIM(cliente_nombre)) = LOWER(TRIM($2))))
-          AND LOWER(COALESCE(estado, '')) <> 'borrador'
-        ORDER BY fecha DESC, id DESC`,
+        WHERE ${SQL_PRESUPUESTO_DEL_CLIENTE}
+        ORDER BY (LOWER(estado) = 'enviada') DESC, fecha DESC, id DESC`,
       [ids, nombre]
     );
     res.json(rows);
   } catch (err) {
     console.error('portal/presupuestos', err);
     res.status(500).json({ error: 'Error al cargar presupuestos' });
+  }
+});
+
+// Aprobar o rechazar un presupuesto enviado (con un comentario opcional)
+router.post('/api/presupuestos/:id(\\d+)/respuesta', requireCliente, async (req, res) => {
+  const estado = RESPUESTAS[req.body?.accion];
+  if (!estado) return res.status(400).json({ error: 'Respuesta inválida' });
+  const comentario = String(req.body.comentario || '').trim().slice(0, 1000) || null;
+  const u = req.session.user;
+  const client = await db.connect();
+  try {
+    const { ids } = await alcance(req);
+    await cotizaciones.ensureTables();
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `UPDATE cotizaciones_reparacion
+          SET estado = $4, respuesta_comentario = $5, respuesta_at = now(), respuesta_usuario = $6, updated_at = now()
+        WHERE id = $3 AND ${SQL_PRESUPUESTO_DEL_CLIENTE} AND LOWER(estado) = 'enviada'
+        RETURNING id, numero, estado, respuesta_comentario, respuesta_at`,
+      [ids, u.cliente_nombre || '', req.params.id, estado, comentario, u.email || u.cliente_nombre || null]
+    );
+    if (!rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'El presupuesto ya no está pendiente de respuesta.' });
+    }
+    await insertDomainAudit(client, req, 'cotizaciones_reparacion', req.params.id,
+      estado === 'aprobada' ? 'aprobada_por_cliente' : 'rechazada_por_cliente',
+      { numero: rows[0].numero, comentario, cliente: u.cliente_nombre, portal: true });
+    await client.query('COMMIT');
+    res.json(rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('portal/presupuesto respuesta', err);
+    res.status(500).json({ error: 'No se pudo registrar la respuesta' });
+  } finally {
+    client.release();
+  }
+});
+
+// PDF del presupuesto (el mismo que imprime el ERP)
+router.get('/api/presupuestos/:id(\\d+)/pdf', requireCliente, async (req, res) => {
+  const client = await db.connect();
+  try {
+    const { ids } = await alcance(req);
+    const { rowCount } = await client.query(
+      `SELECT 1 FROM cotizaciones_reparacion WHERE id = $3 AND ${SQL_PRESUPUESTO_DEL_CLIENTE}`,
+      [ids, req.session.user.cliente_nombre || '', req.params.id]);
+    if (!rowCount) return res.status(404).send('No encontrado');
+    const cotizacion = await cotizaciones.getCotizacionById(client, Number(req.params.id));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${cotizacion.numero || `CT-${String(cotizacion.id).padStart(6, '0')}`}.pdf"`);
+    const doc = new PDFDocument({ size: 'A4', margin: 28 });
+    doc.pipe(res);
+    cotizaciones.renderCotizacionPdf(doc, cotizacion);
+    doc.end();
+  } catch (err) {
+    console.error('portal/presupuesto pdf', err);
+    if (!res.headersSent) res.status(500).send('Error al generar el PDF');
+  } finally {
+    client.release();
   }
 });
 
