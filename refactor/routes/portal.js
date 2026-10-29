@@ -36,6 +36,21 @@ async function clienteId(req) {
   return u.cliente_id;
 }
 
+// Clientes que ve el usuario. Dota es un grupo: ve todas las razones sociales
+// internas (Atlantida, Constituyentes, ...) y lo cargado como cliente_tipo 'dota'
+// aunque no tenga ficha de cliente.
+async function alcance(req) {
+  const cid = await clienteId(req);
+  if (!esDota(req)) return { ids: cid ? [cid] : [], grupo: false };
+  const { rows } = await db.query(`SELECT id FROM clientes WHERE categoria = 'interno'`);
+  const ids = rows.map((r) => r.id);
+  if (cid && !ids.includes(cid)) ids.push(cid);
+  return { ids, grupo: true };
+}
+
+// Historial: las reparaciones mas recientes que se mandan al portal
+const HISTORIAL_MAX = 1000;
+
 // ── Vistas ────────────────────────────────────────────────────────────────────
 
 router.get('/login', (req, res) => {
@@ -53,31 +68,25 @@ router.get('/', requireCliente, (req, res) => {
 
 // ── API del portal ─────────────────────────────────────────────────────────────
 
-// Equipos del cliente en R.Vigentes: los que estan en el taller y los reparados o
-// devueltos en los ultimos DIAS_ENTREGADOS dias. La fecha de reparado sale de la
-// planilla (misma relacion pedido + codigo que usa el recalculo de pendientes).
+// Equipos en reparacion: lo que sigue vigente en R.Vigentes (con pendientes y sin
+// devolver). En las tandas o licitaciones quedan hasta que sale el ultimo pendiente;
+// lo ya reparado se ve en el historial (planilla).
 router.get('/api/reparaciones', requireCliente, async (req, res) => {
   try {
-    const cid = await clienteId(req);
-    if (!cid) return res.json([]);
+    const { ids, grupo } = await alcance(req);
+    if (!ids.length && !grupo) return res.json([]);
     const { rows } = await db.query(
-      `SELECT rd.id, rd.nro_pedido, rd.codigo, rd.descripcion, rd.cantidad, rd.pendientes,
+      `SELECT rd.id, rd.nro_pedido, rd.licitacion_nro, rd.codigo, rd.descripcion, rd.cantidad, rd.pendientes,
               rd.fecha_ingreso, rd.fecha_limite_entrega, rd.etapa, rd.etapa_at,
-              rd.devuelto, rd.devuelto_fecha, rep.fecha_reparado,
+              COALESCE(c.razon_social, rd.razon_social) AS empresa,
               ${fotosVigente.sqlResumen('rd')}
          FROM reparaciones_dota rd
-         LEFT JOIN LATERAL (
-           SELECT max(er.fecha)::date AS fecha_reparado
-             FROM equipos_reparaciones er
-             JOIN familia f ON f.id = er.familia_id
-            WHERE btrim(er.nro_pedido_ref) = btrim(rd.nro_pedido)
-              AND btrim(f.codigo) = btrim(rd.codigo)
-         ) rep ON COALESCE(rd.pendientes, 0) < COALESCE(rd.cantidad, 0)
-        WHERE rd.cliente_id = $1
-          AND (rd.pendientes > 0
-               OR COALESCE(rd.devuelto_fecha, rep.fecha_reparado, rd.fecha_ingreso) >= CURRENT_DATE - $2::int)
-        ORDER BY (rd.pendientes > 0) DESC, rd.fecha_ingreso DESC NULLS LAST, rd.id DESC`,
-      [cid, DIAS_ENTREGADOS]
+         LEFT JOIN clientes c ON c.id = rd.cliente_id
+        WHERE (rd.cliente_id = ANY($1::int[]) OR ($2 AND LOWER(COALESCE(rd.cliente_tipo, '')) = 'dota'))
+          AND COALESCE(rd.pendientes, 0) > 0
+          AND NOT COALESCE(rd.devuelto, false)
+        ORDER BY rd.fecha_ingreso DESC NULLS LAST, rd.id DESC`,
+      [ids, grupo]
     );
     res.json(rows.map((r) => ({ ...r, etapa_nombre: nombreEtapa(r.etapa) })));
   } catch (err) {
@@ -86,30 +95,42 @@ router.get('/api/reparaciones', requireCliente, async (req, res) => {
   }
 });
 
-// Historial completo del cliente (todos los trabajos, uno por id_reparacion)
+// Historial: lo reparado, de la planilla, un registro por ID de reparacion. En Dota
+// la empresa sale del vigente del pedido (las reparaciones 'dota' no tienen cliente).
 router.get('/api/historial', requireCliente, async (req, res) => {
   try {
-    const cid = await clienteId(req);
-    if (!cid) return res.json([]);
+    const { ids, grupo } = await alcance(req);
+    if (!ids.length && !grupo) return res.json([]);
     const { rows } = await db.query(
-      `SELECT * FROM (
-         SELECT DISTINCT ON (r.id_reparacion)
-           r.id_reparacion,
-           r.fecha::date        AS fecha,
-           r.coche_numero,
-           r.trabajo,
-           r.garantia,
-           r.nro_pedido_ref,
-           f.descripcion        AS equipo,
-           f.codigo             AS codigo_equipo
-         FROM equipos_reparaciones r
-         LEFT JOIN familia  f ON f.id = r.familia_id
-         WHERE r.cliente_id = $1
-           AND LOWER(COALESCE(r.cliente_tipo,'')) = 'externo'
-         ORDER BY r.id_reparacion, r.fecha DESC, r.id DESC
-       ) h
-       ORDER BY h.fecha DESC NULLS LAST, h.id_reparacion DESC`,
-      [cid]
+      `SELECT h.*, COALESCE(h.cliente, vig.razon_social) AS empresa
+         FROM (
+           SELECT DISTINCT ON (r.id_reparacion)
+             r.id_reparacion,
+             r.fecha::date        AS fecha,
+             r.coche_numero,
+             r.trabajo,
+             r.garantia,
+             r.nro_pedido_ref,
+             f.descripcion        AS equipo,
+             f.codigo             AS codigo_equipo,
+             c.razon_social       AS cliente
+           FROM equipos_reparaciones r
+           LEFT JOIN familia  f ON f.id = r.familia_id
+           LEFT JOIN clientes c ON c.id = r.cliente_id
+           WHERE r.cliente_id = ANY($1::int[])
+              OR ($2 AND LOWER(COALESCE(r.cliente_tipo, '')) = 'dota')
+           ORDER BY r.id_reparacion, r.fecha DESC, r.id DESC
+         ) h
+         LEFT JOIN LATERAL (
+           SELECT COALESCE(c2.razon_social, rd.razon_social) AS razon_social
+             FROM reparaciones_dota rd
+             LEFT JOIN clientes c2 ON c2.id = rd.cliente_id
+            WHERE h.cliente IS NULL AND btrim(rd.nro_pedido) = btrim(h.nro_pedido_ref)
+            LIMIT 1
+         ) vig ON true
+        ORDER BY h.fecha DESC NULLS LAST, h.id_reparacion DESC
+        LIMIT $3`,
+      [ids, grupo, HISTORIAL_MAX]
     );
     res.json(rows);
   } catch (err) {
@@ -155,8 +176,8 @@ function claseResolucion(clave) {
 // dice de donde se piden las fotos. Las resueltas traen la resolucion.
 router.get('/api/garantias', requireCliente, async (req, res) => {
   try {
-    const cid = await clienteId(req);
-    if (!cid) return res.json([]);
+    const { ids, grupo } = await alcance(req);
+    if (!ids.length && !grupo) return res.json([]);
     const { rows } = await db.query(
       `SELECT ge.id, ge.ingreso, ge.nro_id, ge.interno, ge.codigo, ge.equipo,
               ge.cantidad, ge.pendiente, ge.observaciones, 'garantia' AS tipo_fotos,
@@ -164,12 +185,12 @@ router.get('/api/garantias', requireCliente, async (req, res) => {
               ${fotosGarantia.sqlResumen('ge')}
          FROM garantias_externas ge
          LEFT JOIN LATERAL (${SQL_REPARACION_EXTERNA('ge')}) rep ON ge.nro_id IS NOT NULL
-        WHERE ge.cliente_id = $1`,
-      [cid]
+        WHERE ge.cliente_id = ANY($1::int[])`,
+      [ids]
     );
     // Dota: su cola de garantias (pendientes) y las resueltas en los ultimos DIAS_ENTREGADOS
     // dias (archivadas; las fotos siguen colgadas del id original)
-    if (esDota(req)) {
+    if (grupo) {
       const dota = await db.query(
         `SELECT lg.id, lg.ingreso, lg.id_cliente AS nro_id, lg.interno, lg.codigo, fam.descripcion AS equipo,
                 lg.cantidad, 1 AS pendiente, lg.detalle AS observaciones, 'garantia_dota' AS tipo_fotos,
@@ -209,15 +230,15 @@ router.get('/api/garantias', requireCliente, async (req, res) => {
 // se buscan por nombre.
 router.get('/api/presupuestos', requireCliente, async (req, res) => {
   try {
-    const cid = await clienteId(req);
+    const { ids } = await alcance(req);
     const nombre = req.session.user.cliente_nombre || '';
     const { rows } = await db.query(
       `SELECT id, numero, fecha, coche_numero, equipo_texto, falla_reportada, total, estado, created_at
          FROM cotizaciones_reparacion
-        WHERE (cliente_id = $1 OR (cliente_id IS NULL AND $2 <> '' AND LOWER(TRIM(cliente_nombre)) = LOWER(TRIM($2))))
+        WHERE (cliente_id = ANY($1::int[]) OR (cliente_id IS NULL AND $2 <> '' AND LOWER(TRIM(cliente_nombre)) = LOWER(TRIM($2))))
           AND LOWER(COALESCE(estado, '')) <> 'borrador'
         ORDER BY fecha DESC, id DESC`,
-      [cid, nombre]
+      [ids, nombre]
     );
     res.json(rows);
   } catch (err) {
@@ -226,11 +247,16 @@ router.get('/api/presupuestos', requireCliente, async (req, res) => {
   }
 });
 
-// Fotos de un equipo o garantia: solo si es del cliente. Las de Dota, solo para Dota
-// (la garantia puede estar en la cola o ya archivada).
+// Fotos de un equipo o garantia: solo si es del cliente (o del grupo, para Dota).
+// Las de la cola de Dota, solo para Dota (la garantia puede estar archivada).
 const FOTOS = {
-  vigente: { fotos: fotosVigente, sql: 'SELECT 1 FROM reparaciones_dota WHERE id = $1 AND cliente_id = $2' },
-  garantia: { fotos: fotosGarantia, sql: 'SELECT 1 FROM garantias_externas WHERE id = $1 AND cliente_id = $2' },
+  vigente: {
+    fotos: fotosVigente,
+    usaGrupo: true,
+    sql: `SELECT 1 FROM reparaciones_dota WHERE id = $1
+            AND (cliente_id = ANY($2::int[]) OR ($3 AND LOWER(COALESCE(cliente_tipo, '')) = 'dota'))`
+  },
+  garantia: { fotos: fotosGarantia, sql: 'SELECT 1 FROM garantias_externas WHERE id = $1 AND cliente_id = ANY($2::int[])' },
   garantia_dota: {
     fotos: fotosGarantiaDota,
     soloDota: true,
@@ -241,14 +267,14 @@ const FOTOS = {
 
 async function esDelCliente(req, tipo, registroId) {
   const def = FOTOS[tipo];
+  const { ids, grupo } = await alcance(req);
   if (def.soloDota) {
-    if (!esDota(req)) return false;
+    if (!grupo) return false;
     const { rowCount } = await db.query(def.sql, [registroId]);
     return rowCount > 0;
   }
-  const cid = await clienteId(req);
-  if (!cid) return false;
-  const { rowCount } = await db.query(def.sql, [registroId, cid]);
+  if (!ids.length && !grupo) return false;
+  const { rowCount } = await db.query(def.sql, def.usaGrupo ? [registroId, ids, grupo] : [registroId, ids]);
   return rowCount > 0;
 }
 

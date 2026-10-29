@@ -47,17 +47,14 @@ async function loadTab(tab) {
   }
 }
 
-// Estado que ve el cliente: la etapa del taller, o reparado / devuelto
+// Etapa del taller en la que esta el equipo
 function estadoEquipo(r) {
-  if (r.devuelto) return '<span class="badge badge-gris">Devuelto sin reparar</span>';
-  if (Number(r.pendientes) <= 0) {
-    return `<span class="badge badge-verde">Reparado</span>${r.fecha_reparado ? `<div class="portal-sub">${fmt(r.fecha_reparado)}</div>` : ''}`;
-  }
   const clase = r.etapa === 'listo' ? 'badge-verde' : r.etapa === 'presupuesto' ? 'badge-naranja' : 'badge-azul';
-  const parcial = Number(r.pendientes) < Number(r.cantidad)
-    ? `<div class="portal-sub">${Number(r.cantidad) - Number(r.pendientes)} de ${r.cantidad} reparados</div>` : '';
-  return `<span class="badge ${clase}">${esc(r.etapa_nombre || 'En reparación')}</span>${parcial}`;
+  return `<span class="badge ${clase}">${esc(r.etapa_nombre || 'En reparación')}</span>`;
 }
+
+// Hay columna Empresa cuando el usuario ve varias razones sociales (Dota)
+const variasEmpresas = (lista) => new Set(lista.map(r => r.empresa || '')).size > 1;
 
 function botonFotos(tipo, r) {
   if (!r.fotos) return '<span class="portal-sub">—</span>';
@@ -66,27 +63,35 @@ function botonFotos(tipo, r) {
   </button>`;
 }
 
-function tablaEquipos(lista) {
+// Equipos vigentes en el taller. En las tandas se ve cuantos quedan pendientes.
+function reparaciones(data) {
+  if (!data.length) return `
+    <div class="portal-section-title"><i class="fas fa-tools"></i> Equipos en reparación</div>
+    ${empty('No tenés equipos en reparación.')}`;
+  const conEmpresa = variasEmpresas(data);
   return `
+    <div class="portal-section-title"><i class="fas fa-tools"></i> Equipos en reparación</div>
     <div class="portal-table-wrap">
       <table class="portal-table">
         <thead>
           <tr>
+            ${conEmpresa ? '<th>Empresa</th>' : ''}
             <th>Nro Pedido</th>
             <th>Equipo</th>
-            <th>Cant.</th>
+            <th>Pendientes</th>
             <th>Ingreso</th>
             <th>Entrega estimada</th>
-            <th>Estado</th>
+            <th>Etapa</th>
             <th>Fotos</th>
           </tr>
         </thead>
         <tbody>
-          ${lista.map(r => `
+          ${data.map(r => `
             <tr>
-              <td><b>${esc(r.nro_pedido)}</b></td>
+              ${conEmpresa ? `<td>${esc(r.empresa)}</td>` : ''}
+              <td><b>${esc(r.nro_pedido)}</b>${r.licitacion_nro ? `<div class="portal-sub">Licitación ${esc(r.licitacion_nro)}</div>` : ''}</td>
               <td>${esc(r.descripcion)}${r.codigo ? `<div class="portal-sub">${esc(r.codigo)}</div>` : ''}</td>
-              <td>${r.cantidad ?? '-'}</td>
+              <td><b>${r.pendientes}</b>${Number(r.cantidad) > Number(r.pendientes) ? `<div class="portal-sub">de ${r.cantidad}</div>` : ''}</td>
               <td>${fmt(r.fecha_ingreso)}</td>
               <td>${fmt(r.fecha_limite_entrega)}</td>
               <td>${estadoEquipo(r)}</td>
@@ -98,23 +103,14 @@ function tablaEquipos(lista) {
     </div>`;
 }
 
-function reparaciones(data) {
-  const enTaller = data.filter(r => !r.devuelto && Number(r.pendientes) > 0);
-  const terminados = data.filter(r => !enTaller.includes(r));
-  return `
-    <div class="portal-section-title"><i class="fas fa-tools"></i> En el taller</div>
-    ${enTaller.length ? tablaEquipos(enTaller) : empty('No tenés equipos en reparación.')}
-    ${terminados.length ? `
-      <div class="portal-section-title" style="margin-top:28px;"><i class="fas fa-check-circle"></i> Reparados y devueltos <small>(últimos 90 días)</small></div>
-      ${tablaEquipos(terminados)}` : ''}`;
-}
-
 function historial(data) {
+  const conEmpresa = variasEmpresas(data);
   const tabla = (lista) => lista.length ? `
     <div class="portal-table-wrap">
       <table class="portal-table">
         <thead>
           <tr>
+            ${conEmpresa ? '<th>Empresa</th>' : ''}
             <th>N° Reparación</th>
             <th>Coche</th>
             <th>Equipo</th>
@@ -126,6 +122,7 @@ function historial(data) {
         <tbody>
           ${lista.map(r => `
             <tr>
+              ${conEmpresa ? `<td>${esc(r.empresa)}</td>` : ''}
               <td><b>${esc(r.id_reparacion)}</b></td>
               <td>${esc(r.coche_numero)}</td>
               <td>${esc(r.equipo)}</td>
@@ -149,7 +146,7 @@ function historial(data) {
     input.addEventListener('input', () => {
       const q = input.value.trim().toLowerCase();
       const filtrado = !q ? data : data.filter(r =>
-        [r.id_reparacion, r.coche_numero, r.equipo, r.trabajo].some(v => String(v||'').toLowerCase().includes(q))
+        [r.id_reparacion, r.coche_numero, r.equipo, r.trabajo, r.empresa].some(v => String(v||'').toLowerCase().includes(q))
       );
       wrap.innerHTML = tabla(filtrado);
     });
@@ -158,7 +155,7 @@ function historial(data) {
   return `
     <div class="portal-section-title"><i class="fas fa-history"></i> Historial de Reparaciones</div>
     <div class="portal-buscador">
-      <input type="text" id="portal-historial-buscar" placeholder="Buscar por N° reparación, coche, equipo o trabajo..." />
+      <input type="text" id="portal-historial-buscar" placeholder="Buscar por N° reparación, coche, equipo, trabajo${conEmpresa ? ' o empresa' : ''}..." />
     </div>
     <div id="portal-historial-tabla">${tabla(data)}</div>`;
 }
