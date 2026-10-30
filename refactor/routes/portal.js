@@ -126,6 +126,7 @@ router.get('/api/historial', requireCliente, async (req, res) => {
              r.trabajo,
              r.garantia,
              r.nro_pedido_ref,
+             r.cantidad,
              f.descripcion        AS equipo,
              f.codigo             AS codigo_equipo,
              c.razon_social       AS cliente

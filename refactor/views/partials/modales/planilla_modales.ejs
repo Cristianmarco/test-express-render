@@ -65,6 +65,7 @@
     <div class="erp-panel-flotante">
       <button id="btn-ver-detalle" class="icon-button-erp visualizar" title="Ver Detalle"><i class="fas fa-eye"></i></button>
       <button id="btn-agregar-rep" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
+      <button id="btn-lote-rep" class="icon-button-erp agregar" title="Cargar por lote (descuenta pendientes de R.Vigentes)"><i class="fas fa-layer-group"></i></button>
       <button id="btn-modificar-rep" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
       <button id="btn-eliminar-rep" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
       <button id="btn-reporte-garantia" class="icon-button-erp visualizar" title="Informe de garantía">
@@ -260,7 +261,8 @@
       <div class="form-grid">
         <div>
           <label>Nro Pedido (R.Vigente)</label>
-          <input type="text" name="nro_pedido_ref" id="nro_pedido_ref" placeholder="Nro de pedido de licitaciones" />
+          <input type="text" name="nro_pedido_ref" id="nro_pedido_ref" placeholder="Nro de pedido de licitaciones" list="pedidos-pendientes-lista" />
+          <datalist id="pedidos-pendientes-lista"></datalist>
         </div>
       </div>
 
@@ -406,6 +408,108 @@
 
       <button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar Reparacion</button>
     </form>
+  </div>
+</div>
+
+<!-- MODAL CARGA POR LOTE -->
+<div id="modal-lote" class="modal-refactor" style="display:none;">
+  <style>
+    #modal-lote .modal-contenido-refactor { width: min(96vw, 1180px); max-width: 1180px; max-height: 94vh; overflow-y: auto; }
+    #modal-lote .lote-filtros { display: grid; grid-template-columns: 150px 1fr 1.4fr 1fr; gap: 12px; align-items: start; margin-bottom: 12px; }
+    #modal-lote .lote-filtros-2 { grid-template-columns: 1.4fr 1fr; }
+    #modal-lote .lote-pedido input { font-weight: 600; }
+    #modal-lote #lote-pedido-msg { min-height: 1.2em; margin-top: 3px; }
+    #modal-lote #lote-pedido-msg.error { color: #c33; }
+    #modal-lote .lote-solo { padding-top: 26px; }
+    #modal-lote .lote-solo label { display: flex; align-items: center; gap: 6px; font-weight: 600; color: #1a5a90; cursor: pointer; }
+    #modal-lote .lote-filtros .lote-solo input { width: auto; }
+    #modal-lote .lote-filtros label, #modal-lote .lote-textos label { display: block; font-size: 0.85rem; font-weight: 600; color: #1a5a90; margin-bottom: 4px; }
+    #modal-lote .lote-filtros input, #modal-lote .lote-filtros select, #modal-lote .lote-textos textarea {
+      width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid #c5d8ef; border-radius: 6px; font-size: 13px;
+    }
+    #modal-lote .erp-table-card { max-height: 46vh; overflow-y: auto; }
+    #modal-lote .tabla-erp td { vertical-align: middle; }
+    #modal-lote .tabla-erp tr.lote-sel td { background: #eef6ff; }
+    #modal-lote .lote-cant { width: 70px; padding: 4px 6px; border: 1px solid #c5d8ef; border-radius: 4px; text-align: right; }
+    #modal-lote .lote-sub { font-size: 11px; color: #64748b; }
+    #modal-lote .lote-textos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    #modal-lote .lote-pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+    #modal-lote .lote-resumen { font-weight: 600; color: #1a5a90; }
+    @media (max-width: 800px) {
+      #modal-lote .lote-filtros, #modal-lote .lote-textos { grid-template-columns: 1fr; }
+    }
+  </style>
+  <div class="modal-contenido-refactor modal-erp-producto">
+    <span class="cerrar" onclick="cerrarModalLote()">&times;</span>
+    <h2 class="modal-titulo-principal"><i class="fas fa-layer-group"></i> Carga por lote</h2>
+    <p class="lote-sub" style="margin:-6px 0 12px;">Elegí los pedidos de R.Vigentes que se terminaron y cuántos equipos de cada uno. Cada pedido queda como una fila de la planilla con su cantidad y se descuenta de los pendientes.</p>
+
+    <div class="lote-filtros">
+      <div>
+        <label for="lote-fecha">Fecha *</label>
+        <input type="date" id="lote-fecha" />
+      </div>
+      <div>
+        <label for="lote-tecnico">Técnico *</label>
+        <select id="lote-tecnico"></select>
+      </div>
+      <div class="lote-pedido">
+        <label for="lote-pedido">Nro de pedido de la tanda</label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="lote-pedido" placeholder="Escribí, escaneá o elegí de la lista" list="lote-pedidos-lista" />
+          <datalist id="lote-pedidos-lista"></datalist>
+          <button type="button" class="btn-secundario" id="btn-lote-pedido" title="Agregar el pedido"><i class="fas fa-plus"></i></button>
+        </div>
+        <div class="lote-sub" id="lote-pedido-msg"></div>
+      </div>
+      <div class="lote-solo">
+        <label><input type="checkbox" id="lote-solo-sel" /> Solo seleccionados</label>
+      </div>
+    </div>
+
+    <div class="lote-filtros lote-filtros-2">
+      <div>
+        <label for="lote-equipo">Equipo</label>
+        <select id="lote-equipo"></select>
+      </div>
+      <div>
+        <label for="lote-buscar">Buscar</label>
+        <input type="text" id="lote-buscar" placeholder="Pedido, empresa o licitación" />
+      </div>
+    </div>
+
+    <div class="erp-table-card">
+      <table class="tabla-erp">
+        <thead>
+          <tr>
+            <th style="width:34px;"><input type="checkbox" id="lote-check-todos" title="Seleccionar los visibles" /></th>
+            <th>Empresa</th>
+            <th>Nro Pedido</th>
+            <th>Equipo</th>
+            <th>Ingreso</th>
+            <th style="text-align:right;">Pendientes</th>
+            <th style="text-align:right;">Terminados</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-lote"></tbody>
+      </table>
+    </div>
+
+    <div class="lote-textos">
+      <div>
+        <label for="lote-trabajo">Trabajo realizado</label>
+        <textarea id="lote-trabajo" rows="2"></textarea>
+      </div>
+      <div>
+        <label for="lote-observaciones">Observaciones</label>
+        <textarea id="lote-observaciones" rows="2"></textarea>
+      </div>
+    </div>
+
+    <div class="lote-pie">
+      <span class="lote-resumen" id="lote-resumen">Ningún pedido seleccionado</span>
+      <button type="button" class="btn-guardar" id="btn-lote-guardar" style="margin:0;"><i class="fas fa-save"></i> Guardar lote</button>
+    </div>
   </div>
 </div>
 

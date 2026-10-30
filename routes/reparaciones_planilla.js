@@ -63,6 +63,11 @@ async function ensurePlanillaGarantiaColumns(dbClient) {
   await dbClient.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_falla TEXT");
 }
 
+// Cantidad de equipos de la fila: 1, o la del lote (poleas, instalaciones, bombas...)
+const columnaCantidad = pool.query(
+  "ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS cantidad INTEGER NOT NULL DEFAULT 1"
+).catch((err) => console.error('equipos_reparaciones.cantidad:', err.message));
+
 // Al cargar la reparacion real de una garantia externa (por su Nro de ID/Pedido),
 // se marca como resuelta poniendo pendiente en 0 (no se borra, a diferencia de Dota).
 async function cerrarGarantiaExternaPorNroId(dbClient, nroId) {
@@ -199,7 +204,7 @@ async function recalculatePedidoPendientes(dbClient, nroPedido) {
         SELECT
           btrim(er.nro_pedido_ref) AS nro_pedido,
           btrim(f.codigo) AS codigo,
-          COUNT(*)::int AS usados
+          SUM(COALESCE(er.cantidad, 1))::int AS usados
         FROM equipos_reparaciones er
         JOIN familia f ON f.id = er.familia_id
         WHERE COALESCE(btrim(er.nro_pedido_ref), '') <> ''
@@ -299,6 +304,7 @@ function pickAuditSnapshot(row) {
     ultimo_reparador: row.ultimo_reparador ?? null,
     resolucion: row.resolucion ?? null,
     nro_pedido_ref: row.nro_pedido_ref ?? null,
+    cantidad: row.cantidad ?? 1,
     garantia_prueba_banco: row.garantia_prueba_banco ?? null,
     garantia_desarme: row.garantia_desarme ?? null,
     garantia_informe_trabajo: row.garantia_informe_trabajo ?? null,
@@ -1041,6 +1047,7 @@ router.get("/", async (req, res) => {
         r.garantia_informe_trabajo,
         r.garantia_informe_observaciones,
         r.garantia_falla,
+        r.cantidad,
         COALESCE((
           SELECT json_agg(json_build_object(
             'producto_id', rr.producto_id,
@@ -1081,7 +1088,7 @@ router.get("/export", async (req, res) => {
         COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
         r.id_reparacion,
         r.coche_numero,
-        f.descripcion AS equipo,
+        CASE WHEN r.cantidad > 1 THEN f.descripcion || ' (x' || r.cantidad || ')' ELSE f.descripcion END AS equipo,
         f.tipo AS tipo,
         t.nombre AS tecnico,
         COALESCE(ur.nombre, hist.ult_name) AS ultimo_reparador_nombre,
@@ -1453,7 +1460,7 @@ router.get("/export-range", async (req, res) => {
         COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
         r.id_reparacion,
         r.coche_numero,
-        f.descripcion AS equipo,
+        CASE WHEN r.cantidad > 1 THEN f.descripcion || ' (x' || r.cantidad || ')' ELSE f.descripcion END AS equipo,
         f.tipo AS tipo,
         t.nombre AS tecnico,
         COALESCE(ur.nombre, hist.ult_name) AS ultimo_reparador_nombre,
@@ -1812,6 +1819,121 @@ router.post("/", async (req, res) => {
   }
 });
 
+
+// ============================
+// Carga por lote: equipos que no se ingresan uno por uno (poleas, instalaciones,
+// bombas dosificadoras...). Cada pedido elegido queda como una fila de la planilla
+// con su cantidad y descuenta esa cantidad de los pendientes de R.Vigentes.
+// ============================
+function errorLote(status, message) {
+  return Object.assign(new Error(message), { status });
+}
+
+// Renglones de R.Vigentes con pendientes, para elegir que se termino
+router.get("/lote/pendientes", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT rd.id, rd.nro_pedido, rd.licitacion_nro, rd.codigo, rd.cantidad, rd.pendientes,
+              rd.fecha_ingreso, rd.fecha_limite_entrega,
+              COALESCE(c.fantasia, c.razon_social, rd.razon_social) AS empresa,
+              COALESCE(fam.descripcion, rd.descripcion) AS equipo,
+              fam.id AS familia_id
+         FROM reparaciones_dota rd
+         LEFT JOIN clientes c ON c.id = rd.cliente_id
+         LEFT JOIN LATERAL (
+           SELECT id, descripcion FROM familia WHERE btrim(codigo) = btrim(rd.codigo) ORDER BY id LIMIT 1
+         ) fam ON true
+        WHERE COALESCE(rd.pendientes, 0) > 0
+          AND rd.devuelto IS NOT TRUE
+        ORDER BY rd.codigo, rd.fecha_ingreso NULLS FIRST, rd.id`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error GET /reparaciones_planilla/lote/pendientes:", err);
+    res.status(500).json({ error: "Error al cargar los pendientes" });
+  }
+});
+
+// Guarda el lote: { fecha, tecnico_id, trabajo, observaciones, items: [{ vigente_id, cantidad }] }
+router.post("/lote", async (req, res) => {
+  const fecha = normalizeOptionalText(req.body?.fecha);
+  const tecnicoId = normalizeOptionalInteger(req.body?.tecnico_id);
+  const trabajo = normalizeOptionalText(req.body?.trabajo) || ''; // la columna no admite NULL
+  const observaciones = normalizeOptionalText(req.body?.observaciones);
+  const items = (Array.isArray(req.body?.items) ? req.body.items : [])
+    .map((i) => ({ vigente_id: Number(i?.vigente_id), cantidad: Number(i?.cantidad) }))
+    .filter((i) => Number.isInteger(i.vigente_id) && Number.isInteger(i.cantidad) && i.cantidad > 0);
+  if (!fecha) return res.status(400).json({ error: "Falta la fecha." });
+  if (!tecnicoId) return res.status(400).json({ error: "Elegí el técnico." });
+  if (!items.length) return res.status(400).json({ error: "Elegí al menos un pedido con cantidad." });
+
+  await columnaCantidad;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const creadas = [];
+    for (const item of items) {
+      const { rows } = await client.query(
+        `SELECT rd.id, rd.nro_pedido, rd.codigo, rd.pendientes, rd.cliente_id, rd.cliente_tipo, rd.devuelto,
+                fam.id AS familia_id
+           FROM reparaciones_dota rd
+           LEFT JOIN LATERAL (
+             SELECT id FROM familia WHERE btrim(codigo) = btrim(rd.codigo) ORDER BY id LIMIT 1
+           ) fam ON true
+          WHERE rd.id = $1
+          FOR UPDATE OF rd`,
+        [item.vigente_id]
+      );
+      const v = rows[0];
+      if (!v || v.devuelto) throw errorLote(400, "Uno de los renglones ya no está vigente. Recargá la lista.");
+      const nroPedido = normalizePedidoRef(v.nro_pedido);
+      if (!nroPedido) throw errorLote(400, `El renglón del equipo ${v.codigo} no tiene nro de pedido.`);
+      if (!v.familia_id) throw errorLote(400, `El código ${v.codigo} (pedido ${nroPedido}) no tiene equipo cargado en familias.`);
+      if (item.cantidad > Number(v.pendientes || 0)) {
+        throw errorLote(400, `El pedido ${nroPedido} tiene ${v.pendientes} pendientes del ${v.codigo}; no se pueden cargar ${item.cantidad}.`);
+      }
+
+      // Las reparaciones de Dota van sin cliente (como en la carga individual)
+      const tipo = String(v.cliente_tipo || '').toLowerCase() === 'externo' || (!v.cliente_tipo && v.cliente_id)
+        ? 'externo' : 'dota';
+      // ID: LOTE-<pedido>, con un numero si ya hay otro lote del pedido ese dia
+      const base = `LOTE-${nroPedido}`.slice(0, 17);
+      const usados = await client.query(
+        `SELECT id_reparacion FROM equipos_reparaciones
+          WHERE DATE(fecha) = DATE($1) AND (id_reparacion = $2 OR id_reparacion LIKE $2 || '-%')`,
+        [fecha, base]
+      );
+      const idReparacion = usados.rowCount ? `${base}-${usados.rowCount + 1}` : base;
+
+      const ins = await client.query(
+        `INSERT INTO equipos_reparaciones
+           (id_reparacion, cliente_id, cliente_tipo, tecnico_id, trabajo, observaciones, fecha, garantia,
+            familia_id, nro_pedido_ref, cantidad)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'no', $8, $9, $10)
+         RETURNING *`,
+        [idReparacion, tipo === 'externo' ? v.cliente_id : null, tipo, tecnicoId, trabajo, observaciones, fecha,
+          v.familia_id, nroPedido, item.cantidad]
+      );
+      const fila = ins.rows[0];
+      await recalculatePedidoPendientes(client, nroPedido);
+      await safeInsertPlanillaAudit(client, req, 'create', fila, {
+        lote: true,
+        cantidad: item.cantidad,
+        snapshot: pickAuditSnapshot(fila)
+      });
+      creadas.push({ id: fila.id, id_reparacion: idReparacion, nro_pedido: nroPedido, cantidad: item.cantidad });
+    }
+    await client.query("COMMIT");
+    res.json({ ok: true, creadas, equipos: creadas.reduce((t, c) => t + c.cantidad, 0) });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error("❌ Error POST /reparaciones_planilla/lote:", err);
+    res.status(500).json({ error: "Error al guardar el lote" });
+  } finally {
+    client.release();
+  }
+});
 
 // ============================
 // PUT - Actualizar reparación existente

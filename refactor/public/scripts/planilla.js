@@ -965,7 +965,7 @@ function renderPlanillaTable(data) {
   const orden = getPlanillaOrden();
   const lista = ordenarPlanilla(data, orden);
   const cEl = document.getElementById('planilla-count');
-  if (cEl) cEl.textContent = String(Array.isArray(data) ? data.length : 0);
+  if (cEl) cEl.textContent = String(Array.isArray(data) ? data.reduce((t, r) => t + (Number(r.cantidad) || 1), 0) : 0);
 
   if (!lista.length) {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:10px; color:#666">Sin reparaciones para esta fecha.</td></tr>';
@@ -987,7 +987,7 @@ function renderPlanillaTable(data) {
         <td>${esc(rep.cliente) || '-'}</td>
         <td>${esc(rep.id_reparacion) || '-'}</td>
         <td>${esc(rep.coche_numero) || '-'}</td>
-        <td>${esc(rep.equipo) || '-'}</td>
+        <td>${esc(rep.equipo) || '-'}${Number(rep.cantidad) > 1 ? ` <b title="Carga por lote" style="color:#1a5a90;">x${rep.cantidad}</b>` : ''}</td>
         <td>${esc(rep.tecnico) || '-'}</td>
         <td class="${garClass}">${garTxt}</td>
         <td>${esc(rep.nro_pedido_ref) || '-'}</td>
@@ -1194,6 +1194,9 @@ function bindPlanillaActions() {
   const btnEliminar = document.getElementById('btn-eliminar-rep');
   const btnReporte = document.getElementById('btn-reporte-garantia');
   if (!tbody) return;
+
+  const btnLote = document.getElementById('btn-lote-rep');
+  if (btnLote) btnLote.onclick = () => abrirModalLote();
 
   let seleccion = null;
 
@@ -1748,6 +1751,251 @@ function bindGarantiaTemplateControl(){
 }
 
 // ----- Modal helpers (close) -----
+// ── Desplegable de pedidos con pendientes (carga individual y por lote) ──
+// Se piden cada vez: cambian con cada carga y la lista es corta
+async function renglonesPendientes() {
+  const res = await fetch('/api/reparaciones_planilla/lote/pendientes', { credentials: 'include', cache: 'no-store' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'No se pudieron cargar los pendientes');
+  return Array.isArray(data) ? data : [];
+}
+
+// Una opcion por pedido: empresa, equipos y pendientes (los mas nuevos primero)
+function llenarDatalistPedidos(datalistId, renglones) {
+  const dl = document.getElementById(datalistId);
+  if (!dl) return;
+  const porPedido = new Map();
+  renglones.forEach(v => {
+    const nro = String(v.nro_pedido || '').trim();
+    if (!nro) return;
+    const p = porPedido.get(nro) || { nro, empresa: v.empresa, equipos: new Set(), pendientes: 0, ingreso: v.fecha_ingreso || '' };
+    p.equipos.add(v.equipo || v.codigo);
+    p.pendientes += Number(v.pendientes) || 0;
+    if ((v.fecha_ingreso || '') > p.ingreso) p.ingreso = v.fecha_ingreso;
+    porPedido.set(nro, p);
+  });
+  dl.innerHTML = [...porPedido.values()]
+    .sort((a, b) => String(b.ingreso).localeCompare(String(a.ingreso)) || b.nro.localeCompare(a.nro))
+    .map(p => {
+      const equipos = [...p.equipos];
+      const texto = `${p.empresa || '-'} · ${equipos.length > 2 ? `${equipos.length} equipos` : equipos.join(', ')} · ${p.pendientes} pend.`;
+      return `<option value="${esc(p.nro)}">${esc(texto)}</option>`;
+    }).join('');
+}
+
+function bindDatalistPedidosReparacion() {
+  const input = document.getElementById('nro_pedido_ref');
+  if (!input || input._datalistBound) return;
+  input._datalistBound = true;
+  input.addEventListener('focus', async () => {
+    try { llenarDatalistPedidos('pedidos-pendientes-lista', await renglonesPendientes()); } catch {}
+  });
+}
+
+// ── Carga por lote ──
+// Pedidos de R.Vigentes con pendientes; se elige cuantos equipos de cada uno se
+// terminaron y cada pedido queda como una fila de la planilla con esa cantidad.
+let lotePendientes = [];
+const loteCantidades = new Map(); // vigente_id -> cantidad terminada
+
+function fechaPlanillaIso() {
+  const [d, m, y] = (document.getElementById('fecha-planilla')?.textContent || '').trim().split('/');
+  return d && m && y ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '';
+}
+
+function loteVisibles() {
+  const codigo = document.getElementById('lote-equipo')?.value || '';
+  const q = normalizeTexto(document.getElementById('lote-buscar')?.value || '');
+  const soloSel = document.getElementById('lote-solo-sel')?.checked;
+  return lotePendientes.filter(v =>
+    (!soloSel || loteCantidades.has(v.id)) &&
+    (!codigo || v.codigo === codigo) &&
+    (!q || [v.nro_pedido, v.empresa, v.licitacion_nro].some(x => normalizeTexto(x).includes(q))));
+}
+
+function actualizarResumenLote() {
+  const el = document.getElementById('lote-resumen');
+  if (!el) return;
+  const equipos = [...loteCantidades.values()].reduce((t, n) => t + n, 0);
+  el.textContent = loteCantidades.size
+    ? `${loteCantidades.size} pedido${loteCantidades.size === 1 ? '' : 's'} · ${equipos} equipo${equipos === 1 ? '' : 's'}`
+    : 'Ningún pedido seleccionado';
+}
+
+function renderLote() {
+  const tbody = document.getElementById('tbody-lote');
+  if (!tbody) return;
+  const lista = loteVisibles();
+  const todos = document.getElementById('lote-check-todos');
+  if (todos) todos.checked = lista.length > 0 && lista.every(v => loteCantidades.has(v.id));
+  tbody.innerHTML = lista.length ? lista.map(v => {
+    const sel = loteCantidades.has(v.id);
+    return `
+      <tr data-id="${v.id}" class="${sel ? 'lote-sel' : ''}">
+        <td><input type="checkbox" class="lote-check" ${sel ? 'checked' : ''} /></td>
+        <td>${esc(v.empresa) || '-'}</td>
+        <td><b>${esc(v.nro_pedido)}</b>${v.licitacion_nro ? `<div class="lote-sub">Licitación ${esc(v.licitacion_nro)}</div>` : ''}</td>
+        <td>${esc(v.equipo) || '-'}<div class="lote-sub">${esc(v.codigo)}${v.familia_id ? '' : ' · sin equipo en familias'}</div></td>
+        <td>${fmtFechaCorta(v.fecha_ingreso)}</td>
+        <td style="text-align:right;"><b>${v.pendientes}</b>${Number(v.cantidad) > Number(v.pendientes) ? `<div class="lote-sub">de ${v.cantidad}</div>` : ''}</td>
+        <td style="text-align:right;"><input type="number" class="lote-cant" min="1" max="${v.pendientes}" step="1"
+          value="${sel ? loteCantidades.get(v.id) : v.pendientes}" ${sel ? '' : 'disabled'} /></td>
+      </tr>`;
+  }).join('') : '<tr><td colspan="7" style="text-align:center; padding:10px; color:#666">No hay pendientes con ese filtro.</td></tr>';
+  actualizarResumenLote();
+}
+
+function seleccionarLote(id, marcado, cantidad) {
+  const v = lotePendientes.find(x => x.id === id);
+  if (!v) return;
+  if (marcado) loteCantidades.set(id, Math.min(Math.max(1, Math.floor(Number(cantidad)) || v.pendientes), v.pendientes));
+  else loteCantidades.delete(id);
+}
+
+// Nro de pedido de la tanda: marca todos sus renglones con lo que tienen pendiente
+function agregarPedidoLote() {
+  const input = document.getElementById('lote-pedido');
+  const msg = document.getElementById('lote-pedido-msg');
+  const nro = String(input.value || '').trim();
+  if (!nro) return;
+  const renglones = lotePendientes.filter(v => String(v.nro_pedido || '').trim().toLowerCase() === nro.toLowerCase());
+  if (!renglones.length) {
+    msg.className = 'lote-sub error';
+    msg.textContent = `El pedido ${nro} no tiene pendientes en R.Vigentes.`;
+    input.select();
+    return;
+  }
+  renglones.forEach(v => seleccionarLote(v.id, true, v.pendientes));
+  const equipos = renglones.reduce((t, v) => t + Number(v.pendientes || 0), 0);
+  msg.className = 'lote-sub';
+  msg.textContent = `Pedido ${nro}: ${equipos} equipo${equipos === 1 ? '' : 's'} (${renglones[0].empresa || '-'})`;
+  input.value = '';
+  input.focus();
+  // Se muestra lo que se va a cargar (con todos los equipos y sin busqueda)
+  document.getElementById('lote-solo-sel').checked = true;
+  document.getElementById('lote-equipo').value = '';
+  document.getElementById('lote-buscar').value = '';
+  renderLote();
+}
+
+function bindModalLote() {
+  const modal = document.getElementById('modal-lote');
+  if (!modal || modal._bound) return;
+  modal._bound = true;
+  const pedido = document.getElementById('lote-pedido');
+  pedido.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); agregarPedidoLote(); }
+  });
+  // Elegido del desplegable: se agrega directo (al tipear o escanear se espera el Enter)
+  pedido.addEventListener('input', (e) => {
+    if (e.inputType && e.inputType !== 'insertReplacementText') return;
+    const nro = pedido.value.trim().toLowerCase();
+    if (nro && lotePendientes.some(v => String(v.nro_pedido || '').trim().toLowerCase() === nro)) agregarPedidoLote();
+  });
+  document.getElementById('btn-lote-pedido').addEventListener('click', agregarPedidoLote);
+  document.getElementById('lote-solo-sel').addEventListener('change', renderLote);
+  const tbody = document.getElementById('tbody-lote');
+  tbody.addEventListener('change', (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if (!tr) return;
+    const id = Number(tr.dataset.id);
+    const cant = tr.querySelector('.lote-cant');
+    if (e.target.classList.contains('lote-check')) {
+      seleccionarLote(id, e.target.checked, cant?.value);
+      renderLote();
+    } else if (e.target === cant && loteCantidades.has(id)) {
+      seleccionarLote(id, true, cant.value);
+      cant.value = loteCantidades.get(id);
+      actualizarResumenLote();
+    }
+  });
+  document.getElementById('lote-check-todos').addEventListener('change', (e) => {
+    loteVisibles().forEach(v => seleccionarLote(v.id, e.target.checked, v.pendientes));
+    renderLote();
+  });
+  document.getElementById('lote-equipo').addEventListener('change', renderLote);
+  document.getElementById('lote-buscar').addEventListener('input', renderLote);
+  document.getElementById('btn-lote-guardar').addEventListener('click', guardarLote);
+}
+
+async function abrirModalLote() {
+  const modal = document.getElementById('modal-lote');
+  if (!modal) return;
+  bindModalLote();
+  loteCantidades.clear();
+  document.getElementById('lote-fecha').value = fechaPlanillaIso() || new Date().toISOString().slice(0, 10);
+  document.getElementById('lote-buscar').value = '';
+  document.getElementById('lote-pedido').value = '';
+  document.getElementById('lote-pedido-msg').textContent = '';
+  document.getElementById('lote-solo-sel').checked = false;
+  document.getElementById('lote-trabajo').value = '';
+  document.getElementById('lote-observaciones').value = '';
+  document.getElementById('tbody-lote').innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
+  actualizarResumenLote();
+  modal.style.display = 'flex';
+  cargarTecnicosEnSelect('lote-tecnico');
+  try {
+    lotePendientes = await renglonesPendientes();
+    llenarDatalistPedidos('lote-pedidos-lista', lotePendientes);
+  } catch (err) {
+    lotePendientes = [];
+    document.getElementById('tbody-lote').innerHTML = `<tr><td colspan="7" style="text-align:center; padding:10px; color:#c33">${esc(err.message || 'No se pudieron cargar los pendientes')}</td></tr>`;
+    return;
+  }
+  // Equipos con pendientes (los que mas tienen primero)
+  const porCodigo = new Map();
+  lotePendientes.forEach(v => {
+    const e = porCodigo.get(v.codigo) || { codigo: v.codigo, equipo: v.equipo, pendientes: 0 };
+    e.pendientes += Number(v.pendientes) || 0;
+    porCodigo.set(v.codigo, e);
+  });
+  document.getElementById('lote-equipo').innerHTML = '<option value="">Todos los equipos</option>' +
+    [...porCodigo.values()].sort((a, b) => b.pendientes - a.pendientes)
+      .map(e => `<option value="${esc(e.codigo)}">${esc(e.equipo || e.codigo)} (${esc(e.codigo)}) · ${e.pendientes} pend.</option>`).join('');
+  renderLote();
+  document.getElementById('lote-pedido').focus();
+}
+
+async function guardarLote() {
+  const fecha = document.getElementById('lote-fecha').value;
+  const tecnicoId = document.getElementById('lote-tecnico').value;
+  if (!fecha) return alert('Elegí la fecha.');
+  if (!tecnicoId) return alert('Elegí el técnico.');
+  if (!loteCantidades.size) return alert('Elegí al menos un pedido.');
+  const items = [...loteCantidades].map(([vigente_id, cantidad]) => ({ vigente_id, cantidad }));
+  const equipos = items.reduce((t, i) => t + i.cantidad, 0);
+  const [y, m, d] = fecha.split('-');
+  if (!confirm(`Se van a cargar ${equipos} equipos en ${items.length} fila${items.length === 1 ? '' : 's'} de la planilla del ${d}/${m}/${y} y se descuentan de los pendientes de R.Vigentes. ¿Confirmás?`)) return;
+  const btn = document.getElementById('btn-lote-guardar');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/reparaciones_planilla/lote', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fecha,
+        tecnico_id: tecnicoId,
+        trabajo: document.getElementById('lote-trabajo').value,
+        observaciones: document.getElementById('lote-observaciones').value,
+        items
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'No se pudo guardar el lote');
+    cerrarModalLote();
+    const fechaAbierta = document.getElementById('fecha-planilla')?.textContent;
+    if (fechaAbierta) abrirModalPlanilla(fechaAbierta);
+    marcarDiaConDatos(fecha);
+    alert(`Lote guardado: ${data.equipos} equipos en ${data.creadas.length} fila${data.creadas.length === 1 ? '' : 's'}.`);
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function cerrarModalLote(){ const m=document.getElementById('modal-lote'); if(m) m.style.display='none'; }
 function cerrarModalPlanilla(){ const m=document.getElementById('modal-planilla'); if(m) m.style.display='none'; }
 function cerrarModalReparacion(){ const m=document.getElementById('modal-reparacion'); if(m) m.style.display='none'; }
 function cerrarModalGrupos(){ const m=document.getElementById('modal-grupos'); if(m) m.style.display='none'; }
@@ -1772,7 +2020,7 @@ function cerrarModalesAbiertos(){
   ) {
     return;
   }
-  const ids = ['modal-planilla','modal-reparacion','modal-grupos','modal-productos','modal-detalle','modal-historial'];
+  const ids = ['modal-planilla','modal-reparacion','modal-lote','modal-grupos','modal-productos','modal-detalle','modal-historial'];
   ids.forEach(id => { const el = document.getElementById(id); if (el && (el.style.display === 'flex' || el.style.display === 'block' || getComputedStyle(el).display !== 'none')) { el.style.display = 'none'; } });
   limpiarEstadoHistorial();
 }
@@ -2037,6 +2285,7 @@ function initPlanilla(){
   bindProductoSelectorSimple();
   prepararSelectClientes(); prepararSelectFamilias(); prepararSelectTecnicos();
   bindPedidoFamiliaAutofill();
+  bindDatalistPedidosReparacion();
   bindCodigoRepuestoEnter();
   bindRepuestosFormTabla();
   bindTrabajoAutocomplete();

@@ -45,13 +45,13 @@ router.get('/planilla/resumen', async (req, res, next) => {
     const params = [inicio, fin];
     const total = await db.query(
       `SELECT
-              SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE 1 END)::int AS total,
+              SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE COALESCE(r.cantidad, 1) END)::int AS total,
               SUM(CASE WHEN ${garantiaCase('r')} THEN 1 ELSE 0 END)::int AS garantias
          FROM equipos_reparaciones r
         WHERE DATE(r.fecha) BETWEEN $1 AND $2`, params);
 
     const porTecnico = await db.query(
-      `SELECT COALESCE(t.nombre,'(Sin tecnico)') AS tecnico, COUNT(*)::int AS cantidad
+      `SELECT COALESCE(t.nombre,'(Sin tecnico)') AS tecnico, SUM(COALESCE(r.cantidad, 1))::int AS cantidad
          FROM equipos_reparaciones r
          LEFT JOIN tecnicos t ON t.id = r.tecnico_id
         WHERE DATE(r.fecha) BETWEEN $1 AND $2
@@ -61,7 +61,7 @@ router.get('/planilla/resumen', async (req, res, next) => {
         LIMIT 10`, params);
 
     const porEquipo = await db.query(
-      `SELECT COALESCE(f.descripcion,'(Sin equipo)') AS equipo, COUNT(*)::int AS cantidad
+      `SELECT COALESCE(f.descripcion,'(Sin equipo)') AS equipo, SUM(COALESCE(r.cantidad, 1))::int AS cantidad
          FROM equipos_reparaciones r
          LEFT JOIN familia f ON f.id = r.familia_id
         WHERE DATE(r.fecha) BETWEEN $1 AND $2
@@ -72,7 +72,7 @@ router.get('/planilla/resumen', async (req, res, next) => {
 
     const porDia = await db.query(
       `SELECT DATE(r.fecha) AS fecha,
-              SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE 1 END)::int AS cantidad,
+              SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE COALESCE(r.cantidad, 1) END)::int AS cantidad,
               SUM(CASE WHEN ${garantiaCase('r')} THEN 1 ELSE 0 END)::int AS garantias
          FROM equipos_reparaciones r
         WHERE DATE(r.fecha) BETWEEN $1 AND $2
@@ -99,20 +99,21 @@ router.get('/planilla/promedios/equipos-por-tecnico', async (req, res, next) => 
     const buildPromedioSql = (extraWhere = 'TRUE') => `
       WITH filtradas AS (
         SELECT r.tecnico_id,
-               DATE(r.fecha) AS dia
+               DATE(r.fecha) AS dia,
+               COALESCE(r.cantidad, 1) AS cantidad
           FROM equipos_reparaciones r
          WHERE DATE(r.fecha) BETWEEN $1 AND $2
            AND ${filtroLicitacionYGarantia}
            AND ${extraWhere}
       ), base AS (
-        SELECT tecnico_id, dia
+        SELECT tecnico_id, dia, cantidad
           FROM filtradas
       ), dias AS (
         SELECT tecnico_id, COUNT(DISTINCT dia) AS dias_trabajados
           FROM base
          GROUP BY tecnico_id
       ), tot AS (
-        SELECT tecnico_id, COUNT(*) AS total
+        SELECT tecnico_id, SUM(cantidad) AS total
           FROM base
          GROUP BY tecnico_id
       )

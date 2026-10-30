@@ -168,7 +168,7 @@ router.post('/recalcular', async (req, res, next) => {
         SELECT
           btrim(er.nro_pedido_ref) AS nro_pedido,
           btrim(f.codigo) AS codigo,
-          COUNT(*)::int AS usados
+          SUM(COALESCE(er.cantidad, 1))::int AS usados
         FROM equipos_reparaciones er
         JOIN familia f ON f.id = er.familia_id
         WHERE COALESCE(btrim(er.nro_pedido_ref), '') <> ''

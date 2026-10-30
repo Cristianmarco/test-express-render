@@ -205,7 +205,7 @@ function historial(data) {
               ${conEmpresa ? `<td>${esc(r.empresa)}</td>` : ''}
               <td><b>${esc(r.id_reparacion)}</b></td>
               <td>${esc(r.coche_numero)}</td>
-              <td>${esc(r.equipo)}</td>
+              <td>${esc(r.equipo)}${Number(r.cantidad) > 1 ? ` <b>x${r.cantidad}</b>` : ''}</td>
               <td>${esc(r.trabajo)}</td>
               <td>${fmt(r.fecha)}</td>
               <td>${String(r.garantia||'').toLowerCase()==='si' ? '<span class="badge badge-naranja">Garantía</span>' : '<span class="badge badge-gris">No</span>'}</td>
