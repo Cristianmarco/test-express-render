@@ -92,3 +92,14 @@
   user-select: none;
 }
 
+
+.cambiar-password-btn {
+  background: transparent;
+  border: 1px solid var(--color-border, #d1d5db);
+  color: var(--text-dark);
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 14px;
+}
+.cambiar-password-btn:hover { background: rgba(0, 0, 0, 0.05); }

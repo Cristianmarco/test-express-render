@@ -2,86 +2,88 @@
 const express = require('express');
 const path = require('path');
 const router = express.Router();
+// Pantallas del sistema anterior: solo con login (los datos ademas los protege /api)
+const { requireLogin } = require('../utils/auth');
 
 // Rutas de vistas
-router.get('/', (req, res) => {
+router.get('/', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'login.html'));
 });
 
-router.get('/main', (req, res) => {
+router.get('/main', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'main.html'));
 });
 
-router.get('/externos', (req, res) => {
+router.get('/externos', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'externos.html'));
 });
 
-router.get('/dota', (req, res) => {
+router.get('/dota', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'dota.html'));
 });
 
-router.get('/reparaciones-vigentes', (req, res) => {
+router.get('/reparaciones-vigentes', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'reparaciones-vigentes.html'));
 });
 
-router.get('/historial', (req, res) => {
+router.get('/historial', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/views/historial.html'));
 });
 
-router.get('/usuarios', (req, res) => {
+router.get('/usuarios', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/views/usuarios.html'));
 });
 
-router.get('/configuracion', (req, res) => {
+router.get('/configuracion', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/views/configuracion.html'));
 });
 
-router.get('/reportes', (req, res) => {
+router.get('/reportes', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/views/reportes.html'));
 });
 
-router.get('/clientes', (req, res) => {
+router.get('/clientes', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/views/clientes.html'));
 });
 
-router.get('/productos', (req, res) => {
+router.get('/productos', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/views/productos.html'));
 });
 
-router.get('/configuracion/familia', (req, res) => {
+router.get('/configuracion/familia', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/views/configuracion/familia.html'));
 });
 
 // === CONFIGURACIÓN ===
-router.get('/configuracion/familia', (req, res) => {
+router.get('/configuracion/familia', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'familia.html'));
 });
 
-router.get('/configuracion/grupo', (req, res) => {
+router.get('/configuracion/grupo', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'grupo.html'));
 });
 
-router.get('/configuracion/marca', (req, res) => {
+router.get('/configuracion/marca', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'marca.html'));
 });
 
-router.get('/configuracion/categoria', (req, res) => {
+router.get('/configuracion/categoria', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'categoria.html'));
 });
 
-router.get('/configuracion/proveedores', (req, res) => {
+router.get('/configuracion/proveedores', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/views/configuracion/proveedores.html'));
 });
 
-router.get('/planilla', (req, res) => {
+router.get('/planilla', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'planilla.html'));
 });
 
-router.get('/configuracion/equipos', (req, res) => {
+router.get('/configuracion/equipos', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'equipos.html'));
 });
 
-router.get('/configuracion/tecnicos', (req, res) => {
+router.get('/configuracion/tecnicos', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'views', 'configuracion', 'tecnicos.html'));
 });
 

@@ -3,34 +3,14 @@ const { body, param, validationResult } = require('express-validator');
 const router = express.Router();
 const db = require('../db');
 
-// GET - Listar reparaciones (admin ve todo, cliente solo las propias)
+// GET - Listar reparaciones (solo personal: los clientes usan el portal)
 router.get('/', async (req, res, next) => {
-  // DEBUG: VER SESIÓN
-  console.log("Sesion actual:", req.session);
-
-  if (req.session.rol === 'admin') {
-    try {
-      const result = await db.query('SELECT * FROM reparaciones');
-      return res.json(result.rows);
-    } catch (err) {
-      return next(err);
-    }
+  try {
+    const result = await db.query('SELECT * FROM reparaciones');
+    res.json(result.rows);
+  } catch (err) {
+    next(err);
   }
-  // Cliente: solo sus reparaciones
-  const cliente_codigo = req.session.cliente_codigo;
-  console.log("cliente_codigo:", cliente_codigo); // DEBUG extra
-  if (cliente_codigo) {
-    try {
-      const result = await db.query(
-        'SELECT * FROM reparaciones WHERE cliente_codigo = $1',
-        [cliente_codigo]
-      );
-      return res.json(result.rows);
-    } catch (err) {
-      return next(err);
-    }
-  }
-  return res.status(403).json({ error: 'Acceso denegado.' });
 });
 
 

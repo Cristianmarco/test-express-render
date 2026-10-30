@@ -1,8 +1,25 @@
 ﻿<section class="configuracion-section">
+  <style>
+    #form-usuario .user-permisos { margin-top: 14px; }
+    #form-usuario .user-permisos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 14px; margin-top: 6px; }
+    #form-usuario .user-permisos-grid label { display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; }
+    #form-usuario .user-permisos-grid input { width: auto; margin: 0; }
+    #form-usuario .user-permisos-acciones { display: flex; gap: 10px; font-size: 12px; }
+    #form-usuario .user-permisos-acciones a { cursor: pointer; color: #2563eb; }
+    #form-usuario .user-rol-ayuda { font-size: 12px; color: #777; margin-top: 4px; }
+    .user-accesos-filtros { display: flex; gap: 14px; align-items: center; margin: 8px 0 10px; flex-wrap: wrap; }
+    .user-accesos-filtros input[type="search"] { flex: 1; min-width: 180px; }
+    .user-accesos-filtros label { display: flex; align-items: center; gap: 6px; }
+    .user-accesos-filtros input[type="checkbox"] { width: auto; margin: 0; }
+    .acceso-ok { color: #15803d; }
+    .acceso-fallido { color: #b91c1c; }
+    .acceso-ua { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #777; font-size: 12px; }
+    .tabla-erp .user-chip { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 10px; padding: 1px 8px; margin: 1px; font-size: 11px; }
+  </style>
   <div class="erp-header-row">
     <div class="titulo-dota">
       <i class="fas fa-user-cog"></i>
-      <span class="muted">ConfiguraciÃ³n</span>
+      <span class="muted">Configuración</span>
       <span style="opacity:.5; margin: 0 6px;">/</span>
       <span class="accent">Usuarios</span>
     </div>
@@ -14,9 +31,11 @@
         <thead>
           <tr>
             <th>ID</th>
+            <th>Nombre</th>
             <th>Email</th>
             <th>Rol</th>
-            <th>Cliente</th>
+            <th>Acceso</th>
+            <th>Último ingreso</th>
           </tr>
         </thead>
         <tbody id="tbody-usuarios"></tbody>
@@ -26,7 +45,28 @@
     <div class="erp-panel-flotante">
       <button id="btn-user-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
       <button id="btn-user-modificar" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
+      <button id="btn-user-accesos" class="icon-button-erp" title="Registro de accesos"><i class="fas fa-clock-rotate-left"></i></button>
+      <button id="btn-user-blanquear" class="icon-button-erp modificar" title="Blanquear contraseña"><i class="fas fa-key"></i></button>
       <button id="btn-user-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+    </div>
+  </div>
+
+  <div id="modal-accesos" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor modal-erp-producto">
+      <span class="cerrar" onclick="document.getElementById('modal-accesos').style.display='none'">&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-clock-rotate-left"></i> Registro de accesos</h2>
+      <div class="user-accesos-filtros">
+        <input type="search" id="accesos-buscar" placeholder="Buscar email o IP..." />
+        <label><input type="checkbox" id="accesos-solo-fallidos"> Solo fallidos</label>
+      </div>
+      <div class="erp-table-card" style="max-height:60vh; overflow:auto;">
+        <table class="tabla-erp">
+          <thead>
+            <tr><th>Fecha</th><th>Usuario</th><th>Resultado</th><th>IP</th><th>Navegador</th></tr>
+          </thead>
+          <tbody id="tbody-accesos"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -37,29 +77,41 @@
       <form id="form-usuario" autocomplete="off">
         <div class="form-grid">
           <div>
+            <label>Nombre</label>
+            <input type="text" name="nombre" />
+          </div>
+          <div>
             <label>Email *</label>
             <input type="email" name="email" required />
           </div>
           <div>
             <label>Rol *</label>
-            <select name="rol" required>
+            <select name="rol" id="user-rol" required>
               <option value="">Seleccione</option>
-              <option value="admin">admin</option>
-              <option value="cliente">cliente</option>
+              <option value="admin">Administrador (acceso total)</option>
+              <option value="interno">Personal (por secciones)</option>
+              <option value="cliente">Cliente (portal)</option>
             </select>
+            <div class="user-rol-ayuda" id="user-rol-ayuda"></div>
           </div>
-          <div>
-            <label>Cliente (cÃ³digo)</label>
+          <div id="user-cliente-wrap">
+            <label>Cliente (código)</label>
             <input type="text" name="cliente_codigo" />
           </div>
           <div>
             <label>Contraseña <small>(solo alta o cambio)</small></label><div style="position:relative; display:flex; align-items:center;"><input id="user-password" type="password" name="password" style="flex:1; padding-right:34px;" /><button type="button" id="toggle-user-password" class="icon-button-erp" title="Mostrar/Ocultar" style="position:absolute; right:6px; background:transparent; border:none; cursor:pointer; color:#555"><i class="fa fa-eye"></i></button></div>
           </div>
         </div>
+        <div class="user-permisos" id="user-permisos" style="display:none;">
+          <label>Secciones que puede ver <small>(Inicio lo ven todos)</small></label>
+          <div class="user-permisos-acciones">
+            <a id="user-permisos-todas">Marcar todas</a>
+            <a id="user-permisos-ninguna">Ninguna</a>
+          </div>
+          <div class="user-permisos-grid" id="user-permisos-grid"></div>
+        </div>
         <button type="submit" class="btn-guardar"><i class="fas fa-save"></i> Guardar</button>
       </form>
     </div>
   </div>
 </section>
-
-

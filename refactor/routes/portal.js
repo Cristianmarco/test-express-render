@@ -6,6 +6,7 @@ const { fotosDeRegistro } = require('../../utils/fotos_registro');
 const { garantiaResolucionLabel } = require('../../utils/garantia-resoluciones');
 const { armarReporte } = require('../../utils/garantia_reporte');
 const { insertDomainAudit } = require('../../utils/domain-audit');
+const { refrescarUsuario } = require('../../utils/permisos');
 const cotizaciones = require('../../routes/cotizaciones_reparacion');
 const PDFDocument = require('pdfkit');
 
@@ -21,11 +22,20 @@ const DIAS_ENTREGADOS = 90;
 // una ficha de cliente: las ve el usuario cuyo cliente se llama Dota
 const esDota = (req) => /^dota\b/i.test(String(req.session.user.cliente_nombre || '').trim());
 
-function requireCliente(req, res, next) {
-  const u = req.session?.user;
+async function requireCliente(req, res, next) {
+  let u;
+  try {
+    u = await refrescarUsuario(req); // si lo dieron de baja o le cambiaron el cliente, aplica ya
+  } catch (err) {
+    return next(err);
+  }
   if (!u) return res.redirect('/portal/login');
   if (u.rol !== 'cliente') return res.redirect('/refactor');
   if (!u.cliente_codigo) return res.status(403).send('Usuario sin cliente asignado. Contacte al administrador.');
+  // Con contraseña blanqueada solo se muestra la pagina (que pide cambiarla)
+  if (u.debe_cambiar_password && req.path !== '/') {
+    return res.status(403).json({ error: 'Tenés que cambiar la contraseña', cambiar_password: true });
+  }
   next();
 }
 

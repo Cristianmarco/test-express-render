@@ -7,8 +7,8 @@ const pgSession = require("connect-pg-simple")(session);
 const pool = require("./db");
 require('dotenv').config();
 
-if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
-  console.error('FATAL: SESSION_SECRET no está configurado en producción');
+if (!process.env.SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET no está configurado');
   process.exit(1);
 }
 
@@ -68,13 +68,14 @@ app.use(session({
     pool,
     tableName: "session"
   }),
-  secret: process.env.SESSION_SECRET || 'secretoSuperSeguro',
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   rolling: true,
   cookie: {
     httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    // lax: la cookie no viaja en pedidos POST que vengan de otros sitios (CSRF)
+    sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     maxAge: 1000 * 60 * 60 * 12
   }
@@ -85,26 +86,7 @@ app.use(session({
 // ============================
 // Middleware para proteger rutas privadas
 // ============================
-function requireLogin(req, res, next) {
-  console.log("🛡️ Sesión:", req.session);
-  if (req.session && req.session.user) {
-    return next();
-  }
-
-  if (req.originalUrl.startsWith("/api/")) {
-    return res.status(401).json({ error: "No autenticado" });
-  }
-  return res.redirect("/login");
-}
-
-// Requiere ademas un rol especifico (usar siempre despues de requireLogin).
-function requireRol(...rolesPermitidos) {
-  return (req, res, next) => {
-    const rol = req.session?.user?.rol;
-    if (rolesPermitidos.includes(rol)) return next();
-    return res.status(403).json({ error: "No tiene permisos para esta accion" });
-  };
-}
+const { requireLogin, requireRol } = require('./utils/auth');
 
 
 // ============================
@@ -113,13 +95,15 @@ function requireRol(...rolesPermitidos) {
 const BODY_LIMIT = process.env.BODY_LIMIT || '10mb';
 app.use(express.json({ limit: BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
+// Las pantallas HTML del sistema anterior (public/views) solo con login
+app.use('/views', requireLogin);
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static('public'));
 
 // ============================
 // Rutas públicas
 // ============================
 app.use('/api/login', loginRouter);
+app.use('/api/cuenta', require('./routes/cuenta')); // valida la sesion por su cuenta (tambien clientes)
 
 // ============================
 // Rutas privadas (requieren login)

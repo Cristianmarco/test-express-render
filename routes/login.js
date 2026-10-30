@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require("../db");
 const bcrypt = require("bcryptjs");
 const { rateLimit } = require("express-rate-limit");
+const { cuentaBloqueada, registrarAcceso, VENTANA_MIN } = require("../utils/accesos");
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
@@ -17,13 +18,19 @@ const loginLimiter = rateLimit({
 // ============================
 router.post("/", loginLimiter, async (req, res) => {
   const email = String((req.body && (req.body.email || req.body.usuario)) || '').trim();
-  const password = String((req.body && req.body.password) || '').trim();
+  // La contraseña va tal cual (al guardarla tampoco se recorta)
+  const password = String((req.body && req.body.password) || '');
 
   if (!email || !password) {
     return res.status(400).json({ error: "Faltan credenciales" });
   }
 
   try {
+    if (await cuentaBloqueada(email)) {
+      await registrarAcceso(req, { email, ok: false, motivo: 'bloqueado' });
+      return res.status(429).json({ error: `Usuario bloqueado por varios intentos fallidos. Esperá ${VENTANA_MIN} minutos.` });
+    }
+
     // Buscar usuario por email, join con clientes para obtener nombre
     const query = `
       SELECT u.*, c.razon_social AS cliente_nombre
@@ -35,41 +42,43 @@ router.post("/", loginLimiter, async (req, res) => {
     const result = await pool.query(query, [email]);
 
     if (result.rows.length === 0) {
+      await registrarAcceso(req, { email, ok: false, motivo: 'usuario_inexistente' });
       return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
     }
 
     const user = result.rows[0];
-    let validPassword = false;
 
-    // Si el password en DB parece un hash bcrypt
-    if (user.password.startsWith("$2b$")) {
-      validPassword = await bcrypt.compare(password, user.password);
-    } else {
-      // Comparación simple (texto plano, ⚠️ inseguro, temporal)
-      validPassword = password === user.password;
-    }
+    // Solo se aceptan contraseñas guardadas con bcrypt
+    const hash = String(user.password || '');
+    const validPassword = /^\$2[aby]\$/.test(hash) && await bcrypt.compare(password, hash);
 
-    // 🚨 Si la contraseña no coincide → error
     if (!validPassword) {
+      await registrarAcceso(req, { email, usuarioId: user.id, ok: false, motivo: 'password' });
       return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
     }
+    await registrarAcceso(req, { email, usuarioId: user.id, ok: true });
+
+    // Sesion nueva en cada login (no se reutiliza un id de sesion anterior)
+    await new Promise((resolve, reject) => req.session.regenerate(err => (err ? reject(err) : resolve())));
 
     // Guardar datos en sesión
     req.session.user = {
       id: user.id,
       email: user.email,
       rol: user.rol,
+      permisos: user.permisos || [],
+      debe_cambiar_password: !!user.debe_cambiar_password,
+      chequeado_at: Date.now(),
       cliente_codigo: user.cliente_codigo || null,
       cliente_nombre: user.cliente_nombre || null
     };
-
-    console.log("✅ Sesión creada:", req.session.user);
 
     // Respuesta al frontend
     res.json({
       success: true,
       email: user.email,
       rol: user.rol,
+      debe_cambiar_password: !!user.debe_cambiar_password,
       cliente_codigo: user.cliente_codigo || null,
       cliente_nombre: user.cliente_nombre || null
     });

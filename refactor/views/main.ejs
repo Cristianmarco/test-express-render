@@ -18,7 +18,7 @@
     <link rel="icon" type="image/png" href="/static/images/logo.png?v=<%= Date.now() %>" />
 </head>
 
-<body>
+<body data-debe-cambiar="<%= user && user.debe_cambiar_password ? 1 : 0 %>">
     <header class="header">
         <div class="left-section">
             <button class="hamburger-btn" id="hamburger-btn" aria-label="Abrir menú">
@@ -33,6 +33,7 @@
                 <i class="fa fa-user-circle"></i>
                 <span>Bienvenido, <%= (user && (user.email || user.nombre || user.username)) || 'Invitado' %></span>
             </div>
+            <button type="button" class="cambiar-password-btn" data-cambiar-password title="Cambiar contraseña"><i class="fa fa-key"></i></button>
             <form action="/api/logout" method="post" style="display:inline;">
                 <button class="logout-btn">Salir</button>
             </form>
@@ -43,33 +44,33 @@
         <aside class="sidebar">
             <ul class="menu">
                 <li class="menu-section">General</li>
-                <li><a href="#" class="menu-link" data-view="inicio"><i class="fa fa-home"></i> Inicio</a></li>
-                <li>
+                <% if (puede('inicio')) { %><li><a href="#" class="menu-link" data-view="inicio"><i class="fa fa-home"></i> Inicio</a></li><% } %>
+                <% if (puede('licitaciones') || puede('cotizaciones_nuevas') || puede('cotizaciones')) { %><li>
                     <button class="menu-item" data-toggle="ventas">
                         <i class="fa fa-dollar-sign"></i> Ventas <i class="fa fa-chevron-down" style="margin-left:auto;"></i>
                     </button>
                     <ul class="submenu" data-parent="ventas" style="display:none;">
-                        <li><a href="#" class="menu-link" data-view="licitaciones"><i class="fa fa-file-signature"></i> Licitaciones</a></li>
-                        <li><a href="#" class="menu-link" data-view="cotizaciones_nuevas"><i class="fa fa-star"></i> Nueva cotizacion</a></li>
-                        <li><a href="#" class="menu-link" data-view="cotizaciones"><i class="fa fa-file-invoice-dollar"></i> Cotizaciones</a></li>
+                        <% if (puede('licitaciones')) { %><li><a href="#" class="menu-link" data-view="licitaciones"><i class="fa fa-file-signature"></i> Licitaciones</a></li><% } %>
+                        <% if (puede('cotizaciones_nuevas')) { %><li><a href="#" class="menu-link" data-view="cotizaciones_nuevas"><i class="fa fa-star"></i> Nueva cotizacion</a></li><% } %>
+                        <% if (puede('cotizaciones')) { %><li><a href="#" class="menu-link" data-view="cotizaciones"><i class="fa fa-file-invoice-dollar"></i> Cotizaciones</a></li><% } %>
                     </ul>
-                </li>
-                <li><a href="#" class="menu-link" data-view="clientes"><i class="fa fa-users"></i> Clientes</a></li>
-                <li><a href="#" class="menu-link" data-view="productos"><i class="fa fa-box"></i> Productos</a></li>
-                <li><a href="#" class="menu-link" data-view="fichas"><i class="fa fa-id-card-clip"></i> Fichas tecnicas</a></li>
-                <li><a href="#" class="menu-link" data-view="compras"><i class="fa fa-cart-shopping"></i> Compras</a>
-                </li>
-                <li><a href="#" class="menu-link" data-view="stock"><i class="fa fa-warehouse"></i> Stock</a></li>
-                <li><a href="#" class="menu-link" data-view="proveedores"><i class="fa fa-truck"></i> Proveedores</a>
-                </li>
-                <li><a href="#" class="menu-link" data-view="planilla"><i class="fa fa-calendar-check"></i> Planilla
-                        diaria</a></li>
+                </li><% } %>
+                <% if (puede('clientes')) { %><li><a href="#" class="menu-link" data-view="clientes"><i class="fa fa-users"></i> Clientes</a></li><% } %>
+                <% if (puede('productos')) { %><li><a href="#" class="menu-link" data-view="productos"><i class="fa fa-box"></i> Productos</a></li><% } %>
+                <% if (puede('fichas')) { %><li><a href="#" class="menu-link" data-view="fichas"><i class="fa fa-id-card-clip"></i> Fichas tecnicas</a></li><% } %>
+                <% if (puede('compras')) { %><li><a href="#" class="menu-link" data-view="compras"><i class="fa fa-cart-shopping"></i> Compras</a>
+                </li><% } %>
+                <% if (puede('stock')) { %><li><a href="#" class="menu-link" data-view="stock"><i class="fa fa-warehouse"></i> Stock</a></li><% } %>
+                <% if (puede('proveedores')) { %><li><a href="#" class="menu-link" data-view="proveedores"><i class="fa fa-truck"></i> Proveedores</a>
+                </li><% } %>
+                <% if (puede('planilla')) { %><li><a href="#" class="menu-link" data-view="planilla"><i class="fa fa-calendar-check"></i> Planilla
+                        diaria</a></li><% } %>
 
                 <li class="menu-section">Operaciones</li>
-                <li><a href="#" class="menu-link" data-view="reportes"><i class="fa fa-chart-pie"></i> Reportes</a></li>
-<li><a href="#" class="menu-link" data-view="usuarios"><i class="fa fa-user-cog"></i> Usuarios</a></li>
-                <li><a href="#" class="menu-link" data-view="configuracion"><i class="fa fa-gear"></i> Configuración</a>
-                </li>
+                <% if (puede('reportes')) { %><li><a href="#" class="menu-link" data-view="reportes"><i class="fa fa-chart-pie"></i> Reportes</a></li><% } %>
+                <% if (puede('usuarios')) { %><li><a href="#" class="menu-link" data-view="usuarios"><i class="fa fa-user-cog"></i> Usuarios</a></li><% } %>
+                <% if (puede('configuracion')) { %><li><a href="#" class="menu-link" data-view="configuracion"><i class="fa fa-gear"></i> Configuración</a>
+                </li><% } %>
             </ul>
         </aside>
 
@@ -128,6 +129,7 @@
       });
     </script>
     <script>window.APP_BUILD_ID = "<%= buildId %>";</script>
+    <script src="/static/scripts/cuenta.js?v=<%= Date.now() %>"></script>
     <script src="/static/scripts/main.js?v=<%= Date.now() %>"></script>
     <script src="/static/scripts/fotos_editor.js?v=<%= Date.now() %>" defer></script>
     <script src="/static/scripts/producto_ficha.js?v=<%= Date.now() %>" defer></script>
