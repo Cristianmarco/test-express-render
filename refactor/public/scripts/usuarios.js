@@ -163,6 +163,9 @@
     if(datos.rol === 'interno' && !datos.permisos.length &&
        !confirm('No tildaste ninguna sección: el usuario solo va a ver Inicio. ¿Guardar igual?')) return;
     if(edit && !datos.password) delete datos.password;
+    // El navegador puede autocompletar la contraseña guardada sin que se note
+    if(edit && datos.password &&
+       !confirm(`Vas a CAMBIAR la contraseña de ${form.dataset.email}.\n\nSi no querías cambiarla, cancelá y dejá el campo Contraseña vacío.`)) return;
     const url = edit ? `/api/usuarios/${encodeURIComponent(form.dataset.email)}` : '/api/usuarios';
     const method = edit ? 'PUT' : 'POST';
     try{
