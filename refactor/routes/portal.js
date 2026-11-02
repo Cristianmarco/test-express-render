@@ -1,26 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../db');
-const { nombreEtapa } = require('../../utils/etapas_reparacion');
-const { fotosDeRegistro } = require('../../utils/fotos_registro');
-const { garantiaResolucionLabel } = require('../../utils/garantia-resoluciones');
 const { armarReporte } = require('../../utils/garantia_reporte');
 const { insertDomainAudit } = require('../../utils/domain-audit');
 const { refrescarUsuario } = require('../../utils/permisos');
+const datos = require('../../utils/datos_cliente');
 const cotizaciones = require('../../routes/cotizaciones_reparacion');
 const PDFDocument = require('pdfkit');
 
-// Mismas tablas de fotos que usa el ERP (las crean sus routers al arrancar)
-const fotosVigente = fotosDeRegistro({ tabla: 'reparaciones_dota_fotos', columna: 'vigente_id', tablaPadre: 'reparaciones_dota', urlBase: '' });
-const fotosGarantia = fotosDeRegistro({ tabla: 'garantias_externas_fotos', columna: 'garantia_id', tablaPadre: 'garantias_externas', urlBase: '' });
-const fotosGarantiaDota = fotosDeRegistro({ tabla: 'licitacion_garantias_fotos', columna: 'garantia_id', tablaPadre: 'licitacion_garantias', cascada: false, urlBase: '' });
-
-// Lo entregado se sigue mostrando un tiempo para que el cliente vea que salio
-const DIAS_ENTREGADOS = 90;
-
-// Las garantias de Dota (cola de licitacion_garantias) son de todo el grupo, no de
-// una ficha de cliente: las ve el usuario cuyo cliente se llama Dota
-const esDota = (req) => /^dota\b/i.test(String(req.session.user.cliente_nombre || '').trim());
+const { SQL_PRESUPUESTO_DEL_CLIENTE, claseResolucion } = datos;
 
 async function requireCliente(req, res, next) {
   let u;
@@ -49,30 +37,10 @@ async function clienteId(req) {
   return u.cliente_id;
 }
 
-// Clientes que ve el usuario. Dota es un grupo: ve todas las razones sociales
-// internas (Atlantida, Constituyentes, ...) y lo cargado como cliente_tipo 'dota'
-// aunque no tenga ficha de cliente.
+// Clientes que ve el usuario: el suyo y, si es empresa madre (Dota), los de su grupo
 async function alcance(req) {
-  const cid = await clienteId(req);
-  if (!esDota(req)) return { ids: cid ? [cid] : [], grupo: false };
-  const { rows } = await db.query(`SELECT id FROM clientes WHERE categoria = 'interno'`);
-  const ids = rows.map((r) => r.id);
-  if (cid && !ids.includes(cid)) ids.push(cid);
-  return { ids, grupo: true };
+  return datos.alcanceDeCliente(await clienteId(req));
 }
-
-// Historial: las reparaciones mas recientes que se mandan al portal
-const HISTORIAL_MAX = 1000;
-
-// Vigentes del cliente ($1 = ids de alcance, $2 = grupo)
-const SQL_VIGENTE_DEL_CLIENTE = (alias) =>
-  `(${alias}.cliente_id = ANY($1::int[]) OR ($2 AND LOWER(COALESCE(${alias}.cliente_tipo, '')) = 'dota'))`;
-
-// Presupuestos que ve el cliente ($1 = ids de alcance, $2 = nombre del cliente): los
-// borradores no; los viejos sin cliente vinculado se buscan por nombre
-const SQL_PRESUPUESTO_DEL_CLIENTE = `
-  (cliente_id = ANY($1::int[]) OR (cliente_id IS NULL AND $2 <> '' AND LOWER(TRIM(cliente_nombre)) = LOWER(TRIM($2))))
-  AND LOWER(COALESCE(estado, '')) <> 'borrador'`;
 
 const RESPUESTAS = { aprobar: 'aprobada', rechazar: 'rechazada' };
 
@@ -93,72 +61,18 @@ router.get('/', requireCliente, (req, res) => {
 
 // ── API del portal ─────────────────────────────────────────────────────────────
 
-// Equipos en reparacion: lo que sigue vigente en R.Vigentes (con pendientes y sin
-// devolver). En las tandas o licitaciones quedan hasta que sale el ultimo pendiente;
-// lo ya reparado se ve en el historial (planilla).
 router.get('/api/reparaciones', requireCliente, async (req, res) => {
   try {
-    const { ids, grupo } = await alcance(req);
-    if (!ids.length && !grupo) return res.json([]);
-    const { rows } = await db.query(
-      `SELECT rd.id, rd.nro_pedido, rd.licitacion_nro, rd.codigo, rd.descripcion, rd.cantidad, rd.pendientes,
-              rd.fecha_ingreso, rd.fecha_limite_entrega, rd.etapa, rd.etapa_at,
-              COALESCE(c.razon_social, rd.razon_social) AS empresa,
-              ${fotosVigente.sqlResumen('rd')}
-         FROM reparaciones_dota rd
-         LEFT JOIN clientes c ON c.id = rd.cliente_id
-        WHERE ${SQL_VIGENTE_DEL_CLIENTE('rd')}
-          AND COALESCE(rd.pendientes, 0) > 0
-          AND NOT COALESCE(rd.devuelto, false)
-        ORDER BY rd.fecha_ingreso DESC NULLS LAST, rd.id DESC`,
-      [ids, grupo]
-    );
-    res.json(rows.map((r) => ({ ...r, etapa_nombre: nombreEtapa(r.etapa) })));
+    res.json(await datos.vigentes(await alcance(req)));
   } catch (err) {
     console.error('portal/reparaciones', err);
     res.status(500).json({ error: 'Error al cargar reparaciones' });
   }
 });
 
-// Historial: lo reparado, de la planilla, un registro por ID de reparacion. En Dota
-// la empresa sale del vigente del pedido (las reparaciones 'dota' no tienen cliente).
 router.get('/api/historial', requireCliente, async (req, res) => {
   try {
-    const { ids, grupo } = await alcance(req);
-    if (!ids.length && !grupo) return res.json([]);
-    const { rows } = await db.query(
-      `SELECT h.*, COALESCE(h.cliente, vig.razon_social) AS empresa
-         FROM (
-           SELECT DISTINCT ON (r.id_reparacion)
-             r.id_reparacion,
-             r.fecha::date        AS fecha,
-             r.coche_numero,
-             r.trabajo,
-             r.garantia,
-             r.nro_pedido_ref,
-             r.cantidad,
-             f.descripcion        AS equipo,
-             f.codigo             AS codigo_equipo,
-             c.razon_social       AS cliente
-           FROM equipos_reparaciones r
-           LEFT JOIN familia  f ON f.id = r.familia_id
-           LEFT JOIN clientes c ON c.id = r.cliente_id
-           WHERE r.cliente_id = ANY($1::int[])
-              OR ($2 AND LOWER(COALESCE(r.cliente_tipo, '')) = 'dota')
-           ORDER BY r.id_reparacion, r.fecha DESC, r.id DESC
-         ) h
-         LEFT JOIN LATERAL (
-           SELECT COALESCE(c2.razon_social, rd.razon_social) AS razon_social
-             FROM reparaciones_dota rd
-             LEFT JOIN clientes c2 ON c2.id = rd.cliente_id
-            WHERE h.cliente IS NULL AND btrim(rd.nro_pedido) = btrim(h.nro_pedido_ref)
-            LIMIT 1
-         ) vig ON true
-        ORDER BY h.fecha DESC NULLS LAST, h.id_reparacion DESC
-        LIMIT $3`,
-      [ids, grupo, HISTORIAL_MAX]
-    );
-    res.json(rows);
+    res.json(await datos.historial(await alcance(req)));
   } catch (err) {
     console.error('portal/historial', err);
     res.status(500).json({ error: 'Error al cargar historial' });
@@ -168,16 +82,6 @@ router.get('/api/historial', requireCliente, async (req, res) => {
 // Reparacion de la planilla que resolvio una garantia (tiene la resolucion y el informe):
 //  - externa: la reparacion en garantia del cliente con ID = Nro de Garantia
 //  - Dota: la que la archivo (licitacion_garantias_archive.reparacion_id)
-const SQL_REPARACION_EXTERNA = (alias) => `
-  SELECT er.id, er.resolucion, er.fecha
-    FROM equipos_reparaciones er
-   WHERE LOWER(COALESCE(er.cliente_tipo, '')) = 'externo'
-     AND er.cliente_id = ${alias}.cliente_id
-     AND btrim(er.id_dota::text) = btrim(${alias}.nro_id)
-     AND LOWER(COALESCE(er.garantia, '')) = 'si'
-   ORDER BY er.fecha DESC, er.id DESC
-   LIMIT 1`;
-
 async function reparacionDeGarantia(tipo, id) {
   const { rows } = tipo === 'garantia_dota'
     ? await db.query(
@@ -185,66 +89,14 @@ async function reparacionDeGarantia(tipo, id) {
         WHERE garantia_original_id = $1 ORDER BY archived_at DESC LIMIT 1`, [id])
     : await db.query(
       `SELECT rep.id FROM garantias_externas ge
-         JOIN LATERAL (${SQL_REPARACION_EXTERNA('ge')}) rep ON true
+         JOIN LATERAL (${datos.SQL_REPARACION_EXTERNA('ge')}) rep ON true
         WHERE ge.id = $1`, [id]);
   return rows[0] ? rows[0].id : null;
 }
 
-// Clase de color de la resolucion para el portal
-function claseResolucion(clave) {
-  const k = String(clave || '').toLowerCase();
-  if (k.startsWith('aceptada')) return 'aceptada';
-  if (k === 'rechazada') return 'rechazada';
-  return k ? 'otra' : null;
-}
-
-// Garantías del cliente (garantias_externas), con las fotos de ingreso. tipo_fotos
-// dice de donde se piden las fotos. Las resueltas traen la resolucion.
 router.get('/api/garantias', requireCliente, async (req, res) => {
   try {
-    const { ids, grupo } = await alcance(req);
-    if (!ids.length && !grupo) return res.json([]);
-    const { rows } = await db.query(
-      `SELECT ge.id, ge.ingreso, ge.nro_id, ge.interno, ge.codigo, ge.equipo,
-              ge.cantidad, ge.pendiente, ge.observaciones, 'garantia' AS tipo_fotos,
-              rep.id IS NOT NULL AS tiene_informe, rep.resolucion, rep.fecha AS fecha_resolucion,
-              ${fotosGarantia.sqlResumen('ge')}
-         FROM garantias_externas ge
-         LEFT JOIN LATERAL (${SQL_REPARACION_EXTERNA('ge')}) rep ON ge.nro_id IS NOT NULL
-        WHERE ge.cliente_id = ANY($1::int[])`,
-      [ids]
-    );
-    // Dota: su cola de garantias (pendientes) y las resueltas en los ultimos DIAS_ENTREGADOS
-    // dias (archivadas; las fotos siguen colgadas del id original)
-    if (grupo) {
-      const dota = await db.query(
-        `SELECT lg.id, lg.ingreso, lg.id_cliente AS nro_id, lg.interno, lg.codigo, fam.descripcion AS equipo,
-                lg.cantidad, 1 AS pendiente, lg.detalle AS observaciones, 'garantia_dota' AS tipo_fotos,
-                false AS tiene_informe, NULL AS resolucion, NULL::timestamp AS fecha_resolucion,
-                ${fotosGarantiaDota.sqlResumen('lg')}
-           FROM licitacion_garantias lg
-           LEFT JOIN LATERAL (SELECT descripcion FROM familia WHERE btrim(codigo) = btrim(lg.codigo) LIMIT 1) fam ON true
-         UNION ALL
-         SELECT a.garantia_original_id, a.ingreso, a.id_cliente, a.interno, a.codigo, fam.descripcion,
-                a.cantidad, 0, a.detalle, 'garantia_dota',
-                rep.id IS NOT NULL, rep.resolucion, rep.fecha,
-                ${fotosGarantiaDota.sqlResumen('a', 'a.garantia_original_id')}
-           FROM licitacion_garantias_archive a
-           LEFT JOIN equipos_reparaciones rep ON rep.id = a.reparacion_id
-           LEFT JOIN LATERAL (SELECT descripcion FROM familia WHERE btrim(codigo) = btrim(a.codigo) LIMIT 1) fam ON true
-          WHERE a.garantia_original_id IS NOT NULL
-            AND a.archived_at >= now() - make_interval(days => $1::int)`,
-        [DIAS_ENTREGADOS]
-      );
-      rows.push(...dota.rows);
-    }
-    rows.sort((x, y) => (y.ingreso ? new Date(y.ingreso) : 0) - (x.ingreso ? new Date(x.ingreso) : 0));
-    res.json(rows.map((r) => ({
-      ...r,
-      resolucion_texto: r.resolucion ? garantiaResolucionLabel(r.resolucion) : null,
-      resolucion_clase: claseResolucion(r.resolucion),
-      resolucion: undefined
-    })));
+    res.json(await datos.garantias(await alcance(req)));
   } catch (err) {
     console.error('portal/garantias', err);
     res.status(500).json({ error: 'Error al cargar garantías' });
@@ -252,45 +104,11 @@ router.get('/api/garantias', requireCliente, async (req, res) => {
 });
 
 // Resumen de arriba: equipos en el taller, listos, garantias y presupuestos por
-// responder. Las licitaciones en curso traen el avance (reparados de la cantidad).
+// responder, y el avance de las licitaciones en curso
 router.get('/api/resumen', requireCliente, async (req, res) => {
   try {
-    const { ids, grupo } = await alcance(req);
-    const nombre = req.session.user.cliente_nombre || '';
     await cotizaciones.ensureTables();
-    const [taller, licitaciones, garantias, presupuestos] = await Promise.all([
-      db.query(
-        `SELECT COALESCE(sum(rd.pendientes), 0)::int AS en_taller,
-                COALESCE(sum(rd.pendientes) FILTER (WHERE rd.etapa = 'listo'), 0)::int AS listos
-           FROM reparaciones_dota rd
-          WHERE ${SQL_VIGENTE_DEL_CLIENTE('rd')}
-            AND COALESCE(rd.pendientes, 0) > 0 AND NOT COALESCE(rd.devuelto, false)`,
-        [ids, grupo]),
-      db.query(
-        `SELECT rd.licitacion_nro, sum(rd.cantidad)::int AS cantidad, sum(rd.pendientes)::int AS pendientes,
-                min(rd.fecha_ingreso) AS ingreso, max(rd.fecha_limite_entrega) AS entrega
-           FROM reparaciones_dota rd
-          WHERE ${SQL_VIGENTE_DEL_CLIENTE('rd')}
-            AND NULLIF(btrim(rd.licitacion_nro), '') IS NOT NULL AND NOT COALESCE(rd.devuelto, false)
-          GROUP BY rd.licitacion_nro
-         HAVING sum(rd.pendientes) > 0
-          ORDER BY min(rd.fecha_ingreso) DESC NULLS LAST`,
-        [ids, grupo]),
-      db.query(
-        `SELECT (SELECT count(*) FROM garantias_externas WHERE cliente_id = ANY($1::int[]) AND COALESCE(pendiente, 0) > 0)
-              + (CASE WHEN $2 THEN (SELECT count(*) FROM licitacion_garantias) ELSE 0 END) AS pendientes`,
-        [ids, grupo]),
-      db.query(
-        `SELECT count(*)::int AS por_responder FROM cotizaciones_reparacion
-          WHERE ${SQL_PRESUPUESTO_DEL_CLIENTE} AND LOWER(estado) = 'enviada'`,
-        [ids, nombre])
-    ]);
-    res.json({
-      ...taller.rows[0],
-      garantias_pendientes: Number(garantias.rows[0].pendientes),
-      presupuestos_por_responder: presupuestos.rows[0].por_responder,
-      licitaciones: licitaciones.rows
-    });
+    res.json(await datos.resumen(await alcance(req)));
   } catch (err) {
     console.error('portal/resumen', err);
     res.status(500).json({ error: 'Error al cargar el resumen' });
@@ -301,18 +119,8 @@ router.get('/api/resumen', requireCliente, async (req, res) => {
 // enviados y los puede aprobar o rechazar.
 router.get('/api/presupuestos', requireCliente, async (req, res) => {
   try {
-    const { ids } = await alcance(req);
-    const nombre = req.session.user.cliente_nombre || '';
     await cotizaciones.ensureTables();
-    const { rows } = await db.query(
-      `SELECT id, numero, fecha, coche_numero, equipo_texto, falla_reportada, total, estado, created_at,
-              respuesta_comentario, respuesta_at
-         FROM cotizaciones_reparacion
-        WHERE ${SQL_PRESUPUESTO_DEL_CLIENTE}
-        ORDER BY (LOWER(estado) = 'enviada') DESC, fecha DESC, id DESC`,
-      [ids, nombre]
-    );
-    res.json(rows);
+    res.json(await datos.presupuestos(await alcance(req)));
   } catch (err) {
     console.error('portal/presupuestos', err);
     res.status(500).json({ error: 'Error al cargar presupuestos' });
@@ -383,14 +191,14 @@ router.get('/api/presupuestos/:id(\\d+)/pdf', requireCliente, async (req, res) =
 // Las de la cola de Dota, solo para Dota (la garantia puede estar archivada).
 const FOTOS = {
   vigente: {
-    fotos: fotosVigente,
+    fotos: datos.fotosVigente,
     usaGrupo: true,
     sql: `SELECT 1 FROM reparaciones_dota WHERE id = $1
             AND (cliente_id = ANY($2::int[]) OR ($3 AND LOWER(COALESCE(cliente_tipo, '')) = 'dota'))`
   },
-  garantia: { fotos: fotosGarantia, sql: 'SELECT 1 FROM garantias_externas WHERE id = $1 AND cliente_id = ANY($2::int[])' },
+  garantia: { fotos: datos.fotosGarantia, sql: 'SELECT 1 FROM garantias_externas WHERE id = $1 AND cliente_id = ANY($2::int[])' },
   garantia_dota: {
-    fotos: fotosGarantiaDota,
+    fotos: datos.fotosGarantiaDota,
     soloDota: true,
     sql: `SELECT 1 FROM licitacion_garantias WHERE id = $1
           UNION ALL SELECT 1 FROM licitacion_garantias_archive WHERE garantia_original_id = $1`

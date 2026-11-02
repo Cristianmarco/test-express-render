@@ -1,83 +1,131 @@
 <!-- Modal: Alta/Edición Cliente -->
 <div id="modal-cliente-ref" class="modal-refactor" style="display:none;">
-  <div class="modal-contenido-refactor modal-erp-producto">
+  <div class="modal-contenido-refactor">
     <span class="cerrar" onclick="document.getElementById('modal-cliente-ref').style.display='none'">&times;</span>
-    <h2 class="modal-titulo-principal"><i class="fas fa-user"></i> Cliente</h2>
+    <h2 class="modal-titulo-principal" id="cli-modal-titulo"><i class="fas fa-user"></i> Cliente</h2>
 
-    <form id="form-cliente-ref" autocomplete="off">
-      <div class="form-grid doble">
-        <div>
-          <label>Código *</label>
-          <input name="codigo" required />
+    <form id="form-cliente-ref" autocomplete="off" novalidate>
+      <fieldset>
+        <legend>Datos generales</legend>
+        <div class="cli-form-grid">
+          <div>
+            <label>Código *</label>
+            <input name="codigo" required maxlength="20" />
+            <div class="cli-ayuda" id="cli-ayuda-codigo"></div>
+          </div>
+          <div style="grid-column: span 2;">
+            <label>Razón social *</label>
+            <input name="razon_social" required />
+          </div>
         </div>
-        <div>
-          <label>Razón Social *</label>
-          <input name="razon_social" required />
+        <div class="cli-form-grid">
+          <div>
+            <label>Nombre de fantasía</label>
+            <input name="fantasia" />
+          </div>
+          <div>
+            <label>Tipo</label>
+            <select name="categoria">
+              <option value="externo">Externo</option>
+              <option value="interno">Interno (grupo Dota)</option>
+            </select>
+          </div>
+          <div>
+            <label class="cli-check"><input type="checkbox" name="activo" checked> Activo</label>
+          </div>
         </div>
+        <div class="cli-form-grid">
+          <div>
+            <label>Empresa madre (grupo)</label>
+            <select name="grupo_id" id="cli-grupo-select"><option value="">— Ninguna —</option></select>
+            <div class="cli-ayuda">La empresa madre ve en el portal todo lo de las empresas de su grupo.</div>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Datos fiscales</legend>
+        <div class="cli-form-grid">
+          <div>
+            <label>CUIT / DNI</label>
+            <input name="documento" placeholder="30-12345678-9" />
+            <div class="cli-ayuda" id="cli-ayuda-cuit"></div>
+          </div>
+          <div>
+            <label>Condición frente al IVA</label>
+            <select name="condicion_iva">
+              <option value="">— Sin dato —</option>
+              <option>Responsable Inscripto</option>
+              <option>Monotributo</option>
+              <option>Exento</option>
+              <option>Consumidor Final</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Ubicación y contacto general</legend>
+        <div class="cli-form-grid">
+          <div style="grid-column: span 2;">
+            <label>Domicilio</label>
+            <input name="domicilio" />
+          </div>
+          <div>
+            <label>Localidad</label>
+            <input name="localidad" />
+          </div>
+          <div>
+            <label>Provincia</label>
+            <input name="provincia" list="cli-provincias" />
+            <datalist id="cli-provincias">
+              <option>Buenos Aires</option><option>CABA</option><option>Catamarca</option><option>Chaco</option>
+              <option>Chubut</option><option>Córdoba</option><option>Corrientes</option><option>Entre Ríos</option>
+              <option>Formosa</option><option>Jujuy</option><option>La Pampa</option><option>La Rioja</option>
+              <option>Mendoza</option><option>Misiones</option><option>Neuquén</option><option>Río Negro</option>
+              <option>Salta</option><option>San Juan</option><option>San Luis</option><option>Santa Cruz</option>
+              <option>Santa Fe</option><option>Santiago del Estero</option><option>Tierra del Fuego</option><option>Tucumán</option>
+            </datalist>
+          </div>
+        </div>
+        <div class="cli-form-grid">
+          <div>
+            <label>Teléfono</label>
+            <input name="telefono" type="tel" />
+          </div>
+          <div>
+            <label>Email</label>
+            <input name="mail" type="email" />
+          </div>
+          <div>
+            <label>Web</label>
+            <input name="web" />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Contactos</legend>
+        <table class="cli-contactos-tabla">
+          <thead>
+            <tr><th>Nombre *</th><th>Cargo</th><th>Teléfono</th><th>Email</th><th title="Recibe avisos por email">Avisos</th><th></th></tr>
+          </thead>
+          <tbody id="cli-contactos-body"></tbody>
+        </table>
+        <button type="button" class="cli-btn" id="cli-contacto-agregar"><i class="fas fa-user-plus"></i> Agregar contacto</button>
+        <div class="cli-ayuda" style="margin:6px 0 8px;">"Avisos": a quién avisarle por email (preparado para las notificaciones del portal).</div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Notas internas</legend>
+        <textarea name="notas" placeholder="Condiciones especiales, horarios de entrega, observaciones..."></textarea>
+      </fieldset>
+
+      <div class="cli-form-error" id="cli-form-error"></div>
+      <div class="cli-form-acciones">
+        <button type="button" class="cli-btn" onclick="document.getElementById('modal-cliente-ref').style.display='none'">Cancelar</button>
+        <button type="submit" class="cli-btn primario" id="cli-guardar"><i class="fas fa-save"></i> Guardar</button>
       </div>
-
-      <div class="form-grid doble">
-        <div>
-          <label>Nombre Fantasía</label>
-          <input name="fantasia" />
-        </div>
-        <div>
-          <label>CUIT</label>
-          <input name="documento" />
-        </div>
-      </div>
-
-      <div class="form-grid doble">
-        <div>
-          <label>Dirección</label>
-          <input name="domicilio" />
-        </div>
-        <div>
-          <label>Teléfono</label>
-          <input name="telefono" />
-        </div>
-      </div>
-
-      <div class="form-grid doble">
-        <div>
-          <label>Email</label>
-          <input type="email" name="mail" />
-        </div>
-        <div>
-          <label>Web</label>
-          <input name="web" />
-        </div>
-      </div>
-
-      <div class="form-grid doble">
-        <div>
-          <label>Localidad</label>
-          <input name="localidad" />
-        </div>
-        <div>
-          <label>Provincia</label>
-          <input name="provincia" />
-        </div>
-      </div>
-
-      <div class="form-grid doble">
-        <div>
-          <label>Contacto</label>
-          <input name="contacto" />
-        </div>
-        <div>
-          <label>Categoría</label>
-          <select name="categoria">
-            <option value="externo">Externo</option>
-            <option value="interno">Interno</option>
-          </select>
-        </div>
-      </div>
-
-      <button type="submit" class="btn-guardar">
-        <i class="fas fa-save"></i> Guardar
-      </button>
     </form>
   </div>
 </div>
-

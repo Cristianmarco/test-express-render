@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/static/css/planilla-refactor.css?v=<%= Date.now() %>">
     <link rel="stylesheet" href="/static/css/fichas.css?v=<%= Date.now() %>">
     <link rel="stylesheet" href="/static/css/producto-ficha.css?v=<%= Date.now() %>">
+    <link rel="stylesheet" href="/static/css/clientes.css?v=<%= Date.now() %>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="icon" type="image/png" href="/static/images/logo.png?v=<%= Date.now() %>" />
 </head>
@@ -129,6 +130,7 @@
       });
     </script>
     <script>window.APP_BUILD_ID = "<%= buildId %>";</script>
+    <script>window.APP_USER = <%- JSON.stringify({ email: user.email, rol: user.rol }).replace(/</g, '\\u003c') %>;</script>
     <script src="/static/scripts/cuenta.js?v=<%= Date.now() %>"></script>
     <script src="/static/scripts/main.js?v=<%= Date.now() %>"></script>
     <script src="/static/scripts/fotos_editor.js?v=<%= Date.now() %>" defer></script>

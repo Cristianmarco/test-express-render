@@ -63,7 +63,9 @@ router.post(
   '/',
   [
     body('email').isEmail(),
-    body('password').isLength({ min: PASSWORD_MIN }).withMessage(`La contraseña tiene que tener al menos ${PASSWORD_MIN} caracteres`),
+    // temporal: se genera una contraseña que el usuario cambia al entrar (alta desde la ficha del cliente)
+    body('password').if(body('temporal').not().equals('true'))
+      .isLength({ min: PASSWORD_MIN }).withMessage(`La contraseña tiene que tener al menos ${PASSWORD_MIN} caracteres`),
     body('rol').isIn(ROLES),
     body('cliente_codigo').optional(),
     body('nombre').optional(),
@@ -84,13 +86,20 @@ router.post(
       const existe = await db.query('SELECT 1 FROM usuarios WHERE email=$1', [email]);
       if (existe.rowCount > 0) return res.status(400).json({ error: 'Email ya registrado' });
 
-      password = await bcrypt.hash(String(password), 10);
+      if (rol === 'cliente') {
+        const cli = await db.query('SELECT 1 FROM clientes WHERE codigo = $1', [cliente_codigo || '']);
+        if (!cli.rowCount) return res.status(400).json({ error: 'Un usuario cliente necesita un código de cliente existente' });
+      }
+
+      const temporal = req.body.temporal === true || req.body.temporal === 'true';
+      if (temporal) password = passwordTemporal();
+      const hash = await bcrypt.hash(String(password), 10);
 
       await db.query(
-        'INSERT INTO usuarios (email, password, rol, cliente_codigo, "Nombre", permisos) VALUES ($1,$2,$3,$4,$5,$6)',
-        [email, password, rol, cliente_codigo || null, nombre, permisos]
+        'INSERT INTO usuarios (email, password, rol, cliente_codigo, "Nombre", permisos, debe_cambiar_password) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [email, hash, rol, cliente_codigo || null, nombre, permisos, temporal]
       );
-      res.status(201).json({ mensaje: 'Usuario agregado' });
+      res.status(201).json(temporal ? { mensaje: 'Usuario agregado', password } : { mensaje: 'Usuario agregado' });
     } catch (err) {
       next(err);
     }
