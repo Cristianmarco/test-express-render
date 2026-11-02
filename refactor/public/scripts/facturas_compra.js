@@ -50,7 +50,13 @@
 
   // ---------- Catalogos ----------
   async function cargarCatalogos(){
-    const [provs, deps] = await Promise.all([getJson('/api/proveedores'), getJson('/api/depositos').catch(() => [])]);
+    const [provs, deps, ia] = await Promise.all([
+      getJson('/api/proveedores'), getJson('/api/depositos').catch(() => []), getJson(`${API}/lector`).catch(() => ({ configurado: false })),
+    ]);
+    st.ia = ia;
+    el('fc-leer-ia').title = ia.configurado
+      ? 'Completa encabezado, impuestos y renglones leyendo el archivo'
+      : 'Falta configurar la clave de Anthropic en el servidor';
     st.proveedores = provs.filter(p => p.activo !== false);
     st.depositos = deps;
     el('fc-proveedores-lista').innerHTML = st.proveedores.map(p => `<option value="${esc(etiquetaProv(p))}">`).join('');
@@ -226,6 +232,28 @@
     actualizarControl();
   }
 
+  // Neto e IVA 21% desde el total (lo que trae el QR). Las percepciones, internos,
+  // no gravado y exento que ya esten cargados se descuentan antes. En B y C todo va
+  // como importe sin IVA discriminado.
+  function desglosarDesdeTotal(){
+    const f = el('fc-form').elements;
+    const total = leerNum(f.total.value);
+    if (!(total > 0)) return alert('Primero cargá el total (o escaneá el QR).');
+    const fmt = (n) => String(r2(n)).replace('.', ',');
+    const otros = ['percepcion_iva', 'percepcion_iibb', 'impuestos_internos', 'otros_tributos']
+      .reduce((a, k) => a + (leerNum(f[k].value) || 0), 0);
+    if (!discrimina()) {
+      f.no_gravado.value = fmt(total - otros);
+    } else {
+      const base = total - otros - (leerNum(f.no_gravado.value) || 0) - (leerNum(f.exento.value) || 0);
+      const neto = r2(base / 1.21);
+      ['neto_105', 'iva_105', 'neto_27', 'iva_27'].forEach(k => { f[k].value = ''; });
+      f.neto_21.value = fmt(neto);
+      f.iva_21.value = fmt(base - neto); // la diferencia, asi cierra exacto con el total
+    }
+    actualizarControl();
+  }
+
   function sumaImportes(){
     const f = el('fc-form').elements;
     return r2(IMPORTES.reduce((a, k) => a + (leerNum(f[k].value) || 0), 0));
@@ -347,12 +375,96 @@
     else (discrimina() ? f.neto_21 : f.no_gravado).focus();
   }
 
+  // ---------- Lectura con IA ----------
+  async function leerConIa(){
+    if (!st.archivo) return alert('Elegí primero el PDF o la foto de la factura.');
+    if (st.ia && !st.ia.configurado) return alert('La lectura con IA no está configurada todavía (falta la clave de Anthropic en el servidor).');
+    const btn = el('fc-leer-ia');
+    const info = el('fc-archivo-info');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Leyendo...';
+    info.className = 'cli-ayuda';
+    info.textContent = 'Leyendo la factura con IA (puede tardar hasta un minuto)...';
+    const inicio = Date.now();
+    try {
+      const prov = proveedorDeTexto(el('fc-proveedor').value);
+      const r = await postJson(`${API}/leer`, { archivo: st.archivo, proveedor_id: prov ? prov.id : null });
+      aplicarLectura(r);
+      const seg = Math.round((Date.now() - inicio) / 1000);
+      info.className = 'cli-ayuda';
+      info.style.color = '#15803d';
+      info.textContent = `Leída en ${seg} s (costo aprox. US$ ${r.costo_usd}). Revisá los datos contra la factura antes de confirmar.`;
+    } catch (e) {
+      info.className = 'cli-ayuda error';
+      info.textContent = e.message;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Leer con IA';
+    }
+  }
+
+  function aplicarLectura(r){
+    const d = r.datos;
+    const f = el('fc-form').elements;
+    if (!d.es_factura) throw new Error('El archivo no parece un comprobante de compra.');
+    const fmt = (n) => (n ? String(r2(Number(n))).replace('.', ',') : '');
+    f.comprobante.value = d.comprobante;
+    f.letra.value = d.letra;
+    actualizarLetra();
+    if (d.punto_venta) f.punto_venta.value = String(d.punto_venta).padStart(5, '0');
+    if (d.numero) f.numero.value = String(d.numero).padStart(8, '0');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '')) f.fecha.value = d.fecha;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d.vencimiento || '')) { f.vencimiento.value = d.vencimiento; st.vencAuto = false; }
+    if (d.cae) f.cae.value = String(d.cae).replace(/\D/g, '');
+    IMPORTES.forEach(k => { f[k].value = fmt(d.importes[k]); });
+    f.total.value = fmt(d.importes.total);
+    // Proveedor: por CUIT; si no esta, se guarda el CUIT al confirmar con el que se elija
+    if (r.cuit) st.cuitQr = r.cuit;
+    const prov = r.proveedor_id && st.proveedores.find(p => p.id === r.proveedor_id);
+    if (prov) el('fc-proveedor').value = etiquetaProv(prov);
+    actualizarProveedor();
+    if (!prov && !proveedorDeTexto(el('fc-proveedor').value)) {
+      el('fc-proveedor-info').textContent = `La factura es de ${d.emisor_razon_social || '—'}${r.cuit ? ` (CUIT ${r.cuit})` : ''}: elegilo de la lista y se le guarda el CUIT.`;
+    }
+    // Renglones
+    const tbody = el('fc-items');
+    tbody.innerHTML = '';
+    for (const it of d.items) {
+      const tr = filaItem({
+        articulo: it.articulo ? `${it.articulo.codigo} | ${it.articulo.descripcion}` : (it.codigo || ''),
+        descripcion: it.descripcion, cantidad: fmt(it.cantidad) || '1',
+        precio_unitario: fmt(it.precio_unitario), bonificacion_pct: fmt(it.bonificacion_pct),
+      });
+      tr.querySelector('[data-k="alicuota_iva"]').value = String(it.alicuota_iva);
+      if (!discrimina()) tr.querySelector('.fc-col-iva').style.display = 'none';
+      if (it.articulo) {
+        st.articulos.set(`${it.articulo.codigo} | ${it.articulo.descripcion}`, it.articulo);
+        tr._articulo = it.articulo;
+      }
+      tbody.appendChild(tr);
+      actualizarItem(tr);
+    }
+    if (!d.items.length) tbody.appendChild(filaItem());
+    actualizarControl();
+    const sinVincular = d.items.filter(it => !it.articulo).length;
+    const aproximados = d.items.filter(it => it.articulo && it.articulo.aproximado)
+      .map(it => `${it.codigo} → ${it.articulo.codigo}`);
+    const notas = [];
+    if (aproximados.length) notas.push(`Vinculados por código base, revisá que sea el artículo correcto: ${aproximados.join(', ')}.`);
+    if (d.moneda && d.moneda !== 'PES') notas.push(`La factura está en ${d.moneda}: revisá los importes en pesos.`);
+    if (sinVincular) notas.push(`${sinVincular} renglón(es) sin artículo vinculado: no mueven stock (elegí el artículo si corresponde).`);
+    if (d.observaciones) notas.push(`Observación de la lectura: ${d.observaciones}`);
+    el('fc-error').textContent = notas.join(' ');
+  }
+
   function nuevaFactura(){
     const form = el('fc-form');
     form.reset();
     st.archivo = null;
     st.vencAuto = true;
     st.cuitQr = null;
+    el('fc-leer-ia').disabled = true;
+    el('fc-archivo-info').style.color = '';
     el('fc-qr').value = '';
     el('fc-qr-info').className = 'cli-ayuda';
     el('fc-qr-info').textContent = 'Completa tipo, número, fecha, total, CAE y busca el proveedor por CUIT.';
@@ -671,6 +783,8 @@
     form.elements.numero.addEventListener('blur', () => { const v = form.elements.numero.value.replace(/\D/g, ''); if (v) form.elements.numero.value = v.padStart(8, '0'); });
     IMPORTES.concat('total').forEach(k => form.elements[k].addEventListener('input', actualizarControl));
     el('fc-calcular').addEventListener('click', calcularImportes);
+    el('fc-leer-ia').addEventListener('click', leerConIa);
+    el('fc-desde-total').addEventListener('click', desglosarDesdeTotal);
     el('fc-item-agregar').addEventListener('click', () => {
       const tr = filaItem();
       el('fc-items').appendChild(tr);
@@ -698,7 +812,11 @@
       const reader = new FileReader();
       reader.onload = () => {
         st.archivo = { nombre: file.name, data: reader.result };
-        el('fc-archivo-info').textContent = `${file.name} (${Math.round(file.size / 1024)} KB) · queda guardado con el comprobante`;
+        el('fc-archivo-info').className = 'cli-ayuda';
+        el('fc-archivo-info').style.color = '';
+        el('fc-archivo-info').textContent = `${file.name} (${Math.round(file.size / 1024)} KB) · queda guardado con el comprobante` +
+          (st.ia && st.ia.configurado ? ' · "Leer con IA" completa los datos' : '');
+        el('fc-leer-ia').disabled = false;
       };
       reader.readAsDataURL(file);
     });

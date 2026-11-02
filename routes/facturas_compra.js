@@ -6,6 +6,7 @@ const ExcelJS = require('exceljs');
 const router = express.Router();
 const db = require('../db');
 const fc = require('../utils/facturas_compra');
+const lector = require('../utils/lector_facturas');
 const { insertDomainAudit } = require('../utils/domain-audit');
 
 function responderError(res, next, err) {
@@ -84,6 +85,74 @@ router.get('/articulos', async (req, res, next) => {
     );
     res.json(rows.map((r) => ({ ...r, ultimo_costo_at: fc.iso(r.ultimo_costo_at) })));
   } catch (err) {
+    next(err);
+  }
+});
+
+// ---------- Lectura con IA ----------
+
+router.get('/lector', (req, res) => {
+  res.json({ configurado: lector.configurado(), modelo: lector.MODELO });
+});
+
+// Lee el PDF / foto con IA y devuelve los datos para el formulario, con el proveedor
+// (por CUIT) y los renglones vinculados a los articulos (por codigo)
+router.post('/leer', async (req, res, next) => {
+  try {
+    await fc.esquema;
+    const r = await lector.leerFactura(req.body && req.body.archivo);
+    const d = r.datos;
+    const cuit = String(d.emisor_cuit || '').replace(/\D/g, '');
+    let prov = cuit.length === 11
+      ? (await db.query(`SELECT id FROM proveedores WHERE regexp_replace(COALESCE(cuit, ''), '\\D', '', 'g') = $1 LIMIT 1`, [cuit])).rows[0]
+      : null;
+    // Sin CUIT cargado: por la primera palabra del nombre ("Rodaser Rodamientos S.R.L." -> Rodaser),
+    // solo entre los que no tienen CUIT y si hay uno solo. Al confirmar se le guarda el CUIT.
+    const palabra = String(d.emisor_razon_social || '').toUpperCase().match(/[A-ZÁÉÍÓÚÑ0-9]{3,}/);
+    if (!prov && palabra) {
+      const { rows } = await db.query(
+        `SELECT id FROM proveedores
+          WHERE COALESCE(cuit, '') = ''
+            AND (upper(razon_social) ~ ('^' || $1 || '\\M') OR upper(COALESCE(fantasia, '')) ~ ('^' || $1 || '\\M'))`,
+        [palabra[0]]
+      );
+      if (rows.length === 1) prov = rows[0];
+    }
+    const proveedorId = prov ? prov.id : (Number(req.body && req.body.proveedor_id) || null);
+    // Vincula cada renglon por codigo: primero el codigo del proveedor, despues el interno
+    const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const items = [];
+    for (const it of d.items || []) {
+      let articulo = null;
+      const cod = norm(it.codigo);
+      // Codigo base sin variante: "6205-2RSH/C3" -> "6205" (se marca como aproximado)
+      const base = norm(String(it.codigo || '').split(/[-/\s]/)[0]);
+      for (const [c, aproximado] of [[cod, false], [base, true]]) {
+        if (articulo || c.length < (aproximado ? 4 : 2) || (aproximado && c === cod)) continue;
+        const { rows } = await db.query(
+          `SELECT p.id, p.codigo, p.codigo_fabricante, p.descripcion, p.proveedor_id, p.ultimo_costo, p.ultimo_costo_at,
+                  pp.precio_lista, pp.desc_suma, pp.desc_pago
+             FROM productos p LEFT JOIN producto_precios pp ON pp.producto_id = p.id
+            WHERE regexp_replace(upper(COALESCE(p.codigo_fabricante, '')), '[^A-Z0-9]', '', 'g') = $1
+               OR regexp_replace(upper(p.codigo), '[^A-Z0-9]', '', 'g') = $1
+               -- codigo interno sin el prefijo de marca: "TRU 6205" -> "6205"
+               OR regexp_replace(regexp_replace(upper(p.codigo), '^[A-Z]{2,6}\\s+', ''), '[^A-Z0-9]', '', 'g') = $1
+            ORDER BY (p.proveedor_id = $2) DESC NULLS LAST,
+                     (regexp_replace(upper(COALESCE(p.codigo_fabricante, '')), '[^A-Z0-9]', '', 'g') = $1) DESC
+            LIMIT 1`,
+          [c, proveedorId || 0]
+        );
+        if (rows[0]) articulo = { ...rows[0], ultimo_costo_at: fc.iso(rows[0].ultimo_costo_at), aproximado };
+      }
+      items.push({ ...it, articulo });
+    }
+    res.json({ ...r, datos: { ...d, items }, proveedor_id: prov ? prov.id : null, cuit: cuit.length === 11 ? `${cuit.slice(0, 2)}-${cuit.slice(2, 10)}-${cuit[10]}` : null });
+  } catch (err) {
+    if (err instanceof lector.ErrorLector) return res.status(err.status).json({ error: err.message });
+    if (err && err.status && err.error) {
+      console.error('Error de la API de Claude al leer factura:', err.status, err.message);
+      return res.status(502).json({ error: `El servicio de IA respondió con error (${err.status}). Probá de nuevo en un rato o cargala a mano.` });
+    }
     next(err);
   }
 });

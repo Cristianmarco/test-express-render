@@ -8,9 +8,12 @@
   },
   "nodemonConfig": {
     "ext": "js,mjs,cjs,json,ejs",
-    "ignore": ["public/uploads/*"]
+    "ignore": [
+      "public/uploads/*"
+    ]
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "bcryptjs": "^3.0.2",
     "cheerio": "^1.2.0",
     "connect-pg-simple": "^10.0.0",
