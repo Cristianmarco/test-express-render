@@ -58,7 +58,7 @@ router.get("/", async (req, res, next) => {
       return res.json(rows.map((p) => ({ ...p, importador_info: infoImportador(p.importador) })));
     }
     const result = await db.query(`
-      SELECT id, codigo, razon_social AS nombre, razon_social, fantasia, telefono, email, web, activo
+      SELECT id, codigo, razon_social AS nombre, razon_social, fantasia, cuit, telefono, email, web, activo, condicion_pago
         FROM proveedores
        ORDER BY codigo ASC`);
     res.json(result.rows);
@@ -253,9 +253,10 @@ async function prepararProveedor(body, { alta, actual }) {
     const v = body.pedido_minimo;
     if (v === "" || v == null) campos.pedido_minimo = null;
     else {
-      // "1.500,50" (formato argentino) o "1500.5"
+      // "1.500,50" / "1.500" (formato argentino: el punto separa miles) o "1500.5"
       const txt = String(v).trim();
-      const n = Number(txt.includes(",") ? txt.replace(/\./g, "").replace(",", ".") : txt);
+      const conMiles = txt.includes(",") || /^\d{1,3}(\.\d{3})+$/.test(txt);
+      const n = Number(conMiles ? txt.replace(/\./g, "").replace(",", ".") : txt);
       if (!Number.isFinite(n) || n < 0) throw new ErrorProveedor(400, "Pedido mínimo inválido");
       campos.pedido_minimo = n;
     }

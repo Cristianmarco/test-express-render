@@ -1,0 +1,210 @@
+<section class="cli-section" id="fc-root">
+  <div class="cli-top">
+    <h2><i class="fas fa-file-invoice"></i> Facturas de compra y pagos</h2>
+    <div class="cli-stats" id="fc-stats"></div>
+  </div>
+
+  <div class="cli-card">
+    <div class="cli-tabs" id="fc-tabs">
+      <button type="button" class="cli-tab activa" data-pestana="comprobantes">Comprobantes</button>
+      <button type="button" class="cli-tab" data-pestana="ctacte">Cuenta corriente</button>
+      <button type="button" class="cli-tab" data-pestana="libro">Libro IVA Compras</button>
+    </div>
+
+    <!-- Comprobantes -->
+    <div data-panel="comprobantes">
+      <div class="cli-toolbar">
+        <input type="search" id="fc-buscar" placeholder="Buscar proveedor, número, observación..." autocomplete="off" />
+        <select id="fc-filtro-proveedor"><option value="">Todos los proveedores</option></select>
+        <input type="date" id="fc-desde" title="Desde" />
+        <input type="date" id="fc-hasta" title="Hasta" />
+        <select id="fc-filtro-estado">
+          <option value="confirmada">Confirmados</option>
+          <option value="anulada">Anulados</option>
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div class="cli-tabla-wrap">
+        <table class="cli-tabla">
+          <thead><tr><th>Fecha</th><th>Comprobante</th><th>Proveedor</th><th class="num">Total</th><th>Vence</th><th></th></tr></thead>
+          <tbody id="fc-tbody"></tbody>
+        </table>
+      </div>
+      <div class="cli-acciones-lista">
+        <button type="button" class="cli-btn primario" id="fc-nueva"><i class="fas fa-plus"></i> Cargar comprobante</button>
+        <button type="button" class="cli-btn" data-accion="nuevo-pago"><i class="fas fa-money-bill-wave"></i> Registrar pago</button>
+      </div>
+    </div>
+
+    <!-- Cuenta corriente -->
+    <div data-panel="ctacte" style="display:none">
+      <div class="cli-layout">
+        <div>
+          <div class="cli-tabla-wrap">
+            <table class="cli-tabla">
+              <thead><tr><th>Proveedor</th><th class="num">Saldo</th><th>Próx. venc.</th><th>Último pago</th></tr></thead>
+              <tbody id="fc-saldos"></tbody>
+            </table>
+          </div>
+          <div class="cli-acciones-lista">
+            <button type="button" class="cli-btn" data-accion="nuevo-pago"><i class="fas fa-money-bill-wave"></i> Registrar pago</button>
+          </div>
+        </div>
+        <div id="fc-ctacte-detalle"><div class="cli-ficha-vacia"><i class="fas fa-scale-balanced"></i> Elegí un proveedor para ver su cuenta corriente</div></div>
+      </div>
+    </div>
+
+    <!-- Libro IVA -->
+    <div data-panel="libro" style="display:none">
+      <div class="cli-toolbar">
+        <label style="color:var(--text-dark)">Mes <input type="month" id="fc-libro-mes" style="width:auto;padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px"></label>
+        <a class="cli-btn" id="fc-libro-exportar" href="#"><i class="fas fa-file-excel"></i> Exportar Excel</a>
+      </div>
+      <div class="cli-pestana-wrap" style="max-height:calc(100vh - 360px)">
+        <table class="cli-tabla" id="fc-libro-tabla"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: cargar comprobante -->
+  <div id="modal-factura-compra" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor fc-modal">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-file-invoice"></i> Cargar comprobante de compra</h2>
+      <form id="fc-form" autocomplete="off" novalidate>
+        <div class="fc-qr">
+          <i class="fas fa-qrcode"></i>
+          <input id="fc-qr" placeholder="Escaneá el QR de la factura con el lector (o pegá el link de AFIP)" autocomplete="off" />
+          <div class="cli-ayuda" id="fc-qr-info">Completa tipo, número, fecha, total, CAE y busca el proveedor por CUIT.</div>
+        </div>
+        <fieldset>
+          <legend>Comprobante</legend>
+          <div class="cli-form-grid">
+            <div style="grid-column: span 2;">
+              <label>Proveedor *</label>
+              <input id="fc-proveedor" list="fc-proveedores-lista" placeholder="Escribí el nombre o el código" />
+              <datalist id="fc-proveedores-lista"></datalist>
+              <div class="cli-ayuda" id="fc-proveedor-info"></div>
+            </div>
+            <div>
+              <label>Tipo</label>
+              <select name="comprobante"><option value="FC">Factura</option><option value="NC">Nota de crédito</option><option value="ND">Nota de débito</option></select>
+            </div>
+            <div>
+              <label>Letra</label>
+              <select name="letra"><option>A</option><option>B</option><option>C</option><option>M</option></select>
+            </div>
+          </div>
+          <div class="cli-form-grid">
+            <div><label>Punto de venta *</label><input name="punto_venta" inputmode="numeric" maxlength="5" placeholder="00003" /></div>
+            <div><label>Número *</label><input name="numero" inputmode="numeric" maxlength="8" placeholder="00012345" /></div>
+            <div><label>Fecha *</label><input name="fecha" type="date" /></div>
+            <div><label>Vencimiento</label><input name="vencimiento" type="date" /><div class="cli-ayuda" id="fc-venc-ayuda"></div></div>
+            <div><label>CAE</label><input name="cae" inputmode="numeric" maxlength="14" /></div>
+          </div>
+          <div class="cli-form-grid">
+            <div style="grid-column: span 2;">
+              <label>PDF o foto de la factura</label>
+              <input type="file" id="fc-archivo" accept="application/pdf,image/jpeg,image/png,image/webp" />
+              <div class="cli-ayuda" id="fc-archivo-info">Queda guardado con el comprobante.</div>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Renglones</legend>
+          <table class="cli-contactos-tabla fc-items">
+            <thead><tr><th style="width:30%">Artículo</th><th>Descripción *</th><th class="num">Cant.</th><th class="num">Precio unit.</th><th class="num">Bonif. %</th><th class="num fc-col-iva">IVA %</th><th class="num">Subtotal</th><th></th></tr></thead>
+            <tbody id="fc-items"></tbody>
+          </table>
+          <datalist id="fc-articulos-lista"></datalist>
+          <button type="button" class="cli-btn" id="fc-item-agregar"><i class="fas fa-plus"></i> Agregar renglón</button>
+          <span class="cli-ayuda" id="fc-precio-ayuda" style="margin-left:8px"></span>
+          <div class="cli-form-grid" style="margin-top:10px">
+            <div>
+              <label class="cli-check" style="margin-top:0"><input type="checkbox" name="ingresa_stock" checked> Ingresar la mercadería al stock</label>
+              <div class="cli-ayuda" id="fc-stock-ayuda">Los renglones con artículo suman al stock del depósito.</div>
+            </div>
+            <div>
+              <label>Depósito</label>
+              <select name="deposito_id" id="fc-deposito"></select>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Importes</legend>
+          <div style="margin-bottom:8px"><button type="button" class="cli-btn" id="fc-calcular"><i class="fas fa-calculator"></i> Calcular desde los renglones</button>
+            <span class="cli-ayuda" id="fc-letra-ayuda"></span></div>
+          <div class="cli-form-grid fc-importes">
+            <div class="fc-solo-a"><label>Neto 21%</label><input name="neto_21" inputmode="decimal" /></div>
+            <div class="fc-solo-a"><label>IVA 21%</label><input name="iva_21" inputmode="decimal" /></div>
+            <div class="fc-solo-a"><label>Neto 10,5%</label><input name="neto_105" inputmode="decimal" /></div>
+            <div class="fc-solo-a"><label>IVA 10,5%</label><input name="iva_105" inputmode="decimal" /></div>
+            <div class="fc-solo-a"><label>Neto 27%</label><input name="neto_27" inputmode="decimal" /></div>
+            <div class="fc-solo-a"><label>IVA 27%</label><input name="iva_27" inputmode="decimal" /></div>
+            <div><label id="fc-label-no-gravado">No gravado</label><input name="no_gravado" inputmode="decimal" /></div>
+            <div class="fc-solo-a"><label>Exento</label><input name="exento" inputmode="decimal" /></div>
+            <div><label>Percepción IVA</label><input name="percepcion_iva" inputmode="decimal" /></div>
+            <div><label>Percepción IIBB</label><input name="percepcion_iibb" inputmode="decimal" /></div>
+            <div><label>Impuestos internos</label><input name="impuestos_internos" inputmode="decimal" /></div>
+            <div><label>Otros tributos</label><input name="otros_tributos" inputmode="decimal" /></div>
+          </div>
+          <div class="fc-total-box">
+            <div><label>Total del comprobante *</label><input name="total" inputmode="decimal" placeholder="Como figura en la factura" /></div>
+            <div class="fc-control" id="fc-control"></div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Observaciones</legend>
+          <textarea name="observaciones"></textarea>
+        </fieldset>
+
+        <div class="cli-form-error" id="fc-error"></div>
+        <div class="cli-form-acciones">
+          <button type="button" class="cli-btn" data-cerrar>Cancelar</button>
+          <button type="submit" class="cli-btn primario" id="fc-guardar"><i class="fas fa-check"></i> Confirmar comprobante</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: detalle -->
+  <div id="modal-factura-detalle" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor fc-modal">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <div id="fc-detalle"></div>
+    </div>
+  </div>
+
+  <!-- Modal: pago -->
+  <div id="modal-pago-proveedor" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor" style="max-width:520px">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-money-bill-wave"></i> Registrar pago</h2>
+      <form id="fc-pago-form" autocomplete="off" novalidate>
+        <div class="cli-form-grid">
+          <div style="grid-column: 1 / -1;">
+            <label>Proveedor *</label>
+            <input id="fc-pago-proveedor" list="fc-proveedores-lista" placeholder="Escribí el nombre o el código" />
+            <div class="cli-ayuda" id="fc-pago-saldo"></div>
+          </div>
+          <div><label>Fecha *</label><input name="fecha" type="date" /></div>
+          <div><label>Importe *</label><input name="importe" inputmode="decimal" /></div>
+          <div>
+            <label>Medio *</label>
+            <select name="medio"><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option><option value="cheque">Cheque</option><option value="echeq">E-cheq</option><option value="otro">Otro</option></select>
+          </div>
+          <div><label>Referencia</label><input name="referencia" placeholder="Nº de operación / cheque" /></div>
+          <div style="grid-column: 1 / -1;"><label>Observaciones</label><textarea name="observaciones" style="min-height:50px"></textarea></div>
+        </div>
+        <div class="cli-form-error" id="fc-pago-error"></div>
+        <div class="cli-form-acciones">
+          <button type="button" class="cli-btn" data-cerrar>Cancelar</button>
+          <button type="submit" class="cli-btn primario"><i class="fas fa-check"></i> Registrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>

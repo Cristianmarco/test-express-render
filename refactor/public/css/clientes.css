@@ -120,17 +120,17 @@
 /* Modal de alta / edicion */
 :is(#modal-cliente-ref, #modal-proveedor-ref) .modal-contenido-refactor { max-width: 860px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; box-sizing: border-box; padding: 20px 24px 14px; }
 :is(#modal-cliente-ref, #modal-proveedor-ref) .modal-titulo-principal { margin-bottom: 12px; }
-:is(#form-cliente-ref, #form-proveedor-ref) { overflow-y: auto; min-height: 0; padding-right: 4px; }
-:is(#form-cliente-ref, #form-proveedor-ref) fieldset { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 4px; margin: 0 0 12px; }
-:is(#form-cliente-ref, #form-proveedor-ref) legend { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; }
-:is(#form-cliente-ref, #form-proveedor-ref) .cli-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; margin-bottom: 10px; }
-:is(#form-cliente-ref, #form-proveedor-ref) label { display: block; font-weight: 600; color: #334155; margin-bottom: 4px; font-size: 0.86rem; }
-:is(#form-cliente-ref, #form-proveedor-ref) input, :is(#form-cliente-ref, #form-proveedor-ref) select, :is(#form-cliente-ref, #form-proveedor-ref) textarea { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 0.9rem; font-family: inherit; }
-:is(#form-cliente-ref, #form-proveedor-ref) textarea { min-height: 70px; resize: vertical; }
-:is(#form-cliente-ref, #form-proveedor-ref) input[type="checkbox"] { width: auto; }
-:is(#form-cliente-ref, #form-proveedor-ref) .cli-check { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-top: 24px; }
-:is(#form-cliente-ref, #form-proveedor-ref) .cli-ayuda { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; }
-:is(#form-cliente-ref, #form-proveedor-ref) .cli-ayuda.error { color: #b91c1c; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) { overflow-y: auto; min-height: 0; padding-right: 4px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) fieldset { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 4px; margin: 0 0 12px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) legend { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) .cli-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; margin-bottom: 10px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) label { display: block; font-weight: 600; color: #334155; margin-bottom: 4px; font-size: 0.86rem; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) input, :is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) select, :is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) textarea { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 0.9rem; font-family: inherit; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) textarea { min-height: 70px; resize: vertical; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) input[type="checkbox"] { width: auto; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) .cli-check { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-top: 24px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) .cli-ayuda { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form) .cli-ayuda.error { color: #b91c1c; }
 .cli-contactos-tabla { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-bottom: 8px; }
 .cli-contactos-tabla th { text-align: left; font-size: 0.76rem; color: var(--text-muted); font-weight: 600; padding: 2px 4px; }
 .cli-contactos-tabla td { padding: 3px 4px; }
@@ -171,3 +171,32 @@
 .cmp-familia-fila td:first-child::before { content: '▸ '; color: #94a3b8; }
 .cmp-familia-fila.abierta td:first-child::before { content: '▾ '; }
 .cmp-faltan h4 { margin: 14px 0 6px; font-size: .82rem; text-transform: uppercase; color: var(--text-muted); }
+
+/* Facturas de compra */
+.fc-modal { max-width: 1100px !important; width: 96% !important; max-height: 94vh; display: flex; flex-direction: column; box-sizing: border-box; padding: 18px 22px 12px !important; }
+.fc-modal form, .fc-modal #fc-detalle { overflow-y: auto; min-height: 0; padding-right: 4px; }
+#fc-form .fc-items input { padding: 5px 6px; font-size: .86rem; }
+#fc-form .fc-items td.num input { text-align: right; }
+#fc-form .fc-items .fc-sub { text-align: right; white-space: nowrap; font-weight: 600; padding-right: 6px; }
+#fc-form .fc-items .fc-art-info { font-size: .72rem; color: var(--text-muted); display: block; margin-top: 2px; }
+#fc-form .fc-items .fc-art-info.vinculado { color: #15803d; }
+#fc-form .fc-items .fc-art-info.cambio { color: #b45309; }
+#fc-form .fc-importes input { text-align: right; }
+.fc-total-box { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px; }
+.fc-total-box > div:first-child { min-width: 220px; }
+.fc-total-box input { font-size: 1.1rem !important; font-weight: 700; text-align: right; }
+.fc-control { font-size: .88rem; padding: 8px 10px; border-radius: 8px; }
+.fc-control.ok { background: #ecfdf5; color: #065f46; }
+.fc-control.mal { background: #fef2f2; color: #991b1b; }
+.fc-estado { font-size: .72rem; font-weight: 700; border-radius: 999px; padding: 1px 8px; }
+.fc-estado.anulada { background: #fee2e2; color: #991b1b; }
+.fc-neg { color: #b91c1c; }
+.fc-vencida { color: #b91c1c; font-weight: 600; }
+.fc-detalle-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 6px 14px; margin: 10px 0 14px; font-size: .88rem; }
+.fc-detalle-grid div span { display: block; color: var(--text-muted); font-size: .76rem; }
+.fc-qr { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center; background: #f0f9ff; border: 1px dashed #7dd3fc; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+.fc-qr > i { font-size: 1.6rem; color: #0369a1; grid-row: span 2; }
+.fc-qr input { font-size: .95rem; }
+.fc-qr .cli-ayuda { grid-column: 2; }
+.fc-qr .cli-ayuda.ok { color: #15803d; }
+.fc-qr .cli-ayuda.error { color: #b91c1c; }

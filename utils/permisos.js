@@ -58,6 +58,7 @@ const API = {
     escribir: ['cotizaciones', 'cotizaciones_nuevas', 'licitaciones'],
   },
   compras: { leer: ['compras'], escribir: ['compras'] },
+  facturas_compra: { leer: ['compras'], escribir: ['compras'] },
   reportes: { leer: ['reportes'], escribir: ['reportes'] },
   estadisticas: { leer: ['reportes'], escribir: ['reportes'] },
 };

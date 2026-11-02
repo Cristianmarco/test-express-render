@@ -59,7 +59,14 @@
                 <% if (puede('clientes')) { %><li><a href="#" class="menu-link" data-view="clientes"><i class="fa fa-users"></i> Clientes</a></li><% } %>
                 <% if (puede('productos')) { %><li><a href="#" class="menu-link" data-view="productos"><i class="fa fa-box"></i> Productos</a></li><% } %>
                 <% if (puede('fichas')) { %><li><a href="#" class="menu-link" data-view="fichas"><i class="fa fa-id-card-clip"></i> Fichas tecnicas</a></li><% } %>
-                <% if (puede('compras')) { %><li><a href="#" class="menu-link" data-view="compras"><i class="fa fa-cart-shopping"></i> Compras</a>
+                <% if (puede('compras')) { %><li>
+                    <button class="menu-item" data-toggle="compras">
+                        <i class="fa fa-cart-shopping"></i> Compras <i class="fa fa-chevron-down" style="margin-left:auto;"></i>
+                    </button>
+                    <ul class="submenu" data-parent="compras" style="display:none;">
+                        <li><a href="#" class="menu-link" data-view="compras"><i class="fa fa-calculator"></i> Sugerencia de compra</a></li>
+                        <li><a href="#" class="menu-link" data-view="facturas_compra"><i class="fa fa-file-invoice"></i> Facturas y pagos</a></li>
+                    </ul>
                 </li><% } %>
                 <% if (puede('stock')) { %><li><a href="#" class="menu-link" data-view="stock"><i class="fa fa-warehouse"></i> Stock</a></li><% } %>
                 <% if (puede('proveedores')) { %><li><a href="#" class="menu-link" data-view="proveedores"><i class="fa fa-truck"></i> Proveedores</a>

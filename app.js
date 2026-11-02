@@ -139,6 +139,7 @@ app.use('/api/reportes', requireLogin, reportesRouter);
 app.use('/api/fichas', requireLogin, fichasRouter);
 app.use('/api/cotizaciones_reparacion', requireLogin, cotizacionesReparacionRouter);
 app.use('/api/compras', requireLogin, comprasRouter);
+app.use('/api/facturas_compra', requireLogin, require('./routes/facturas_compra'));
 
 
 // ============================

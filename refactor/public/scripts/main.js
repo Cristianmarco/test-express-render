@@ -161,6 +161,9 @@ window.closeTab = closeTab;
     case "compras":
       cargarScript("/static/scripts/compras.js");
       break;
+    case "facturas_compra":
+      cargarScript("/static/scripts/facturas_compra.js");
+      break;
     default:
       try { console.log(`No hay script especifico para ${view}`); } catch {}
   }

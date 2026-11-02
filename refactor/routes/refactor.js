@@ -9,6 +9,8 @@ const BUILD_ID = String(Date.now());
 
 // Vistas que corresponden a una sección del menú (las demás no tienen datos propios)
 const VISTAS_CON_PERMISO = new Set(['usuarios', ...permisos.SECCIONES.map(s => s.id)]);
+// Vistas que dependen de la seccion de otra
+const SECCION_DE_VISTA = { facturas_compra: 'compras' };
 
 // === LOGIN del refactor (público) ===
 router.get("/login", (req, res) => {
@@ -42,7 +44,8 @@ router.get("/", requireInterno, (req, res) => {
 // === Rutas dinámicas: carga vistas parciales ===
 router.get("/view/:view", requireInterno, (req, res) => {
   const viewName = req.params.view;
-  if (VISTAS_CON_PERMISO.has(viewName) && !permisos.tieneSeccion(req.session.user, viewName)) {
+  const seccion = SECCION_DE_VISTA[viewName] || viewName;
+  if (VISTAS_CON_PERMISO.has(seccion) && !permisos.tieneSeccion(req.session.user, seccion)) {
     return res.status(403).send('<div style="padding:24px;color:#a33"><i class="fas fa-lock"></i> No tenés acceso a esta sección.</div>');
   }
 
