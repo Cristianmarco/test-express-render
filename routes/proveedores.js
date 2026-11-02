@@ -161,11 +161,14 @@ router.get("/:id(\\d+)", requireSeccion, async (req, res, next) => {
     const p = rows[0];
     const [contactos, stock] = await Promise.all([
       db.query("SELECT id, nombre, cargo, telefono, mail FROM proveedor_contactos WHERE proveedor_id = $1 ORDER BY orden, id", [p.id]),
+      // Stock real: la tabla stock (por deposito); la columna productos.stock esta desactualizada
       db.query(
-        `SELECT count(*) FILTER (WHERE COALESCE(stock, 0) <= 0)::int AS sin_stock,
-                count(*) FILTER (WHERE proveedor_sync_at < now() - interval '30 days'
-                                   AND NULLIF(btrim(proveedor_url), '') IS NOT NULL)::int AS desactualizados
-           FROM productos WHERE proveedor_id = $1`, [p.id]),
+        `SELECT count(*) FILTER (WHERE COALESCE(s.total, 0) <= 0)::int AS sin_stock,
+                count(*) FILTER (WHERE p.proveedor_sync_at < now() - interval '30 days'
+                                   AND NULLIF(btrim(p.proveedor_url), '') IS NOT NULL)::int AS desactualizados
+           FROM productos p
+           LEFT JOIN (SELECT producto_id, sum(cantidad) AS total FROM stock GROUP BY producto_id) s ON s.producto_id = p.id
+          WHERE p.proveedor_id = $1`, [p.id]),
     ]);
     res.json({ ...p, contactos: contactos.rows, ...stock.rows[0], importador_info: infoImportador(p.importador) });
   } catch (e) {
@@ -177,7 +180,8 @@ router.get("/:id(\\d+)", requireSeccion, async (req, res, next) => {
 router.get("/:id(\\d+)/productos", requireSeccion, async (req, res, next) => {
   try {
     const { rows } = await db.query(
-      `SELECT p.id, p.codigo, p.codigo_fabricante, p.descripcion, p.stock, p.proveedor_url, p.proveedor_sync_at,
+      `SELECT p.id, p.codigo, p.codigo_fabricante, p.descripcion, p.proveedor_url, p.proveedor_sync_at,
+              COALESCE((SELECT sum(s.cantidad) FROM stock s WHERE s.producto_id = p.id), 0)::numeric AS stock,
               pp.precio_lista, pp.desc_suma, pp.desc_pago, m.descripcion AS marca
          FROM productos p
          LEFT JOIN producto_precios pp ON pp.producto_id = p.id

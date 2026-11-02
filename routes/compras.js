@@ -2,310 +2,129 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const PDFDocument = require('pdfkit');
+// Sugerencia por consumo real, agrupada por proveedor
+const { calcularSugerencia } = require('../utils/sugerencia_compras');
 
-function normalizePedido(value) {
-  return String(value || '').trim();
-}
-
-async function getComprasPayload(nroPedidoRaw) {
-  const nroPedido = normalizePedido(nroPedidoRaw);
-  const params = [];
-  let filter = `WHERE COALESCE(rd.pendientes, 0) > 0`;
-  if (nroPedido) {
-    params.push(nroPedido);
-    filter += ` AND btrim(COALESCE(rd.nro_pedido, '')) = btrim($1)`;
-  }
-
-  const sql = `
-    WITH vigentes AS (
-      SELECT
-        rd.id,
-        btrim(COALESCE(rd.nro_pedido, '')) AS nro_pedido,
-        btrim(COALESCE(rd.codigo, '')) AS codigo_licitacion,
-        rd.descripcion AS descripcion_licitacion,
-        COALESCE(rd.pendientes, 0)::numeric AS pendientes
-      FROM reparaciones_dota rd
-      ${filter}
-    ),
-    vigentes_familia AS (
-      SELECT
-        v.*,
-        f.id AS familia_id,
-        f.codigo AS familia_codigo,
-        f.descripcion AS familia_descripcion
-      FROM vigentes v
-      LEFT JOIN familia f
-        ON lower(btrim(COALESCE(f.codigo, ''))) = lower(v.codigo_licitacion)
-    ),
-    stock_total AS (
-      SELECT producto_id, COALESCE(SUM(cantidad), 0)::numeric AS stock_total
-      FROM stock
-      GROUP BY producto_id
-    ),
-    detallado AS (
-      SELECT
-        vf.nro_pedido,
-        vf.codigo_licitacion,
-        vf.descripcion_licitacion,
-        vf.pendientes,
-        vf.familia_id,
-        vf.familia_codigo,
-        vf.familia_descripcion,
-        fr.tipo_repuesto,
-        fr.indice_uso,
-        fr.producto_id,
-        p.codigo AS producto_codigo,
-        p.descripcion AS producto_descripcion,
-        COALESCE(st.stock_total, 0)::numeric AS stock_total,
-        (vf.pendientes * COALESCE(fr.indice_uso, 0))::numeric AS necesidad
-      FROM vigentes_familia vf
-      LEFT JOIN familia_ficha_repuestos fr ON fr.familia_id = vf.familia_id
-      LEFT JOIN productos p ON p.id = fr.producto_id
-      LEFT JOIN stock_total st ON st.producto_id = fr.producto_id
-    ),
-    resumen AS (
-      SELECT
-        nro_pedido,
-        codigo_licitacion,
-        descripcion_licitacion,
-        familia_id,
-        familia_codigo,
-        familia_descripcion,
-        tipo_repuesto,
-        producto_id,
-        producto_codigo,
-        producto_descripcion,
-        MAX(stock_total) AS stock_total,
-        SUM(pendientes) AS equipos_pendientes,
-        MAX(indice_uso) AS indice_uso,
-        SUM(necesidad) AS necesidad_total
-      FROM detallado
-      WHERE producto_id IS NOT NULL
-      GROUP BY
-        nro_pedido,
-        codigo_licitacion,
-        descripcion_licitacion,
-        familia_id,
-        familia_codigo,
-        familia_descripcion,
-        tipo_repuesto,
-        producto_id,
-        producto_codigo,
-        producto_descripcion
-    ),
-    faltantes_ficha AS (
-      SELECT
-        nro_pedido,
-        codigo_licitacion,
-        descripcion_licitacion,
-        pendientes,
-        familia_id,
-        familia_codigo,
-        familia_descripcion
-      FROM vigentes_familia
-      WHERE familia_id IS NULL
-    ),
-    faltantes_producto AS (
-      SELECT DISTINCT
-        vf.nro_pedido,
-        vf.codigo_licitacion,
-        vf.descripcion_licitacion,
-        vf.pendientes,
-        vf.familia_id,
-        vf.familia_codigo,
-        vf.familia_descripcion
-      FROM vigentes_familia vf
-      LEFT JOIN familia_ficha_repuestos fr ON fr.familia_id = vf.familia_id
-      WHERE vf.familia_id IS NOT NULL
-        AND fr.id IS NULL
-    )
-    SELECT json_build_object(
-      'items', COALESCE((
-        SELECT json_agg(
-          json_build_object(
-            'nro_pedido', r.nro_pedido,
-            'codigo_licitacion', r.codigo_licitacion,
-            'descripcion_licitacion', r.descripcion_licitacion,
-            'familia_id', r.familia_id,
-            'familia_codigo', r.familia_codigo,
-            'familia_descripcion', r.familia_descripcion,
-            'tipo_repuesto', r.tipo_repuesto,
-            'producto_id', r.producto_id,
-            'producto_codigo', r.producto_codigo,
-            'producto_descripcion', r.producto_descripcion,
-            'stock_total', r.stock_total,
-            'equipos_pendientes', r.equipos_pendientes,
-            'indice_uso', r.indice_uso,
-            'necesidad_total', r.necesidad_total,
-            'compra_sugerida', GREATEST(r.necesidad_total - r.stock_total, 0)
-          )
-          ORDER BY r.nro_pedido, r.familia_descripcion, r.tipo_repuesto, r.producto_descripcion
-        ) FROM resumen r
-      ), '[]'::json),
-      'faltantes_ficha', COALESCE((
-        SELECT json_agg(row_to_json(ff) ORDER BY ff.nro_pedido, ff.codigo_licitacion) FROM faltantes_ficha ff
-      ), '[]'::json),
-      'faltantes_producto', COALESCE((
-        SELECT json_agg(row_to_json(fp) ORDER BY fp.nro_pedido, fp.codigo_licitacion) FROM faltantes_producto fp
-      ), '[]'::json)
-    ) AS payload
-  `;
-
-  const result = await db.query(sql, params);
-  return result.rows[0]?.payload || { items: [], faltantes_ficha: [], faltantes_producto: [] };
-}
-
-function buildPrecompra(items) {
-  const map = new Map();
-  (Array.isArray(items) ? items : []).forEach((item) => {
-    const key = String(item.producto_id || item.producto_codigo || item.producto_descripcion || '').trim();
-    if (!key) return;
-    if (!map.has(key)) {
-      map.set(key, {
-        producto_id: item.producto_id,
-        producto_codigo: item.producto_codigo,
-        producto_descripcion: item.producto_descripcion,
-        stock_total: Number(item.stock_total || 0),
-        necesidad_total: 0,
-        compra_sugerida: 0,
-        pedidos: new Set(),
-        tipos: new Set()
-      });
-    }
-    const acc = map.get(key);
-    acc.stock_total = Math.max(acc.stock_total, Number(item.stock_total || 0));
-    acc.necesidad_total += Number(item.necesidad_total || 0);
-    acc.compra_sugerida += Number(item.compra_sugerida || 0);
-    if (item.nro_pedido) acc.pedidos.add(String(item.nro_pedido));
-    if (item.tipo_repuesto) acc.tipos.add(String(item.tipo_repuesto));
-  });
-  return Array.from(map.values())
-    .map((item) => ({
-      ...item,
-      pedidos: Array.from(item.pedidos),
-      tipos: Array.from(item.tipos)
-    }))
-    .sort((a, b) => String(a.producto_descripcion || '').localeCompare(String(b.producto_descripcion || ''), 'es'));
-}
-
+// Numero con decimales solo si los tiene ("1.234" / "12,5")
 function fmtNum(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return '0';
   return num.toLocaleString('es-AR', { minimumFractionDigits: num % 1 ? 2 : 0, maximumFractionDigits: 2 });
 }
 
-function ensurePdfPage(doc, extra = 0) {
-  if (doc.y + extra <= doc.page.height - 50) return;
-  doc.addPage();
-}
-
-router.get('/pedidos', async (req, res, next) => {
+// Pedidos y licitaciones con pendientes (para los filtros)
+router.get('/filtros', async (req, res, next) => {
   try {
-    const result = await db.query(`
-      SELECT DISTINCT btrim(nro_pedido) AS nro_pedido
-      FROM reparaciones_dota
-      WHERE COALESCE(btrim(nro_pedido), '') <> ''
-        AND COALESCE(pendientes, 0) > 0
-      ORDER BY btrim(nro_pedido)
-    `);
-    res.json(result.rows);
+    const { rows } = await db.query(`
+      SELECT btrim(nro_pedido) AS nro_pedido, NULLIF(btrim(licitacion_nro), '') AS licitacion,
+             sum(pendientes)::int AS pendientes, max(fecha_ingreso) AS ingreso
+        FROM reparaciones_dota
+       WHERE COALESCE(btrim(nro_pedido), '') <> '' AND COALESCE(pendientes, 0) > 0 AND NOT COALESCE(devuelto, false)
+       GROUP BY 1, 2
+       ORDER BY max(fecha_ingreso) DESC NULLS LAST, 1`);
+    const licitaciones = [...new Set(rows.map((r) => r.licitacion).filter(Boolean))];
+    res.json({ pedidos: rows, licitaciones });
   } catch (err) {
     next(err);
   }
 });
 
-router.get('/sugeridas', async (req, res, next) => {
+// ?nro_pedido=&licitacion=&dias=180&fuente=auto|consumo|ficha
+router.get('/sugerencia', async (req, res, next) => {
   try {
-    const payload = await getComprasPayload(req.query.nro_pedido);
-    res.json({
-      ...payload,
-      precompra: buildPrecompra(payload.items)
-    });
+    res.json(await calcularSugerencia({
+      nroPedido: req.query.nro_pedido,
+      licitacion: req.query.licitacion,
+      dias: req.query.dias,
+      fuente: req.query.fuente,
+    }));
   } catch (err) {
     next(err);
   }
 });
 
-router.get('/precompra', async (req, res, next) => {
+// PDF del pedido a un proveedor. Body: { proveedor_id, items: [{ producto_id, cantidad }], con_precios, nota }
+// Las cantidades son las que quedaron en pantalla (se pueden corregir antes de imprimir).
+router.post('/pedido/pdf', async (req, res, next) => {
   try {
-    const payload = await getComprasPayload(req.query.nro_pedido);
-    res.json({
-      ...payload,
-      precompra: buildPrecompra(payload.items)
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+    const proveedorId = Number(req.body && req.body.proveedor_id) || null;
+    const conPrecios = !!(req.body && req.body.con_precios);
+    const nota = String((req.body && req.body.nota) || '').trim().slice(0, 1000);
+    const pedidos = (Array.isArray(req.body && req.body.items) ? req.body.items : [])
+      .map((i) => ({ producto_id: Number(i.producto_id), cantidad: Number(i.cantidad) }))
+      .filter((i) => i.producto_id && Number.isFinite(i.cantidad) && i.cantidad > 0);
+    if (!pedidos.length) return res.status(400).json({ error: 'El pedido no tiene renglones' });
 
-router.get('/precompra/pdf', async (req, res, next) => {
-  try {
-    const nroPedido = normalizePedido(req.query.nro_pedido);
-    const payload = await getComprasPayload(nroPedido);
-    const precompra = buildPrecompra(payload.items);
+    const [{ rows: prods }, { rows: provs }] = await Promise.all([
+      db.query(
+        `SELECT p.id, p.codigo, p.codigo_fabricante, p.descripcion, pp.precio_lista, pp.desc_suma, pp.desc_pago
+           FROM productos p LEFT JOIN producto_precios pp ON pp.producto_id = p.id
+          WHERE p.id = ANY($1::int[])`, [pedidos.map((i) => i.producto_id)]),
+      proveedorId ? db.query('SELECT razon_social, fantasia, condicion_pago, plazo_entrega FROM proveedores WHERE id = $1', [proveedorId]) : { rows: [] },
+    ]);
+    const porId = new Map(prods.map((p) => [p.id, p]));
+    const prov = provs[0];
+    const renglones = pedidos.filter((i) => porId.has(i.producto_id)).map((i) => {
+      const p = porId.get(i.producto_id);
+      const lista = Number(p.precio_lista || 0);
+      const costo = lista ? lista * (1 - Number(p.desc_suma || 0) / 100) * (1 - Number(p.desc_pago || 0) / 100) : null;
+      return { ...p, cantidad: i.cantidad, costo, subtotal: costo != null ? costo * i.cantidad : null };
+    }).sort((a, b) => String(a.descripcion).localeCompare(String(b.descripcion), 'es'));
 
     const doc = new PDFDocument({ size: 'A4', margin: 36 });
+    const nombreArchivo = `pedido-${String(prov ? (prov.fantasia || prov.razon_social) : 'proveedor').replace(/[^\w-]+/g, '_')}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="precompra${nroPedido ? `-${nroPedido}` : ''}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="${nombreArchivo}"`);
     doc.pipe(res);
 
-    doc.fontSize(18).font('Helvetica-Bold').text('Precompra sugerida', { align: 'left' });
-    doc.moveDown(0.2);
-    doc.fontSize(10).font('Helvetica').fillColor('#4b5563').text(
-      nroPedido ? `Pedido: ${nroPedido}` : 'Pedidos: todos los vigentes con pendientes',
-      { align: 'left' }
-    );
-    doc.text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`, { align: 'left' });
+    doc.fontSize(18).font('Helvetica-Bold').fillColor('#111827').text('Pedido de compra');
+    doc.moveDown(0.2).fontSize(10).font('Helvetica').fillColor('#4b5563');
+    if (prov) doc.text(`Proveedor: ${prov.razon_social}${prov.fantasia && prov.fantasia !== prov.razon_social ? ` (${prov.fantasia})` : ''}`);
+    doc.text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`);
+    if (prov && prov.condicion_pago) doc.text(`Condición de pago: ${prov.condicion_pago}`);
+    if (nota) doc.moveDown(0.3).fillColor('#111827').text(nota);
     doc.moveDown(0.8);
 
-    doc.font('Helvetica-Bold').fillColor('#111827').fontSize(10);
-    doc.text('Codigo', 36, doc.y, { width: 80 });
-    doc.text('Producto', 120, doc.y, { width: 220 });
-    doc.text('Tipos', 345, doc.y, { width: 95 });
-    doc.text('Necesidad', 445, doc.y, { width: 55, align: 'right' });
-    doc.text('Stock', 505, doc.y, { width: 45, align: 'right' });
-    doc.text('Comprar', 555, doc.y, { width: 40, align: 'right' });
-    doc.moveTo(36, doc.y + 14).lineTo(575, doc.y + 14).stroke('#cbd5e1');
-    doc.y += 20;
-
-    precompra.forEach((item) => {
-      ensurePdfPage(doc, 40);
-      const startY = doc.y;
-      const productoHeight = doc.heightOfString(String(item.producto_descripcion || '-'), { width: 220 });
-      const tiposText = item.tipos.join(', ') || '-';
-      const tiposHeight = doc.heightOfString(tiposText, { width: 95 });
-      const rowHeight = Math.max(18, productoHeight, tiposHeight);
-
-      doc.font('Helvetica').fillColor('#111827').fontSize(9);
-      doc.text(String(item.producto_codigo || '-'), 36, startY, { width: 80 });
-      doc.text(String(item.producto_descripcion || '-'), 120, startY, { width: 220 });
-      doc.text(tiposText, 345, startY, { width: 95 });
-      doc.text(fmtNum(item.necesidad_total), 445, startY, { width: 55, align: 'right' });
-      doc.text(fmtNum(item.stock_total), 505, startY, { width: 45, align: 'right' });
-      doc.font('Helvetica-Bold').text(fmtNum(item.compra_sugerida), 555, startY, { width: 40, align: 'right' });
-
-      doc.moveTo(36, startY + rowHeight + 6).lineTo(575, startY + rowHeight + 6).stroke('#e5e7eb');
-      doc.y = startY + rowHeight + 12;
-    });
-
-    const total = precompra.reduce((acc, item) => acc + Number(item.compra_sugerida || 0), 0);
-    ensurePdfPage(doc, 40);
-    doc.moveDown(0.5);
-    doc.font('Helvetica-Bold').fontSize(11).text(`Total sugerido: ${fmtNum(total)}`, { align: 'right' });
-
-    if (payload.faltantes_ficha?.length || payload.faltantes_producto?.length) {
-      ensurePdfPage(doc, 90);
-      doc.moveDown(1);
-      doc.font('Helvetica-Bold').fontSize(11).text('Pendientes a completar', { align: 'left' });
-      doc.font('Helvetica').fontSize(9);
-      payload.faltantes_ficha.forEach((item) => {
-        doc.text(`Sin ficha: ${item.nro_pedido} · ${item.codigo_licitacion} · ${item.descripcion_licitacion}`);
+    // Columnas: con precios se achica la descripcion
+    const col = conPrecios
+      ? { cprov: [36, 80], cod: [120, 70], desc: [194, 200], cant: [398, 45], unit: [447, 60], sub: [511, 64] }
+      : { cprov: [36, 95], cod: [135, 85], desc: [224, 300], cant: [528, 47] };
+    const fila = (y, valores, bold) => {
+      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor('#111827');
+      let alto = 0;
+      for (const [k, [x, w]] of Object.entries(col)) {
+        const txt = String(valores[k] ?? '');
+        const derecha = ['cant', 'unit', 'sub'].includes(k);
+        doc.text(txt, x, y, { width: w, align: derecha ? 'right' : 'left' });
+        alto = Math.max(alto, doc.heightOfString(txt, { width: w }));
+      }
+      return alto;
+    };
+    const cab = { cprov: 'Cód. proveedor', cod: 'Código', desc: 'Descripción', cant: 'Cant.', unit: 'Precio unit.', sub: 'Subtotal' };
+    let y = doc.y;
+    y += fila(y, cab, true) + 4;
+    doc.moveTo(36, y).lineTo(575, y).stroke('#cbd5e1');
+    y += 6;
+    const plata = (n) => n == null ? '-' : n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 });
+    for (const r of renglones) {
+      if (y > doc.page.height - 80) { doc.addPage(); y = 36; }
+      const alto = fila(y, {
+        cprov: r.codigo_fabricante || '', cod: r.codigo, desc: r.descripcion || '',
+        cant: fmtNum(r.cantidad), unit: plata(r.costo), sub: plata(r.subtotal),
       });
-      payload.faltantes_producto.forEach((item) => {
-        doc.text(`Sin articulos: ${item.nro_pedido} · ${item.codigo_licitacion} · ${item.descripcion_licitacion}`);
-      });
+      y += alto + 5;
+      doc.moveTo(36, y).lineTo(575, y).stroke('#eef0f3');
+      y += 5;
     }
-
+    doc.y = y + 6;
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#111827');
+    const unidades = renglones.reduce((a, r) => a + r.cantidad, 0);
+    doc.text(`${renglones.length} artículos · ${fmtNum(unidades)} unidades`, 36, doc.y, { width: 539, align: 'right' });
+    if (conPrecios) {
+      const total = renglones.reduce((a, r) => a + (r.subtotal || 0), 0);
+      const sinPrecio = renglones.filter((r) => r.costo == null).length;
+      doc.text(`Total estimado: ${plata(total)}${sinPrecio ? ` (${sinPrecio} sin precio)` : ''}`, 36, doc.y, { width: 539, align: 'right' });
+    }
     doc.end();
   } catch (err) {
     next(err);
