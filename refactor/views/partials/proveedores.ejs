@@ -1,60 +1,51 @@
-<section class="proveedores-section">
-  <div class="erp-header-row">
-    <div class="titulo-dota">
-      <i class="fas fa-truck"></i> Proveedores
-    </div>
+<section class="cli-section">
+  <div class="cli-top">
+    <h2><i class="fas fa-truck"></i> Proveedores</h2>
+    <div class="cli-stats" id="prov-stats"></div>
   </div>
 
-  <div class="erp-two-col" style="display:grid; grid-template-columns: 2fr 1fr; gap: 12px; align-items: start;">
-    <!-- Columna izquierda: listado -->
-    <div class="erp-main-card">
-      <div class="buscador-historial">
-        <input type="text" id="buscar-proveedor" class="input-buscar" placeholder="Buscar por código, fantasía o razón social..." />
-        <button id="btn-buscar-proveedor" class="btn-primary">
-          <i class="fas fa-search"></i> Buscar
-        </button>
+  <div class="cli-layout">
+    <!-- Listado -->
+    <div class="cli-card">
+      <div class="cli-toolbar">
+        <input type="search" id="prov-buscar" placeholder="Buscar código, nombre, rubro, CUIT..." autocomplete="off" />
+        <select id="prov-filtro-rubro" title="Rubro"><option value="">Todos los rubros</option></select>
+        <select id="prov-filtro-estado" title="Estado">
+          <option value="activos">Activos</option>
+          <option value="inactivos">Inactivos</option>
+          <option value="todos">Activos e inactivos</option>
+        </select>
+        <label title="Con importador automático de fichas y precios"><input type="checkbox" id="prov-filtro-importador"> Con importador</label>
+        <label title="Sin email o sin teléfono"><input type="checkbox" id="prov-filtro-incompletos"> Incompletos</label>
       </div>
 
-      <div class="erp-table-card">
-        <table class="tabla-erp">
+      <div class="cli-tabla-wrap">
+        <table class="cli-tabla">
           <thead>
             <tr>
-              <th>Código</th>
-              <th>Nombre Fantasía</th>
-              <th>Razón Social</th>
+              <th data-orden="codigo">Código</th>
+              <th data-orden="nombre">Proveedor</th>
+              <th data-orden="productos" class="num">Productos</th>
+              <th data-orden="ultima_sync" title="Última actualización de precios desde la página del proveedor">Últ. sinc.</th>
             </tr>
           </thead>
           <tbody id="tbody-proveedores-ref"></tbody>
         </table>
       </div>
 
-      <div class="erp-panel-flotante">
-        <button id="btn-prov-agregar" class="icon-button-erp agregar" title="Agregar"><i class="fas fa-plus"></i></button>
-        <button id="btn-prov-modificar" class="icon-button-erp modificar" title="Editar"><i class="fas fa-edit"></i></button>
-        <button id="btn-prov-eliminar" class="icon-button-erp eliminar" title="Eliminar"><i class="fas fa-trash"></i></button>
+      <div class="cli-acciones-lista">
+        <button type="button" class="cli-btn primario" id="btn-prov-agregar"><i class="fas fa-plus"></i> Nuevo proveedor</button>
+        <a class="cli-btn" href="/api/proveedores/exportar"><i class="fas fa-file-excel"></i> Exportar Excel</a>
       </div>
     </div>
 
-    <!-- Columna derecha: ficha -->
-    <aside class="erp-main-card">
-      <h3 style="margin:0 0 8px 0; font-weight:600;">Ficha de proveedor</h3>
-      <div class="detalle-grid">
-        <p><b>Código:</b> <span id="prov-codigo">-</span></p>
-        <p><b>Nombre Fantasía:</b> <span id="prov-fantasia">-</span></p>
-        <p><b>Razón Social:</b> <span id="prov-razon">-</span></p>
-        <p><b>Teléfono:</b> <span id="prov-telefono">-</span></p>
-        <p><b>Email:</b> <span id="prov-email">-</span></p>
-        <p><b>Web:</b> <span id="prov-web">-</span></p>
-      </div>
-    </aside>
+    <!-- Ficha -->
+    <div class="cli-card" id="prov-ficha">
+      <div class="cli-ficha-vacia"><i class="fas fa-truck"></i> Elegí un proveedor para ver su ficha</div>
+    </div>
   </div>
 
-  <!-- Modales -->
   <div class="proveedores-modales">
     <%- include("../partials/modales/proveedores_modales.ejs") %>
   </div>
 </section>
-
-<!-- Script específico de proveedores (modo global; inicia con view:changed) -->
-<script defer src="/static/scripts/proveedores.js"></script>
-

@@ -8,16 +8,15 @@
 // mas se usa (la linea automotriz tiene 27%: esos se ajustan a mano en la ficha).
 // Se puede cambiar con la variable RODASER_DESCUENTO_PCT.
 const cheerio = require('cheerio');
+const { descuentoProveedor } = require('../../utils/proveedores_config');
 
 const BASE = 'http://www.rodaser.com.ar';
 const HOST_RE = /^(www\.)?rodaser\.com\.ar$/i;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36';
 const PREFIJO = 'SKF'; // prefijo por defecto si un articulo no informa marca
 
-function descuentoRodaser() {
-  const n = Number(process.env.RODASER_DESCUENTO_PCT);
-  return Number.isFinite(n) && n >= 0 && n < 100 ? n : 50;
-}
+// Orden: ficha del proveedor -> RODASER_DESCUENTO_PCT -> 50 (utils/proveedores_config.js)
+const descuentoRodaser = descuentoProveedor('rodaser', 'RODASER_DESCUENTO_PCT', 50);
 
 // Disponibilidad segun el color del borde de cada resultado
 const STOCK_POR_COLOR = {

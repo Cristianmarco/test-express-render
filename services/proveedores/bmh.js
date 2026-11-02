@@ -5,6 +5,7 @@
 // producto es la busqueda exacta por su codigo: /buscar?q=<codigo>.
 // Credenciales en variables de entorno: BMH_USUARIO / BMH_PASSWORD.
 const cheerio = require('cheerio');
+const { descuentoProveedor } = require('../../utils/proveedores_config');
 
 const BASE = 'https://bmhbobinajes.com.ar';
 const HOST_RE = /^(www\.)?bmhbobinajes\.com\.ar$/i;
@@ -15,10 +16,9 @@ const PREFIJO = 'BMH';
 const SESION_TTL_MS = 100 * 60 * 1000;
 // Descuento de cliente (los precios son + IVA). El sitio lo muestra logueado
 // ("Descuento cliente: 6%"); si no aparece se usa este (variable BMH_DESCUENTO_PCT).
-function descuentoPorDefecto() {
-  const n = Number(process.env.BMH_DESCUENTO_PCT);
-  return Number.isFinite(n) && n >= 0 && n < 100 ? n : 6;
-}
+// Orden: ficha del proveedor -> BMH_DESCUENTO_PCT -> 6 (utils/proveedores_config.js)
+const descuentoPorDefecto = descuentoProveedor('bmh', 'BMH_DESCUENTO_PCT', 6,
+  'Si la página de BMH informa el descuento de la cuenta, se usa ese.');
 
 const jar = new Map();
 let sesionDesde = 0;

@@ -1,4 +1,4 @@
-/* === CLIENTES (Refactor ERP) === */
+/* === CLIENTES y PROVEEDORES (Refactor ERP): listado + ficha con pestañas === */
 
 .cli-section { padding: 16px 20px 0; }
 
@@ -118,19 +118,19 @@
 .cli-estado.pendiente { color: #b45309; }
 
 /* Modal de alta / edicion */
-#modal-cliente-ref .modal-contenido-refactor { max-width: 860px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; box-sizing: border-box; padding: 20px 24px 14px; }
-#modal-cliente-ref .modal-titulo-principal { margin-bottom: 12px; }
-#form-cliente-ref { overflow-y: auto; min-height: 0; padding-right: 4px; }
-#form-cliente-ref fieldset { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 4px; margin: 0 0 12px; }
-#form-cliente-ref legend { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; }
-#form-cliente-ref .cli-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; margin-bottom: 10px; }
-#form-cliente-ref label { display: block; font-weight: 600; color: #334155; margin-bottom: 4px; font-size: 0.86rem; }
-#form-cliente-ref input, #form-cliente-ref select, #form-cliente-ref textarea { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 0.9rem; font-family: inherit; }
-#form-cliente-ref textarea { min-height: 70px; resize: vertical; }
-#form-cliente-ref input[type="checkbox"] { width: auto; }
-#form-cliente-ref .cli-check { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-top: 24px; }
-#form-cliente-ref .cli-ayuda { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; }
-#form-cliente-ref .cli-ayuda.error { color: #b91c1c; }
+:is(#modal-cliente-ref, #modal-proveedor-ref) .modal-contenido-refactor { max-width: 860px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; box-sizing: border-box; padding: 20px 24px 14px; }
+:is(#modal-cliente-ref, #modal-proveedor-ref) .modal-titulo-principal { margin-bottom: 12px; }
+:is(#form-cliente-ref, #form-proveedor-ref) { overflow-y: auto; min-height: 0; padding-right: 4px; }
+:is(#form-cliente-ref, #form-proveedor-ref) fieldset { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 4px; margin: 0 0 12px; }
+:is(#form-cliente-ref, #form-proveedor-ref) legend { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; }
+:is(#form-cliente-ref, #form-proveedor-ref) .cli-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; margin-bottom: 10px; }
+:is(#form-cliente-ref, #form-proveedor-ref) label { display: block; font-weight: 600; color: #334155; margin-bottom: 4px; font-size: 0.86rem; }
+:is(#form-cliente-ref, #form-proveedor-ref) input, :is(#form-cliente-ref, #form-proveedor-ref) select, :is(#form-cliente-ref, #form-proveedor-ref) textarea { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 0.9rem; font-family: inherit; }
+:is(#form-cliente-ref, #form-proveedor-ref) textarea { min-height: 70px; resize: vertical; }
+:is(#form-cliente-ref, #form-proveedor-ref) input[type="checkbox"] { width: auto; }
+:is(#form-cliente-ref, #form-proveedor-ref) .cli-check { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-top: 24px; }
+:is(#form-cliente-ref, #form-proveedor-ref) .cli-ayuda { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; }
+:is(#form-cliente-ref, #form-proveedor-ref) .cli-ayuda.error { color: #b91c1c; }
 .cli-contactos-tabla { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-bottom: 8px; }
 .cli-contactos-tabla th { text-align: left; font-size: 0.76rem; color: var(--text-muted); font-weight: 600; padding: 2px 4px; }
 .cli-contactos-tabla td { padding: 3px 4px; }
@@ -138,3 +138,11 @@
 .cli-contactos-tabla button { background: none; border: none; color: #b91c1c; cursor: pointer; font-size: 0.95rem; }
 .cli-form-error { color: #b91c1c; font-size: 0.88rem; min-height: 18px; margin: 4px 0; }
 .cli-form-acciones { display: flex; justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; background: #fff; padding: 10px 0 2px; border-top: 1px solid var(--border); }
+
+/* Proveedores */
+.cli-chip.importador { background: #dcfce7; color: #166534; }
+.cli-chip.importador.sin-credenciales { background: #fee2e2; color: #991b1b; }
+.cli-chip.rubro { background: #f1f5f9; color: #334155; font-weight: 500; }
+.cli-condiciones { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.cli-aviso-box { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; border-radius: 8px; padding: 8px 10px; font-size: 0.85rem; margin-bottom: 12px; }
+.cli-sync-viejo { color: #b45309; }

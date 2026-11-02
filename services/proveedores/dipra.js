@@ -7,6 +7,7 @@
 // archivo) se vuelve a descargar sola.
 // Credenciales en variables de entorno: DIPRA_EMAIL / DIPRA_PASSWORD.
 const cheerio = require('cheerio');
+const { descuentoProveedor } = require('../../utils/proveedores_config');
 const ExcelJS = require('exceljs');
 
 const BASE = 'https://dipra.com.ar';
@@ -18,10 +19,8 @@ const PREFIJO = 'DIPRA';
 const LISTA_TTL_MS = 6 * 60 * 60 * 1000;
 // Bonificacion sobre el precio de lista (los precios son + IVA).
 // Se puede cambiar sin tocar codigo con la variable DIPRA_DESCUENTO_PCT.
-function descuentoDipra() {
-  const n = Number(process.env.DIPRA_DESCUENTO_PCT);
-  return Number.isFinite(n) && n >= 0 && n < 100 ? n : 47;
-}
+// Orden: ficha del proveedor -> DIPRA_DESCUENTO_PCT -> 47 (utils/proveedores_config.js)
+const descuentoDipra = descuentoProveedor('dipra', 'DIPRA_DESCUENTO_PCT', 47);
 
 const jar = new Map();
 // Lista de precios en memoria: { archivo, nombre, precios: Map(codigoNorm -> {precio, descripcion}), leidaEn }

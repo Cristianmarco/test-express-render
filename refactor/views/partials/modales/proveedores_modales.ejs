@@ -1,43 +1,148 @@
 <!-- Modal: Alta/Edición Proveedor -->
 <div id="modal-proveedor-ref" class="modal-refactor" style="display:none;">
-  <div class="modal-contenido-refactor modal-erp-producto">
+  <div class="modal-contenido-refactor">
     <span class="cerrar" onclick="document.getElementById('modal-proveedor-ref').style.display='none'">&times;</span>
-    <h2 class="modal-titulo-principal"><i class="fas fa-truck"></i> Proveedor</h2>
+    <h2 class="modal-titulo-principal" id="prov-modal-titulo"><i class="fas fa-truck"></i> Proveedor</h2>
 
-    <form id="form-proveedor-ref" autocomplete="off">
-      <div class="form-grid doble">
-        <div>
-          <label>Código *</label>
-          <input name="codigo" required />
+    <form id="form-proveedor-ref" autocomplete="off" novalidate>
+      <fieldset>
+        <legend>Datos generales</legend>
+        <div class="cli-form-grid">
+          <div>
+            <label>Código *</label>
+            <input name="codigo" required maxlength="20" />
+            <div class="cli-ayuda" id="prov-ayuda-codigo"></div>
+          </div>
+          <div style="grid-column: span 2;">
+            <label>Razón social *</label>
+            <input name="razon_social" required />
+          </div>
         </div>
-        <div>
-          <label>Razón Social *</label>
-          <input name="razon_social" required />
+        <div class="cli-form-grid">
+          <div>
+            <label>Nombre de fantasía</label>
+            <input name="fantasia" />
+          </div>
+          <div>
+            <label class="cli-check"><input type="checkbox" name="activo" checked> Activo</label>
+          </div>
         </div>
+        <div class="cli-form-grid">
+          <div>
+            <label>Rubros <small>(separados por coma)</small></label>
+            <input name="rubros" list="prov-rubros-lista" placeholder="Arranques, Alternadores, Bujes..." />
+            <datalist id="prov-rubros-lista"></datalist>
+            <div class="cli-ayuda">Qué te vende: sirve para filtrar a quién pedirle cada cosa.</div>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Condiciones comerciales</legend>
+        <div class="cli-form-grid">
+          <div>
+            <label>Bonificación sobre lista (%)</label>
+            <input name="descuento_pct" inputmode="decimal" placeholder="Ej: 30" />
+            <div class="cli-ayuda" id="prov-ayuda-descuento"></div>
+          </div>
+          <div>
+            <label>Condición de pago</label>
+            <input name="condicion_pago" list="prov-pagos-lista" placeholder="Ej: Cta. cte. 30 días" />
+            <datalist id="prov-pagos-lista">
+              <option>Contado</option><option>Contado anticipado</option><option>Cta. cte. 15 días</option>
+              <option>Cta. cte. 30 días</option><option>Cta. cte. 60 días</option><option>Cheque 30 días</option>
+            </datalist>
+          </div>
+          <div>
+            <label>Plazo de entrega</label>
+            <input name="plazo_entrega" placeholder="Ej: 24 hs, 3 días" />
+          </div>
+          <div>
+            <label>Pedido mínimo ($)</label>
+            <input name="pedido_minimo" inputmode="decimal" />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Datos fiscales</legend>
+        <div class="cli-form-grid">
+          <div>
+            <label>CUIT</label>
+            <input name="cuit" placeholder="30-12345678-9" />
+            <div class="cli-ayuda" id="prov-ayuda-cuit"></div>
+          </div>
+          <div>
+            <label>Condición frente al IVA</label>
+            <select name="condicion_iva">
+              <option value="">— Sin dato —</option>
+              <option>Responsable Inscripto</option>
+              <option>Monotributo</option>
+              <option>Exento</option>
+              <option>Consumidor Final</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Ubicación y contacto general</legend>
+        <div class="cli-form-grid">
+          <div style="grid-column: span 2;">
+            <label>Dirección</label>
+            <input name="direccion" />
+          </div>
+          <div>
+            <label>Localidad</label>
+            <input name="localidad" />
+          </div>
+          <div>
+            <label>Provincia</label>
+            <input name="provincia" list="cli-provincias-prov" />
+            <datalist id="cli-provincias-prov">
+              <option>Buenos Aires</option><option>CABA</option><option>Córdoba</option><option>Santa Fe</option>
+              <option>Mendoza</option><option>Entre Ríos</option><option>Tucumán</option><option>Salta</option>
+            </datalist>
+          </div>
+        </div>
+        <div class="cli-form-grid">
+          <div>
+            <label>Teléfono</label>
+            <input name="telefono" type="tel" />
+          </div>
+          <div>
+            <label>Email</label>
+            <input name="email" type="email" />
+          </div>
+          <div>
+            <label>Web</label>
+            <input name="web" />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Contactos</legend>
+        <table class="cli-contactos-tabla">
+          <thead>
+            <tr><th>Nombre *</th><th>Cargo</th><th>Teléfono</th><th>Email</th><th></th></tr>
+          </thead>
+          <tbody id="prov-contactos-body"></tbody>
+        </table>
+        <button type="button" class="cli-btn" id="prov-contacto-agregar"><i class="fas fa-user-plus"></i> Agregar contacto</button>
+        <div class="cli-ayuda" style="margin:6px 0 8px;">Por ejemplo: vendedor, administración, depósito.</div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Notas internas</legend>
+        <textarea name="notas" placeholder="Horarios, cómo pedir, observaciones..."></textarea>
+      </fieldset>
+
+      <div class="cli-form-error" id="prov-form-error"></div>
+      <div class="cli-form-acciones">
+        <button type="button" class="cli-btn" onclick="document.getElementById('modal-proveedor-ref').style.display='none'">Cancelar</button>
+        <button type="submit" class="cli-btn primario" id="prov-guardar"><i class="fas fa-save"></i> Guardar</button>
       </div>
-
-      <div class="form-grid doble">
-        <div>
-          <label>Teléfono</label>
-          <input name="telefono" />
-        </div>
-        <div>
-          <label>Email</label>
-          <input type="email" name="email" />
-        </div>
-      </div>
-
-      <div class="form-grid">
-        <div>
-          <label>Web</label>
-          <input name="web" placeholder="https://..." />
-        </div>
-      </div>
-
-      <button type="submit" class="btn-guardar">
-        <i class="fas fa-save"></i> Guardar
-      </button>
     </form>
   </div>
 </div>
-

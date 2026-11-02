@@ -4,6 +4,7 @@
 // /articulos/listar (busqueda), /articulos/{codigo} (ficha),
 // /articulos/aplicaciones/listar y articulos relacionados.
 // Cada proveedor se crea con crearLectorKainet({...}) con su API, prefijo y credenciales.
+const { descuentoProveedor } = require('../../utils/proveedores_config');
 
 // "Aro colector (Ø mm)" -> { nombre: "Aro colector", unidad: "mm" }
 function separarUnidad(nombre) {
@@ -35,11 +36,13 @@ function crearLectorKainet(cfg) {
   let tokenDesde = 0;
   let loginEnCurso = null;
 
+  // Sin descuento propio de la cuenta: ficha del proveedor -> variable de entorno -> por defecto
+  const descuentoConfigurado = descuentoProveedor(ID, ENV_DESCUENTO, DESCUENTO,
+    `Si la cuenta de ${NOMBRE} informa su propio descuento, se usa ese.`);
   const descuento = (apiPct) => {
     const api = Number(apiPct);
     if (Number.isFinite(api) && api > 0) return api; // si la cuenta trae descuento propio, manda ese
-    const n = Number(process.env[ENV_DESCUENTO]);
-    return Number.isFinite(n) && n >= 0 && n < 100 ? n : DESCUENTO;
+    return descuentoConfigurado();
   };
 
   async function fetchApi(url, opts = {}) {

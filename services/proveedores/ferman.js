@@ -4,6 +4,7 @@
 // de lista y el descuento de la cuenta solo se ven logueado, en la pagina del producto.
 // Credenciales en variables de entorno: FERMAN_USUARIO / FERMAN_PASSWORD.
 const cheerio = require('cheerio');
+const { descuentoProveedor } = require('../../utils/proveedores_config');
 
 const BASE = 'https://encendidoferman.com.ar';
 const HOST_RE = /^(www\.)?encendidoferman\.com\.ar$/i;
@@ -15,10 +16,8 @@ const SESION_TTL_MS = 6 * 60 * 60 * 1000;
 // Bonificacion que Ferman aplica sobre su precio de lista (los precios son + IVA).
 // Se puede cambiar sin tocar codigo con la variable FERMAN_DESCUENTO_PCT.
 // (La tabla "Porcentajes de venta" de la pagina son margenes de la cuenta, no el descuento.)
-function descuentoFerman() {
-  const n = Number(process.env.FERMAN_DESCUENTO_PCT);
-  return Number.isFinite(n) && n >= 0 && n < 100 ? n : 30;
-}
+// Orden: ficha del proveedor -> FERMAN_DESCUENTO_PCT -> 30 (utils/proveedores_config.js)
+const descuentoFerman = descuentoProveedor('ferman', 'FERMAN_DESCUENTO_PCT', 30);
 
 // El servidor de Ferman (LiteSpeed) corta con 403/429 por un rato cuando recibe muchos
 // pedidos seguidos: se espera y se reintenta antes de dar error.
