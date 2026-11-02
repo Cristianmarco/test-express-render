@@ -97,6 +97,8 @@ app.use(express.json({ limit: BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 // Las pantallas HTML del sistema anterior (public/views) solo con login
 app.use('/views', requireLogin);
+// Imagenes viejas de fichas/productos en disco: solo para el personal
+app.use('/uploads', requireLogin);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================
