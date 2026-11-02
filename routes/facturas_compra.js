@@ -61,7 +61,16 @@ router.get('/', async (req, res, next) => {
         LIMIT 500`,
       params
     );
-    res.json(rows.map((r) => ({ ...r, total: Number(r.total), fecha: fc.iso(r.fecha), vencimiento: fc.iso(r.vencimiento), numero_completo: fc.numeroComprobante(r) })));
+    // Estado de pago de las FC/ND confirmadas (imputacion FIFO, igual que la cuenta corriente)
+    const pagos = await fc.estadoPagos(rows.filter((r) => r.estado === 'confirmada').map((r) => r.proveedor_id));
+    res.json(rows.map((r) => {
+      const p = pagos.get(r.id);
+      const pago = !p ? null : p.pendiente <= fc.TOLERANCIA ? 'pagada' : p.pendiente < p.total - fc.TOLERANCIA ? 'parcial' : 'pendiente';
+      return {
+        ...r, total: Number(r.total), fecha: fc.iso(r.fecha), vencimiento: fc.iso(r.vencimiento), numero_completo: fc.numeroComprobante(r),
+        pago, pendiente: p ? p.pendiente : null,
+      };
+    }));
   } catch (err) {
     next(err);
   }

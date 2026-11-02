@@ -360,17 +360,54 @@ async function cuentaCorriente(proveedorId) {
       numero_completo: m.tipo === 'comprobante' ? numeroComprobante(m) : null,
     };
   });
-  // Imputacion FIFO: lo que se pago/acredito cancela las deudas mas viejas
-  let credito = movimientos.reduce((a, m) => a + m.haber, 0);
   const hoy = iso(new Date());
-  const pendientes = [];
-  for (const m of movimientos.filter((x) => x.debe > 0).sort((a, b) => String(a.vencimiento || a.fecha).localeCompare(String(b.vencimiento || b.fecha)))) {
-    const aplicado = Math.min(credito, m.debe);
-    credito = n2(credito - aplicado);
-    const resta = n2(m.debe - aplicado);
-    if (resta > TOLERANCIA) pendientes.push({ ...m, pendiente: resta, vencida: !!m.vencimiento && m.vencimiento < hoy });
-  }
+  const { deudas, credito } = imputar(movimientos);
+  const pendientes = deudas.filter((m) => m.pendiente > TOLERANCIA)
+    .map((m) => ({ ...m, vencida: !!m.vencimiento && m.vencimiento < hoy }));
   return { movimientos, saldo, pendientes, a_favor: n2(credito) };
+}
+
+// Imputacion FIFO: lo que se pago/acredito (haber) cancela las deudas (debe) que vencen primero.
+// Devuelve cada deuda con lo que le queda pendiente y el credito que sobra.
+function imputar(movimientos) {
+  let credito = movimientos.reduce((a, m) => a + Number(m.haber), 0);
+  const deudas = movimientos.filter((x) => Number(x.debe) > 0)
+    .sort((a, b) => String(a.vencimiento || a.fecha).localeCompare(String(b.vencimiento || b.fecha)))
+    .map((m) => {
+      const aplicado = Math.min(credito, Number(m.debe));
+      credito = n2(credito - aplicado);
+      return { ...m, pendiente: n2(Number(m.debe) - aplicado) };
+    });
+  return { deudas, credito };
+}
+
+// Estado de pago de las facturas/ND de esos proveedores: Map id -> { pendiente, total }
+async function estadoPagos(proveedorIds) {
+  await esquema;
+  const ids = [...new Set(proveedorIds.map(Number).filter(Boolean))];
+  if (!ids.length) return new Map();
+  const { rows } = await db.query(
+    `SELECT f.proveedor_id, f.id, f.fecha, f.vencimiento,
+            CASE WHEN f.comprobante = 'NC' THEN 0 ELSE f.total END::float8 AS debe,
+            CASE WHEN f.comprobante = 'NC' THEN f.total ELSE 0 END::float8 AS haber
+       FROM facturas_compra f
+      WHERE f.proveedor_id = ANY($1) AND f.estado = 'confirmada'
+     UNION ALL
+     SELECT p.proveedor_id, NULL, p.fecha, NULL, 0, p.importe::float8
+       FROM pagos_proveedor p
+      WHERE p.proveedor_id = ANY($1) AND p.estado = 'confirmado'`,
+    [ids]
+  );
+  const porProveedor = new Map();
+  for (const r of rows) {
+    if (!porProveedor.has(r.proveedor_id)) porProveedor.set(r.proveedor_id, []);
+    porProveedor.get(r.proveedor_id).push({ ...r, fecha: iso(r.fecha), vencimiento: iso(r.vencimiento) });
+  }
+  const estado = new Map();
+  for (const movs of porProveedor.values()) {
+    for (const d of imputar(movs).deudas) estado.set(d.id, { pendiente: d.pendiente, total: d.debe });
+  }
+  return estado;
 }
 
 // Saldos de todos los proveedores con movimientos
@@ -414,5 +451,5 @@ async function libroIva(mes) {
 
 module.exports = {
   esquema, ErrorFactura, COMPROBANTES, LETRAS, ALICUOTAS, MEDIOS_PAGO, IMPORTES,
-  crearFactura, anularFactura, cuentaCorriente, saldos, libroIva, numeroComprobante, importe, n2, usuarioDe, diasDePago, iso,
+  crearFactura, anularFactura, cuentaCorriente, estadoPagos, saldos, TOLERANCIA, libroIva, numeroComprobante, importe, n2, usuarioDe, diasDePago, iso,
 };

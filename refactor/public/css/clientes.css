@@ -190,6 +190,10 @@
 .fc-control.mal { background: #fef2f2; color: #991b1b; }
 .fc-estado { font-size: .72rem; font-weight: 700; border-radius: 999px; padding: 1px 8px; }
 .fc-estado.anulada { background: #fee2e2; color: #991b1b; }
+.fc-estado.pagada { background: #dcfce7; color: #166534; }
+.fc-estado.parcial { background: #fef3c7; color: #92400e; }
+.fc-estado.pendiente { background: #e0e7ff; color: #3730a3; }
+.fc-estado.vencida { background: #fee2e2; color: #991b1b; }
 .fc-neg { color: #b91c1c; }
 .fc-vencida { color: #b91c1c; font-weight: 600; }
 .fc-detalle-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 6px 14px; margin: 10px 0 14px; font-size: .88rem; }

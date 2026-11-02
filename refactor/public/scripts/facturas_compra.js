@@ -37,7 +37,8 @@
   const etiquetaProv = (p) => `${p.codigo} - ${nombreProv(p)}`;
 
   async function getJson(url, opts){
-    const res = await fetch(url, { credentials: 'include', ...(opts || {}) });
+    // no-store: saldos y estados de pago cambian con cada pago, nunca del cache
+    const res = await fetch(url, { credentials: 'include', cache: 'no-store', ...(opts || {}) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Error de servidor');
     return data;
@@ -66,9 +67,19 @@
   }
 
   // ---------- Comprobantes ----------
+  // Pagada / Parcial / Pendiente / Vencida (las NC y los anulados no llevan)
+  function etiquetaPago(f, hoy){
+    if (!f.pago) return '';
+    if (f.pago === 'pagada') return '<span class="fc-estado pagada">Pagada</span>';
+    const vencida = f.vencimiento && f.vencimiento < hoy;
+    const clase = vencida ? 'vencida' : f.pago;
+    const texto = vencida ? 'Vencida' : f.pago === 'parcial' ? 'Parcial' : 'Pendiente';
+    return `<span class="fc-estado ${clase}" title="Resta pagar ${pesos(f.pendiente)}">${texto}</span>`;
+  }
+
   async function cargarComprobantes(){
     const tb = el('fc-tbody');
-    tb.innerHTML = `<tr><td colspan="6" class="cli-vacio"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="7" class="cli-vacio"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>`;
     const params = new URLSearchParams({
       q: el('fc-buscar').value.trim(), proveedor_id: el('fc-filtro-proveedor').value,
       desde: el('fc-desde').value, hasta: el('fc-hasta').value, estado: el('fc-filtro-estado').value,
@@ -83,15 +94,16 @@
           <td>${esc(f.numero_completo)}${f.estado === 'anulada' ? ' <span class="fc-estado anulada">Anulado</span>' : ''}</td>
           <td><span class="cli-nombre">${esc(nombreProv(f))}</span></td>
           <td class="num ${signo < 0 ? 'fc-neg' : ''}"><b>${pesos(signo * f.total)}</b></td>
+          <td>${etiquetaPago(f, hoy)}</td>
           <td class="${f.estado !== 'anulada' && f.comprobante !== 'NC' && f.vencimiento && f.vencimiento < hoy ? 'fc-vencida' : ''}">${fecha(f.vencimiento)}</td>
           <td style="white-space:nowrap;color:var(--text-muted)">
             ${f.tiene_archivo ? '<i class="fas fa-paperclip" title="Tiene el PDF/foto adjunto"></i>' : ''}
             ${f.ingresa_stock && f.renglones ? '<i class="fas fa-boxes-stacked" title="Ingresó stock"></i>' : ''}
           </td>
         </tr>`;
-      }).join('') : `<tr><td colspan="6" class="cli-vacio">No hay comprobantes con ese filtro</td></tr>`;
+      }).join('') : `<tr><td colspan="7" class="cli-vacio">No hay comprobantes con ese filtro</td></tr>`;
     } catch (e) {
-      tb.innerHTML = `<tr><td colspan="6" class="cli-vacio" style="color:#c33">${esc(e.message)}</td></tr>`;
+      tb.innerHTML = `<tr><td colspan="7" class="cli-vacio" style="color:#c33">${esc(e.message)}</td></tr>`;
     }
   }
 
@@ -682,6 +694,7 @@
       });
       cerrarModal('modal-pago-proveedor');
       cargarStats();
+      if (st.pestana === 'comprobantes') cargarComprobantes();
       if (st.pestana === 'ctacte') { await cargarSaldos(); verCtacte(prov.id); }
     } catch (err) {
       error.textContent = err.message;
@@ -694,6 +707,7 @@
     try {
       await postJson(`${API}/pagos/${id}/anular`, { motivo });
       cargarStats();
+      cargarComprobantes();
       await cargarSaldos();
       if (st.ctacteSel) verCtacte(st.ctacteSel);
     } catch (e) { alert(e.message); }
