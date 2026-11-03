@@ -735,6 +735,13 @@
   background: #0ea5e9;
 }
 
+.icon-button-erp.stock {
+  background: #7c3aed;
+}
+.icon-button-erp.stock:hover {
+  background: #6d28d9;
+}
+
 .icon-button-erp.importar {
   background: #22c55e;
 }
