@@ -181,6 +181,10 @@
 #fc-form .fc-items .fc-art-info { font-size: .72rem; color: var(--text-muted); display: block; margin-top: 2px; }
 #fc-form .fc-items .fc-art-info.vinculado { color: #15803d; }
 #fc-form .fc-items .fc-art-info.cambio { color: #b45309; }
+#fc-form .fc-items .fc-art-btn { display: inline-block; margin: 3px 4px 0 0; padding: 1px 8px; font-size: .72rem; border: 1px solid #93c5fd;
+  border-radius: 999px; background: #eff6ff; color: #1d4ed8; cursor: pointer; }
+#fc-form .fc-items .fc-art-btn:hover { background: #dbeafe; }
+#fc-form .fc-items .fc-art-error { display: block; color: #b91c1c; }
 #fc-form .fc-importes input { text-align: right; }
 .fc-total-box { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px; }
 .fc-total-box > div:first-child { min-width: 220px; }

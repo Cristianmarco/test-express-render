@@ -7,6 +7,9 @@ const router = express.Router();
 const db = require('../db');
 const fc = require('../utils/facturas_compra');
 const lector = require('../utils/lector_facturas');
+const { lectorPorId } = require('../services/proveedores');
+const { esquemaProveedores } = require('../utils/proveedores_config');
+const { importarFicha, buscarEnImportador } = require('./productos_ficha');
 const { insertDomainAudit } = require('../utils/domain-audit');
 
 function responderError(res, next, err) {
@@ -165,6 +168,77 @@ router.post('/leer', async (req, res, next) => {
     next(err);
   }
 });
+
+// ---------- Articulos que no estan: se crean con el importador del proveedor ----------
+
+// Proveedores con importador: { proveedor_id: { id, nombre, configurado } }
+router.get('/importadores', async (req, res, next) => {
+  try {
+    await esquemaProveedores;
+    const { rows } = await db.query(`SELECT id, importador FROM proveedores WHERE importador IS NOT NULL AND activo`);
+    const out = {};
+    for (const r of rows) {
+      const l = lectorPorId(r.importador);
+      if (l) out[r.id] = { id: l.ID, nombre: l.NOMBRE, configurado: typeof l.credencialesCargadas === 'function' ? l.credencialesCargadas() : true };
+    }
+    res.json(out);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Body: { proveedor_id, codigo } o { proveedor_id, url } (uno de los parecidos).
+// Si el articulo ya esta en el sistema lo devuelve; si no, lo importa del proveedor.
+// -> { articulo, creado } | 404 { error, parecidos }
+router.post('/importar_articulo', async (req, res, next) => {
+  try {
+    await esquemaProveedores;
+    const b = req.body || {};
+    const { rows: [prov] } = await db.query(`SELECT razon_social, importador FROM proveedores WHERE id = $1`, [Number(b.proveedor_id) || 0]);
+    if (!prov) return res.status(400).json({ error: 'Elegí el proveedor' });
+    const imp = lectorPorId(prov.importador);
+    if (!imp) return res.status(400).json({ error: `${prov.razon_social} no tiene importador de artículos` });
+    if (typeof imp.credencialesCargadas === 'function' && !imp.credencialesCargadas()) {
+      return res.status(400).json({ error: `Faltan las credenciales de ${imp.NOMBRE} en el servidor` });
+    }
+    let url = null;
+    if (b.url) {
+      if (!imp.urlFicha(String(b.url))) return res.status(400).json({ error: 'Ese artículo no es de este proveedor' });
+      url = String(b.url);
+    } else {
+      const codigo = String(b.codigo || '').trim();
+      if (codigo.length < 2) return res.status(400).json({ error: 'Falta el código del artículo' });
+      const { exacto, parecidos } = await buscarEnImportador(imp, codigo);
+      if (!exacto) {
+        return res.status(404).json({
+          error: `${imp.NOMBRE} no tiene el código ${codigo}${parecidos.length ? '. ¿Es alguno de estos?' : ''}`,
+          parecidos: parecidos.map((x) => ({ codigo: x.codigo_erp, descripcion: x.descripcion, url: x.url, existe: !!x.producto_id })),
+        });
+      }
+      if (exacto.producto_id) return res.json({ articulo: await articuloPorId(exacto.producto_id), creado: false });
+      url = exacto.url;
+    }
+    const r = await importarFicha(req, { url });
+    // 409: ya existia (lo encontro el importador por otro codigo): se vincula ese
+    const pid = r.body.producto_id;
+    if (r.status >= 400 && !(r.status === 409 && pid)) return res.status(r.status).json(r.body);
+    res.status(r.status === 201 ? 201 : 200).json({ articulo: await articuloPorId(pid), creado: r.status === 201 });
+  } catch (err) {
+    console.error('Error al importar artículo desde la factura:', err.message);
+    res.status(502).json({ error: err.message || 'No se pudo consultar al proveedor' });
+  }
+});
+
+async function articuloPorId(id) {
+  const { rows } = await db.query(
+    `SELECT p.id, p.codigo, p.codigo_fabricante, p.descripcion, p.proveedor_id, p.ultimo_costo, p.ultimo_costo_at,
+            pp.precio_lista, pp.desc_suma, pp.desc_pago
+       FROM productos p LEFT JOIN producto_precios pp ON pp.producto_id = p.id
+      WHERE p.id = $1`,
+    [id]
+  );
+  return rows[0] ? { ...rows[0], ultimo_costo_at: fc.iso(rows[0].ultimo_costo_at) } : null;
+}
 
 router.get('/:id(\\d+)', async (req, res, next) => {
   try {

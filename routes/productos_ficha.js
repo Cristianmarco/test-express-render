@@ -553,8 +553,15 @@ router.get('/importar/ficha', async (req, res) => {
 // La ficha se vuelve a leer en el servidor (no se confia en datos del navegador).
 router.post('/importar', async (req, res) => {
   const body = req.body || {};
+  const r = await importarFicha(req, body);
+  res.status(r.status).json(r.body);
+});
+
+// Logica del importador, tambien la usa la carga de facturas de compra para crear los
+// articulos que no estan. Devuelve { status, body } con la respuesta HTTP.
+async function importarFicha(req, body) {
   const lector = lectorDesdeUrl(body.url);
-  if (!lector) return res.status(400).json({ error: 'URL de proveedor no soportada' });
+  if (!lector) return { status: 400, body: { error: 'URL de proveedor no soportada' } };
   const op = { datos: true, precios: true, fotos: true, tecnica: true, aplicaciones: true, equivalencias: true, partes: true, ...(body.opciones || {}) };
 
   let ficha;
@@ -563,7 +570,7 @@ router.post('/importar', async (req, res) => {
     ficha = await lector.leerFicha(body.url);
   } catch (e) {
     console.error('Error leyendo ficha para importar', e);
-    return res.status(502).json({ error: e.message || 'No se pudo leer la ficha del proveedor' });
+    return { status: 502, body: { error: e.message || 'No se pudo leer la ficha del proveedor' } };
   }
 
   // Las fotos se descargan antes de abrir la transaccion; si alguna falla se sigue con las demas
@@ -597,7 +604,7 @@ router.post('/importar', async (req, res) => {
         : await buscarExistente({ ...ficha, ean: null }, client);
       if (dup) {
         await client.query('ROLLBACK');
-        return res.status(409).json({ error: `El producto ${dup.codigo} ya existe en el ERP. Elegí "Actualizar".`, producto_id: dup.id });
+        return { status: 409, body: { error: `El producto ${dup.codigo} ya existe en el ERP. Elegí "Actualizar".`, producto_id: dup.id } };
       }
       const ins = await client.query(
         `INSERT INTO productos (codigo, codigo_fabricante, descripcion, marca_id, proveedor_id, iva_tipo, proveedor_url, proveedor_sync_at, fecha_alta)
@@ -624,7 +631,7 @@ router.post('/importar', async (req, res) => {
           );
       if (!upd.rowCount) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Producto no encontrado' });
+        return { status: 404, body: { error: 'Producto no encontrado' } };
       }
     }
 
@@ -695,15 +702,27 @@ router.post('/importar', async (req, res) => {
       precio_lista: ficha.precio ? ficha.precio.precio_lista : null
     });
     await client.query('COMMIT');
-    res.status(creado ? 201 : 200).json({ ok: true, producto_id: pid, creado, codigo: ficha.codigo, fotos: fotos.length });
+    return { status: creado ? 201 : 200, body: { ok: true, producto_id: pid, creado, codigo: ficha.codigo, fotos: fotos.length } };
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('Error POST /api/productos/importar', e);
-    if (e && e.code === '23505') return res.status(409).json({ error: 'Codigo de producto duplicado' });
-    res.status(500).json({ error: 'Error al importar el producto' });
+    if (e && e.code === '23505') return { status: 409, body: { error: 'Codigo de producto duplicado' } };
+    return { status: 500, body: { error: 'Error al importar el producto' } };
   } finally {
     client.release();
   }
-});
+}
+
+// Busca un codigo en el importador del proveedor: el articulo que coincide exacto (sin
+// espacios ni signos, con o sin el prefijo de marca) marcado si ya existe en el ERP, y los
+// parecidos para elegir. { exacto, parecidos }
+async function buscarEnImportador(lector, codigo) {
+  const cod = codigoNormalizado(codigo);
+  const items = await marcarExistentes(lector, await lector.buscar(codigo));
+  const exacto = items.find((it) => codigoNormalizado(it.codigo) === cod || codigoNormalizado(it.codigo_erp) === cod) || null;
+  return { exacto, parecidos: items.filter((it) => it !== exacto).slice(0, 6) };
+}
 
 module.exports = router;
+module.exports.importarFicha = importarFicha;
+module.exports.buscarEnImportador = buscarEnImportador;

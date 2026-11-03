@@ -40,7 +40,7 @@
     // no-store: saldos y estados de pago cambian con cada pago, nunca del cache
     const res = await fetch(url, { credentials: 'include', cache: 'no-store', ...(opts || {}) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Error de servidor');
+    if (!res.ok) throw Object.assign(new Error(data.error || 'Error de servidor'), { data });
     return data;
   }
   const postJson = (url, body) => getJson(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -51,10 +51,12 @@
 
   // ---------- Catalogos ----------
   async function cargarCatalogos(){
-    const [provs, deps, ia] = await Promise.all([
+    const [provs, deps, ia, importadores] = await Promise.all([
       getJson('/api/proveedores'), getJson('/api/depositos').catch(() => []), getJson(`${API}/lector`).catch(() => ({ configurado: false })),
+      getJson(`${API}/importadores`).catch(() => ({})),
     ]);
     st.ia = ia;
+    st.importadores = importadores;
     el('fc-leer-ia').title = ia.configurado
       ? 'Completa encabezado, impuestos y renglones leyendo el archivo'
       : 'Falta configurar la clave de Anthropic en el servidor';
@@ -153,15 +155,97 @@
     };
   }
 
+  // ---------- Articulos que no estan: se crean con el importador del proveedor ----------
+  function importadorActual(){
+    const prov = proveedorDeTexto(el('fc-proveedor').value);
+    const imp = prov && (st.importadores || {})[prov.id];
+    return imp && imp.configurado ? { ...imp, proveedor_id: prov.id } : null;
+  }
+
+  // Codigo del proveedor del renglon: el que leyo la IA o el que se escribio (si no es un articulo elegido)
+  function codigoParaImportar(tr){
+    if (tr._codigoFactura) return tr._codigoFactura;
+    const txt = tr.querySelector('[data-k="articulo"]').value.trim();
+    return !tr._articulo && txt && !txt.includes(' | ') ? txt : '';
+  }
+
+  // Renglones sin articulo que se pueden crear desde el importador (los vinculados por codigo
+  // base no: puede ser el mismo articulo, se crean de a uno con su boton)
+  const importables = () => !importadorActual() ? []
+    : Array.from(el('fc-items').querySelectorAll('tr'))
+      .filter(tr => !tr._articulo && codigoParaImportar(tr) && !tr._importando);
+
+  function actualizarFaltantes(){
+    const btn = el('fc-importar-faltantes');
+    const n = importables().length;
+    btn.style.display = n ? '' : 'none';
+    if (n) btn.innerHTML = `<i class="fas fa-cloud-arrow-down"></i> Crear ${n === 1 ? 'el artículo que falta' : `los ${n} artículos que faltan`} desde ${esc(importadorActual().nombre)}`;
+  }
+
+  async function importarArticulo(tr, url){
+    const imp = importadorActual();
+    const codigo = codigoParaImportar(tr);
+    if (!imp || (!codigo && !url)) return;
+    const info = tr.querySelector('.fc-art-info');
+    tr._importando = true;
+    tr._errorImportar = null;
+    info.className = 'fc-art-info';
+    info.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Buscando ${esc(codigo)} en ${esc(imp.nombre)}...`;
+    try {
+      const r = await postJson(`${API}/importar_articulo`, { proveedor_id: imp.proveedor_id, codigo, url: url || undefined });
+      const a = r.articulo;
+      const valor = `${a.codigo} | ${a.descripcion}`;
+      st.articulos.set(valor, a);
+      tr._articulo = a;
+      tr._codigoFactura = null;
+      tr._parecidos = null;
+      tr._creado = r.creado;
+      tr.querySelector('[data-k="articulo"]').value = valor;
+      const desc = tr.querySelector('[data-k="descripcion"]');
+      if (!desc.value.trim()) desc.value = a.descripcion || '';
+    } catch (e) {
+      tr._parecidos = (e.data && e.data.parecidos) || null;
+      tr._errorImportar = e.message;
+    }
+    tr._importando = false;
+    actualizarItem(tr);
+  }
+
+  async function importarFaltantes(){
+    const filas = importables();
+    if (!filas.length) return;
+    const btn = el('fc-importar-faltantes');
+    btn.disabled = true;
+    for (const tr of filas) await importarArticulo(tr);
+    btn.disabled = false;
+    actualizarFaltantes();
+  }
+
+  function botonImportar(tr){
+    const imp = importadorActual();
+    const codigo = codigoParaImportar(tr);
+    if (!imp || !codigo) return '';
+    let html = ` <button type="button" class="fc-art-btn" data-importar title="Lo busca en ${esc(imp.nombre)} y lo crea en el sistema">
+      <i class="fas fa-cloud-arrow-down"></i> Crear ${esc(codigo)} desde ${esc(imp.nombre)}</button>`;
+    if (tr._errorImportar) html += `<span class="fc-art-error">${esc(tr._errorImportar)}</span>`;
+    if (tr._parecidos && tr._parecidos.length) {
+      html += tr._parecidos.map(p => `<button type="button" class="fc-art-btn" data-importar-url="${esc(p.url)}">
+        ${esc(p.codigo)} · ${esc(p.descripcion)}${p.existe ? ' (ya está)' : ''}</button>`).join('');
+    }
+    return html;
+  }
+
   function actualizarItem(tr){
     const it = datosItem(tr);
     tr.querySelector('[data-sub]').textContent = Number.isFinite(it.subtotal) ? num2(it.subtotal) : '';
     const info = tr.querySelector('.fc-art-info');
     const a = tr._articulo;
+    actualizarFaltantes();
+    if (tr._importando) return;
     if (!a) {
       const txt = tr.querySelector('[data-k="articulo"]').value.trim();
       info.className = 'fc-art-info';
-      info.textContent = txt ? 'Sin vincular: no mueve stock' : '';
+      info.innerHTML = txt ? `Sin vincular: no mueve stock.${botonImportar(tr)}` : '';
       return;
     }
     const neto = (it.precio_unitario || 0) * (1 - (it.bonificacion_pct || 0) / 100);
@@ -173,8 +257,11 @@
       texto += ` · último costo ${pesos(ult)}${a.ultimo_costo_at ? ` (${fecha(a.ultimo_costo_at)})` : ''}`;
       if (Math.abs(dif) >= 10 && neto) { texto += ` · ${dif > 0 ? '+' : ''}${dif.toFixed(0)}%`; clase = 'fc-art-info cambio'; }
     }
+    if (tr._creado) texto += ' · creado desde el proveedor';
     info.className = clase;
     info.textContent = texto;
+    // Vinculado por codigo base ("6205-2RSH/C3" -> TRU 6205): se puede crear el exacto
+    if (a.aproximado) info.insertAdjacentHTML('beforeend', ` · aproximado.${botonImportar(tr)}`);
   }
 
   let tBusqueda;
@@ -453,6 +540,8 @@
         st.articulos.set(`${it.articulo.codigo} | ${it.articulo.descripcion}`, it.articulo);
         tr._articulo = it.articulo;
       }
+      // El codigo del proveedor, para crearlo con el importador si no esta (o es aproximado)
+      if (it.codigo && (!it.articulo || it.articulo.aproximado)) tr._codigoFactura = it.codigo;
       tbody.appendChild(tr);
       actualizarItem(tr);
     }
@@ -464,7 +553,8 @@
     const notas = [];
     if (aproximados.length) notas.push(`Vinculados por código base, revisá que sea el artículo correcto: ${aproximados.join(', ')}.`);
     if (d.moneda && d.moneda !== 'PES') notas.push(`La factura está en ${d.moneda}: revisá los importes en pesos.`);
-    if (sinVincular) notas.push(`${sinVincular} renglón(es) sin artículo vinculado: no mueven stock (elegí el artículo si corresponde).`);
+    const imp = importadorActual();
+    if (sinVincular) notas.push(`${sinVincular} renglón(es) sin artículo vinculado: no mueven stock (elegí el artículo${imp ? ` o crealo desde ${imp.nombre}` : ''}).`);
     if (d.observaciones) notas.push(`Observación de la lectura: ${d.observaciones}`);
     el('fc-error').textContent = notas.join(' ');
   }
@@ -488,6 +578,7 @@
     form.elements.fecha.value = hoyIso();
     el('fc-items').innerHTML = '';
     el('fc-items').appendChild(filaItem());
+    actualizarFaltantes();
     actualizarLetra();
     abrirModal('modal-factura-compra');
     el('fc-qr').focus(); // listo para el lector
@@ -782,8 +873,10 @@
       if (el('fc-qr').value.trim()) aplicarQr(el('fc-qr').value);
     });
     el('fc-qr').addEventListener('paste', () => setTimeout(() => aplicarQr(el('fc-qr').value), 0));
-    el('fc-proveedor').addEventListener('change', actualizarProveedor);
-    el('fc-proveedor').addEventListener('input', () => { if (proveedorDeTexto(el('fc-proveedor').value)) actualizarProveedor(); });
+    // Al cambiar el proveedor cambian los botones para crear articulos con su importador
+    const renglones = () => el('fc-items').querySelectorAll('tr').forEach(actualizarItem);
+    el('fc-proveedor').addEventListener('change', () => { actualizarProveedor(); renglones(); });
+    el('fc-proveedor').addEventListener('input', () => { if (proveedorDeTexto(el('fc-proveedor').value)) actualizarProveedor(); renglones(); });
     form.elements.fecha.addEventListener('change', actualizarProveedor);
     form.elements.comprobante.addEventListener('change', () => {
       const nc = form.elements.comprobante.value === 'NC';
@@ -810,6 +903,8 @@
       const tr = e.target.closest('tr');
       if (!tr) return;
       if (e.target.dataset.k === 'articulo') {
+        tr._codigoFactura = tr._parecidos = tr._errorImportar = null;
+        tr._creado = false;
         if (st.articulos.has(e.target.value)) return elegirArticulo(tr);
         tr._articulo = null;
         buscarArticulos(e.target.value.trim());
@@ -817,7 +912,14 @@
       actualizarItem(tr);
     });
     items.addEventListener('change', (e) => { const tr = e.target.closest('tr'); if (tr && e.target.dataset.k === 'articulo') elegirArticulo(tr); });
-    items.addEventListener('click', (e) => { if (e.target.closest('[data-quitar]')) { e.target.closest('tr').remove(); actualizarControl(); } });
+    items.addEventListener('click', (e) => {
+      const tr = e.target.closest('tr');
+      if (e.target.closest('[data-quitar]')) { tr.remove(); actualizarControl(); actualizarFaltantes(); return; }
+      if (e.target.closest('[data-importar]')) return importarArticulo(tr);
+      const parecido = e.target.closest('[data-importar-url]');
+      if (parecido) importarArticulo(tr, parecido.dataset.importarUrl);
+    });
+    el('fc-importar-faltantes').addEventListener('click', importarFaltantes);
     el('fc-archivo').addEventListener('change', (e) => {
       const file = e.target.files[0];
       st.archivo = null;
