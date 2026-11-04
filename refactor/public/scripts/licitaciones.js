@@ -910,7 +910,7 @@ function ensureVigenteModal(){
             <select id="vig-etapa">${opcionesEtapa('ingresado')}</select>
           </div>
           <div>
-            <label>Coche / ID cliente</label>
+            <label>OrdenRep / ID cliente</label>
             <input type="text" id="vig-coche" maxlength="60" />
           </div>
         </div>
@@ -1276,7 +1276,7 @@ async function cargarVigentes(){
            </a>`
         : `<span style="color:#cbd5e1;">—</span>`;
       return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-cliente-id="${attr(r.cliente_id)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}" data-coche="${attr(r.coche)}" data-fecha-limite="${attr(fechaLimiteIso)}" data-fecha-ingreso="${attr(fechaIngresoIso)}" data-cliente-tipo="${attr(r.cliente_tipo)}" data-devuelto="${devuelto ? '1' : ''}" class="${claseFila}">
-        <td>${esc(r.nro_pedido) || '-'}${marcaDevuelto}${r.coche ? `<div class="vig-coche" title="Coche / ID cliente"><i class="fas fa-bus"></i> ${esc(r.coche)}</div>` : ''}</td>
+        <td>${esc(r.nro_pedido) || '-'}${marcaDevuelto}${r.coche ? `<div class="vig-coche" title="Orden de reparación / ID del cliente"><i class="fas fa-clipboard-list"></i> ${esc(r.coche)}</div>` : ''}</td>
         <td>${esc(r.codigo) || '-'}</td>
         <td class="vig-texto">${esc(r.descripcion) || '-'}</td>
         <td>${r.cantidad||'-'}</td>
@@ -1518,7 +1518,7 @@ function ensureVigenteDetalleModal(){
         <div><label>Pendientes</label><span id="vig-det-pendientes">-</span></div>
         <div><label>Fecha Ingreso</label><span id="vig-det-fecha-ingreso">-</span></div>
         <div><label>Fecha Limite</label><span id="vig-det-fecha-limite">-</span></div>
-        <div><label>Coche / ID cliente</label><span id="vig-det-coche">-</span></div>
+        <div><label>OrdenRep / ID cliente</label><span id="vig-det-coche">-</span></div>
         <div><label>ID Registro</label><span id="vig-det-id">-</span></div>
         <div style="grid-column:span 2"><label>Observaciones</label><span id="vig-det-observaciones">-</span></div>
       </div>

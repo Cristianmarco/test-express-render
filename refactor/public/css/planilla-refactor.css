@@ -1348,6 +1348,6 @@ form#form-reparacion .btn-guardar {
   background: #eef2ff;
 }
 
-/* R.Vigentes: coche / ID interno del cliente debajo del nro de pedido */
+/* R.Vigentes: orden de reparacion / ID del cliente (columna coche) debajo del nro de pedido */
 .tabla-vigentes .vig-coche { font-size: .75rem; color: #475569; margin-top: 2px; white-space: nowrap; }
 .tabla-vigentes .vig-coche i { color: #2563eb; font-size: .7rem; }

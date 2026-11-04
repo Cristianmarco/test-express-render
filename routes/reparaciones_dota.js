@@ -35,8 +35,8 @@ async function ensureNuevasColumnas(dbClient) {
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS fecha_ingreso DATE');
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS cliente_tipo TEXT');
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS cliente_id INTEGER');
-  // Numero interno del cliente para el equipo (coche, unidad, ID propio): es el que
-  // usan cuando preguntan por un equipo.
+  // OrdenRep / ID cliente: numero propio del cliente para el equipo (orden de reparacion,
+  // coche, unidad). Es el que usan cuando preguntan; puede repetirse entre equipos.
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS coche TEXT');
   // Licitacion de la que se acepto el item (el nro_pedido lo carga el usuario y
   // no coincide con el nro de licitacion, asi que hace falta el vinculo aparte).
