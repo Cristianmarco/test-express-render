@@ -610,6 +610,7 @@ function bindLicitacionesPanel() {
         cliente_id: row.dataset.clienteId || '',
         pendientes: (row.dataset.pendientes!==undefined? Number(row.dataset.pendientes) : null),
         observaciones: row.dataset.observaciones || '',
+        coche: row.dataset.coche || '',
         fecha_limite_entrega: row.dataset.fechaLimite || '',
         fecha_ingreso: row.dataset.fechaIngreso || '',
         cliente_tipo: row.dataset.clienteTipo || ''
@@ -908,7 +909,10 @@ function ensureVigenteModal(){
             <label>Etapa <small>(la ve el cliente en el portal)</small></label>
             <select id="vig-etapa">${opcionesEtapa('ingresado')}</select>
           </div>
-          <div></div>
+          <div>
+            <label>Coche / ID cliente</label>
+            <input type="text" id="vig-coche" maxlength="60" />
+          </div>
         </div>
         <div class="form-grid">
           <div>
@@ -976,6 +980,7 @@ function ensureVigenteModal(){
         return Number(v);
       })(),
       observaciones: document.getElementById('vig-observaciones').value.trim()||null,
+      coche: document.getElementById('vig-coche').value.trim()||null,
       fecha_limite_entrega: document.getElementById('vig-fecha-limite').value || null,
       fecha_ingreso: document.getElementById('vig-fecha-ingreso').value || null,
       cliente_tipo: document.getElementById('vig-tipo').value || null,
@@ -1061,6 +1066,7 @@ async function abrirModalVigenteABM(data){
     f.dataset.origPend = document.getElementById('vig-pendientes').value;
     f.dataset.lastCant = document.getElementById('vig-cantidad').value;
     document.getElementById('vig-observaciones').value = data.observaciones||'';
+    document.getElementById('vig-coche').value = data.coche||'';
     document.getElementById('vig-fecha-limite').value = fechaLimiteToInputValue(data.fecha_limite_entrega);
     document.getElementById('vig-fecha-ingreso').value = fechaLimiteToInputValue(data.fecha_ingreso);
     document.getElementById('vig-tipo').value = data.cliente_tipo || '';
@@ -1084,6 +1090,7 @@ async function abrirModalVigenteABM(data){
     f.dataset.origPend = '';
     f.dataset.lastCant = '';
     document.getElementById('vig-observaciones').value = '';
+    document.getElementById('vig-coche').value = '';
     document.getElementById('vig-fecha-limite').value = '';
     // Alta manual: por defecto es un ingreso externo, con fecha de hoy.
     document.getElementById('vig-fecha-ingreso').value = new Date().toISOString().slice(0, 10);
@@ -1268,8 +1275,8 @@ async function cargarVigentes(){
              <img src="/api/reparaciones_dota/fotos/${r.foto_id}?mini=1" alt="" loading="lazy">${r.fotos > 1 ? `<span class="vig-mini-cant">${r.fotos}</span>` : ''}
            </a>`
         : `<span style="color:#cbd5e1;">—</span>`;
-      return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-cliente-id="${attr(r.cliente_id)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}" data-fecha-limite="${attr(fechaLimiteIso)}" data-fecha-ingreso="${attr(fechaIngresoIso)}" data-cliente-tipo="${attr(r.cliente_tipo)}" data-devuelto="${devuelto ? '1' : ''}" class="${claseFila}">
-        <td>${esc(r.nro_pedido) || '-'}${marcaDevuelto}</td>
+      return `<tr data-id="${r.id}" data-nro="${attr(r.nro_pedido)}" data-codigo="${attr(r.codigo)}" data-descripcion="${attr(r.descripcion)}" data-cantidad="${r.cantidad||''}" data-destino="${attr(r.destino)}" data-razon="${attr(r.razon_social)}" data-cliente-id="${attr(r.cliente_id)}" data-pendientes="${r.pendientes!=null?r.pendientes:''}" data-observaciones="${attr(r.observaciones)}" data-coche="${attr(r.coche)}" data-fecha-limite="${attr(fechaLimiteIso)}" data-fecha-ingreso="${attr(fechaIngresoIso)}" data-cliente-tipo="${attr(r.cliente_tipo)}" data-devuelto="${devuelto ? '1' : ''}" class="${claseFila}">
+        <td>${esc(r.nro_pedido) || '-'}${marcaDevuelto}${r.coche ? `<div class="vig-coche" title="Coche / ID cliente"><i class="fas fa-bus"></i> ${esc(r.coche)}</div>` : ''}</td>
         <td>${esc(r.codigo) || '-'}</td>
         <td class="vig-texto">${esc(r.descripcion) || '-'}</td>
         <td>${r.cantidad||'-'}</td>
@@ -1322,6 +1329,7 @@ async function cargarVigentes(){
           razon_social: tr.dataset.razon || '',
           pendientes: tr.dataset.pendientes || '',
           observaciones: tr.dataset.observaciones || '',
+          coche: tr.dataset.coche || '',
           fecha_limite_entrega: tr.dataset.fechaLimite || '',
           fecha_ingreso: tr.dataset.fechaIngreso || '',
           cliente_tipo: tr.dataset.clienteTipo || ''
@@ -1376,7 +1384,8 @@ function filtrarVigentes(texto) {
     const nro = (tr.dataset.nro || '').toLowerCase();
     const codigo = (tr.dataset.codigo || '').toLowerCase();
     const razon = (tr.dataset.razon || '').toLowerCase();
-    const coincide = !q || nro.includes(q) || codigo.includes(q) || razon.includes(q);
+    const coche = (tr.dataset.coche || '').toLowerCase();
+    const coincide = !q || nro.includes(q) || codigo.includes(q) || razon.includes(q) || coche.includes(q);
     tr.style.display = coincide ? '' : 'none';
   });
 }
@@ -1509,6 +1518,7 @@ function ensureVigenteDetalleModal(){
         <div><label>Pendientes</label><span id="vig-det-pendientes">-</span></div>
         <div><label>Fecha Ingreso</label><span id="vig-det-fecha-ingreso">-</span></div>
         <div><label>Fecha Limite</label><span id="vig-det-fecha-limite">-</span></div>
+        <div><label>Coche / ID cliente</label><span id="vig-det-coche">-</span></div>
         <div><label>ID Registro</label><span id="vig-det-id">-</span></div>
         <div style="grid-column:span 2"><label>Observaciones</label><span id="vig-det-observaciones">-</span></div>
       </div>
@@ -1621,6 +1631,7 @@ function abrirModalDetalleVigente(data){
     'vig-det-pendientes': data.pendientes || '-',
     'vig-det-fecha-ingreso': fechaIngresoTxt,
     'vig-det-fecha-limite': fechaLimiteTxt + (atrasado ? ' (Atrasado)' : ''),
+    'vig-det-coche': data.coche || '-',
     'vig-det-id': data.id || '-',
     'vig-det-observaciones': data.observaciones || '-'
   };

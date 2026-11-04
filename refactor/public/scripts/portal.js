@@ -169,7 +169,7 @@ function tablaEquipos(data, conEmpresa) {
           ${data.map(r => `
             <tr>
               ${conEmpresa ? `<td>${esc(r.empresa)}</td>` : ''}
-              <td><b>${esc(r.nro_pedido)}</b>${r.licitacion_nro ? `<div class="portal-sub">Licitación ${esc(r.licitacion_nro)}</div>` : ''}</td>
+              <td><b>${esc(r.nro_pedido)}</b>${r.licitacion_nro ? `<div class="portal-sub">Licitación ${esc(r.licitacion_nro)}</div>` : ''}${r.coche ? `<div class="portal-sub">Coche ${esc(r.coche)}</div>` : ''}</td>
               <td>${esc(r.descripcion)}${r.codigo ? `<div class="portal-sub">${esc(r.codigo)}</div>` : ''}</td>
               <td><b>${r.pendientes}</b>${Number(r.cantidad) > Number(r.pendientes) ? `<div class="portal-sub">de ${r.cantidad}</div>` : ''}</td>
               <td>${fmt(r.fecha_ingreso)}</td>

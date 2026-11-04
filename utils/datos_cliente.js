@@ -105,7 +105,7 @@ async function vigentes(alc) {
   if (vacio(alc)) return [];
   const { rows } = await db.query(
     `SELECT rd.id, rd.nro_pedido, rd.licitacion_nro, rd.codigo, rd.descripcion, rd.cantidad, rd.pendientes,
-            rd.fecha_ingreso, rd.fecha_limite_entrega, rd.etapa, rd.etapa_at,
+            rd.fecha_ingreso, rd.fecha_limite_entrega, rd.etapa, rd.etapa_at, rd.coche,
             COALESCE(c.razon_social, rd.razon_social) AS empresa,
             ${fotosVigente.sqlResumen('rd')}
        FROM reparaciones_dota rd

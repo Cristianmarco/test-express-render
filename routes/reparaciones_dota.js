@@ -35,6 +35,9 @@ async function ensureNuevasColumnas(dbClient) {
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS fecha_ingreso DATE');
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS cliente_tipo TEXT');
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS cliente_id INTEGER');
+  // Numero interno del cliente para el equipo (coche, unidad, ID propio): es el que
+  // usan cuando preguntan por un equipo.
+  await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS coche TEXT');
   // Licitacion de la que se acepto el item (el nro_pedido lo carga el usuario y
   // no coincide con el nro de licitacion, asi que hace falta el vinculo aparte).
   await dbClient.query('ALTER TABLE reparaciones_dota ADD COLUMN IF NOT EXISTS licitacion_nro TEXT');
@@ -95,17 +98,17 @@ ensureNuevasColumnas(db)
 router.post('/', async (req, res, next) => {
   const client = await db.connect();
   try {
-    const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id, licitacion_nro } = req.body;
+    const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id, licitacion_nro, coche } = req.body;
     if (!codigo || !descripcion || !cantidad) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
     await ensureNuevasColumnas(client);
     await client.query('BEGIN');
     const q = await client.query(
-      `INSERT INTO reparaciones_dota (nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id, licitacion_nro)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      `INSERT INTO reparaciones_dota (nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id, licitacion_nro, coche)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING *`,
-      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, pendientes || cantidad, observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo), normalizeClienteId(cliente_id), String(licitacion_nro ?? '').trim() || null]
+      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, pendientes || cantidad, observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo), normalizeClienteId(cliente_id), String(licitacion_nro ?? '').trim() || null, String(coche ?? '').trim() || null]
     );
     await insertDomainAudit(client, req, AUDIT_DOMAIN, q.rows[0].id, 'create', {
       snapshot: q.rows[0]
@@ -336,7 +339,7 @@ router.patch('/:id', async (req, res, next) => {
 // PUT: actualizar todos los campos de una reparación
 router.put('/:id', async (req, res, next) => {
   const id = req.params.id;
-  const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id } = req.body;
+  const { nro_pedido, codigo, descripcion, cantidad, destino, razon_social, pendientes, observaciones, fecha_limite_entrega, fecha_ingreso, cliente_tipo, cliente_id, coche } = req.body;
   const client = await db.connect();
   try {
     await ensureNuevasColumnas(client);
@@ -348,9 +351,10 @@ router.put('/:id', async (req, res, next) => {
     }
     const q = await client.query(
       `UPDATE reparaciones_dota
-       SET nro_pedido=$1, codigo=$2, descripcion=$3, cantidad=$4, destino=$5, razon_social=$6, pendientes=$7, observaciones=$8, fecha_limite_entrega=$9, fecha_ingreso=$10, cliente_tipo=$11, cliente_id=$12
-       WHERE id=$13 RETURNING *`,
-      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, (pendientes ?? before.rows[0].pendientes ?? cantidad), observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo), normalizeClienteId(cliente_id), id]
+       SET nro_pedido=$1, codigo=$2, descripcion=$3, cantidad=$4, destino=$5, razon_social=$6, pendientes=$7, observaciones=$8, fecha_limite_entrega=$9, fecha_ingreso=$10, cliente_tipo=$11, cliente_id=$12,
+           coche = CASE WHEN $14::boolean THEN $13 ELSE coche END
+       WHERE id=$15 RETURNING *`,
+      [nro_pedido || null, codigo, descripcion, cantidad, destino || null, razon_social || null, (pendientes ?? before.rows[0].pendientes ?? cantidad), observaciones || null, normalizeFechaLimite(fecha_limite_entrega), normalizeFechaLimite(fecha_ingreso), normalizeClienteTipo(cliente_tipo), normalizeClienteId(cliente_id), String(coche ?? '').trim() || null, coche !== undefined, id]
     );
     await insertDomainAudit(client, req, AUDIT_DOMAIN, id, 'update', {
       changes: buildAuditChanges(before.rows[0], q.rows[0])
