@@ -6,6 +6,8 @@
 // Stock: una FC/ND con "ingresa_stock" da ENTRADA de sus renglones con articulo; una NC
 // con "ingresa_stock" es una devolucion y da SALIDA. Anular revierte el movimiento.
 const db = require('../db');
+// Columnas origen / factura_compra_id / usuario de movimientos_stock
+const { esquema: esquemaStock } = require('./stock');
 
 const COMPROBANTES = { FC: 'Factura', NC: 'Nota de crédito', ND: 'Nota de débito' };
 const LETRAS = ['A', 'B', 'C', 'M'];
@@ -205,7 +207,8 @@ function prepararFactura(body) {
 }
 
 // Mueve el stock de los renglones con articulo. signo: +1 entrada, -1 salida
-async function moverStock(client, factura, items, signo, observacion) {
+async function moverStock(client, factura, items, signo, observacion, req) {
+  await esquemaStock;
   for (const it of items) {
     if (!it.producto_id) continue;
     const cant = Math.round(Number(it.cantidad));
@@ -216,9 +219,9 @@ async function moverStock(client, factura, items, signo, observacion) {
       [it.producto_id, factura.deposito_id, signo * cant]
     );
     await client.query(
-      `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, fecha, observacion)
-       VALUES ($1, $2, $3, $4, now(), $5)`,
-      [it.producto_id, factura.deposito_id, signo > 0 ? 'ENTRADA' : 'SALIDA', cant, observacion]
+      `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, fecha, observacion, origen, factura_compra_id, usuario)
+       VALUES ($1, $2, $3, $4, now(), $5, 'compra', $6, $7)`,
+      [it.producto_id, factura.deposito_id, signo > 0 ? 'ENTRADA' : 'SALIDA', cant, observacion, factura.id || null, usuarioDe(req)]
     );
   }
 }
@@ -290,7 +293,7 @@ async function crearFactura(client, req, body) {
   const nombre = `${numeroComprobante(f)} de ${prov.rows[0].razon_social}`;
   if (f.ingresa_stock) {
     // NC = devolucion: sale del stock
-    await moverStock(client, f, items, f.comprobante === 'NC' ? -1 : 1, `Compra: ${nombre}`);
+    await moverStock(client, { ...f, id }, items, f.comprobante === 'NC' ? -1 : 1, `Compra: ${nombre}`, req);
   }
   // Ultimo costo (precio neto con bonificacion) de las facturas, si es la mas reciente
   if (f.comprobante === 'FC') {
@@ -325,7 +328,7 @@ async function anularFactura(client, req, id, motivo) {
   if (f.estado === 'anulada') throw new ErrorFactura(409, 'El comprobante ya está anulado');
   const items = (await client.query('SELECT * FROM facturas_compra_items WHERE factura_id = $1', [id])).rows;
   if (f.ingresa_stock) {
-    await moverStock(client, f, items, f.comprobante === 'NC' ? 1 : -1, `Anulación compra: ${numeroComprobante(f)}`);
+    await moverStock(client, f, items, f.comprobante === 'NC' ? 1 : -1, `Anulación compra: ${numeroComprobante(f)}`, req);
   }
   await client.query(
     `UPDATE facturas_compra SET estado = 'anulada', anulada_at = now(), anulada_por = $2, anulada_motivo = $3 WHERE id = $1`,

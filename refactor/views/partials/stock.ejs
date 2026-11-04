@@ -1,39 +1,168 @@
-<section class="stock-section">
-  <div class="erp-header-row">
-    <div class="titulo-dota">
-      <i class="fas fa-warehouse"></i> Stock
+<section class="cli-section" id="stk-root">
+  <div class="cli-top">
+    <h2><i class="fas fa-warehouse"></i> Stock</h2>
+    <div class="cli-stats" id="stk-stats"></div>
+  </div>
+
+  <div class="cli-card">
+    <div class="cli-tabs" id="stk-tabs">
+      <button type="button" class="cli-tab activa" data-pestana="stock">Stock</button>
+      <button type="button" class="cli-tab" data-pestana="inventarios">Toma de inventario <span class="cli-badge" id="stk-badge-inv" style="display:none"></span></button>
+      <button type="button" class="cli-tab" data-pestana="movimientos">Movimientos</button>
+    </div>
+
+    <!-- Stock -->
+    <div data-panel="stock">
+      <div class="cli-toolbar">
+        <input type="search" id="stk-buscar" placeholder="Buscar código, descripción o escanear código de barras..." autocomplete="off" />
+        <select id="stk-deposito"><option value="">Todos los depósitos</option></select>
+        <select id="stk-estado">
+          <option value="">Todos</option>
+          <option value="con">Con stock</option>
+          <option value="sin">Sin stock</option>
+          <option value="negativos">Negativos</option>
+        </select>
+        <select id="stk-proveedor"><option value="">Todos los proveedores</option></select>
+        <select id="stk-familia"><option value="">Todas las familias</option></select>
+        <a class="cli-btn" id="stk-exportar" href="#"><i class="fas fa-file-excel"></i> Excel</a>
+      </div>
+      <div class="cli-tabla-wrap">
+        <table class="cli-tabla">
+          <thead id="stk-thead"></thead>
+          <tbody id="stk-tbody"></tbody>
+        </table>
+      </div>
+      <div class="cli-acciones-lista">
+        <button type="button" class="cli-btn primario" id="stk-mov-nuevo"><i class="fas fa-right-left"></i> Registrar movimiento</button>
+        <button type="button" class="cli-btn" id="stk-mov-ver"><i class="fas fa-list"></i> Ver movimientos del producto</button>
+        <span class="cli-ayuda" id="stk-pie"></span>
+      </div>
+    </div>
+
+    <!-- Toma de inventario -->
+    <div data-panel="inventarios" style="display:none">
+      <div id="stk-inv-lista">
+        <div class="cli-tabla-wrap" style="min-height:160px">
+          <table class="cli-tabla">
+            <thead><tr><th>#</th><th>Fecha</th><th>Depósito</th><th>Qué se cuenta</th><th>Estado</th><th class="num">Contados</th><th class="num">Ajustes</th><th class="num">Valor ajustado</th></tr></thead>
+            <tbody id="stk-inv-tbody"></tbody>
+          </table>
+        </div>
+        <div class="cli-acciones-lista">
+          <button type="button" class="cli-btn primario" id="stk-inv-nuevo"><i class="fas fa-clipboard-list"></i> Nuevo inventario</button>
+          <span class="cli-ayuda">Contás lo que hay en el depósito (a mano o con el lector) y al cerrar el sistema ajusta las diferencias.</span>
+        </div>
+      </div>
+      <div id="stk-inv-detalle" style="display:none"></div>
+    </div>
+
+    <!-- Movimientos -->
+    <div data-panel="movimientos" style="display:none">
+      <div class="cli-toolbar">
+        <input type="search" id="stk-mov-buscar" placeholder="Buscar código, descripción u observación..." autocomplete="off" />
+        <input type="date" id="stk-mov-desde" title="Desde" />
+        <input type="date" id="stk-mov-hasta" title="Hasta" />
+        <select id="stk-mov-tipo"><option value="">Entradas y salidas</option><option value="ENTRADA">Entradas</option><option value="SALIDA">Salidas</option></select>
+        <select id="stk-mov-origen">
+          <option value="">Todos los orígenes</option>
+          <option value="reparacion">Reparaciones</option>
+          <option value="compra">Compras</option>
+          <option value="inventario">Inventario</option>
+          <option value="ajuste">Ajustes</option>
+          <option value="transferencia">Transferencias</option>
+          <option value="manual">Manuales</option>
+        </select>
+        <select id="stk-mov-deposito"><option value="">Todos los depósitos</option></select>
+        <span id="stk-mov-producto"></span>
+        <a class="cli-btn" id="stk-mov-exportar" href="#"><i class="fas fa-file-excel"></i> Excel</a>
+      </div>
+      <div class="cli-tabla-wrap">
+        <table class="cli-tabla">
+          <thead><tr><th>Fecha</th><th>Código</th><th>Descripción</th><th>Depósito</th><th class="num">Cantidad</th><th>Origen</th><th>Usuario</th><th>Observación</th></tr></thead>
+          <tbody id="stk-mov-tbody"></tbody>
+        </table>
+      </div>
+      <div class="cli-ayuda" id="stk-mov-pie" style="margin-top:6px"></div>
     </div>
   </div>
 
-  <div class="erp-main-card">
-    <div class="buscador-historial">
-      <input type="text" id="buscar-stock" class="input-buscar" placeholder="Buscar por código o descripción..." />
-      <button id="btn-buscar-stock" class="btn-primary">
-        <i class="fas fa-search"></i> Buscar
-      </button>
-    </div>
-
-    <div class="erp-table-card">
-      <table class="tabla-erp">
-        <thead>
-          <tr>
-            <th>Código</th>
-            <th>Descripción</th>
-            <th>Stock</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-stock-list"></tbody>
-      </table>
-    </div>
-
-    <div class="erp-panel-flotante">
-      <button id="btn-ver-movimientos" class="icon-button-erp visualizar" title="Movimiento de stock">
-        <i class="fas fa-exchange-alt"></i> Movimiento de stock
-      </button>
+  <!-- Modal: movimiento -->
+  <div id="modal-stk-movimiento" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor" style="max-width:540px">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-right-left"></i> Movimiento de stock</h2>
+      <form id="stk-mov-form" autocomplete="off" novalidate>
+        <div class="cli-ayuda" id="stk-mov-producto-info" style="margin-bottom:10px"></div>
+        <div class="cli-form-grid">
+          <div>
+            <label>Tipo *</label>
+            <select name="tipo">
+              <option value="ENTRADA">Entrada</option>
+              <option value="SALIDA">Salida</option>
+              <option value="AJUSTE">Ajuste (cargar lo contado)</option>
+              <option value="TRANSFERENCIA">Transferencia entre depósitos</option>
+            </select>
+          </div>
+          <div><label id="stk-mov-label-dep">Depósito *</label><select name="deposito_id"></select></div>
+          <div data-solo="TRANSFERENCIA"><label>Depósito destino *</label><select name="deposito_destino_id"></select></div>
+          <div><label id="stk-mov-label-cant">Cantidad *</label><input name="cantidad" inputmode="numeric" /></div>
+          <div style="grid-column: 1 / -1;"><label id="stk-mov-label-obs">Motivo</label><input name="observacion" maxlength="300" placeholder="Ej.: rotura, uso interno, devolución del cliente..." /></div>
+        </div>
+        <div class="cli-ayuda" id="stk-mov-ayuda"></div>
+        <div class="cli-form-error" id="stk-mov-error"></div>
+        <div class="cli-form-acciones">
+          <button type="button" class="cli-btn" data-cerrar>Cancelar</button>
+          <button type="submit" class="cli-btn primario"><i class="fas fa-check"></i> Registrar</button>
+        </div>
+      </form>
     </div>
   </div>
 
-  <div class="stock-modales">
-    <%- include("../partials/modales/stock_modales.ejs") %>
+  <!-- Modal: nuevo inventario -->
+  <div id="modal-stk-inventario" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor" style="max-width:540px">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-clipboard-list"></i> Nuevo inventario</h2>
+      <form id="stk-inv-form" autocomplete="off" novalidate>
+        <div class="cli-form-grid">
+          <div><label>Depósito *</label><select name="deposito_id"></select></div>
+          <div>
+            <label>Qué se cuenta *</label>
+            <select name="alcance">
+              <option value="todos">Todos los productos</option>
+              <option value="proveedor">Los de un proveedor</option>
+              <option value="familia">Los de una familia</option>
+              <option value="negativos">Solo los que dan negativo</option>
+              <option value="vacio">Lista vacía (se agregan al escanear)</option>
+            </select>
+          </div>
+          <div data-alcance="proveedor"><label>Proveedor *</label><select name="proveedor_id"></select></div>
+          <div data-alcance="familia"><label>Familia *</label><select name="familia_id"></select></div>
+          <div style="grid-column: 1 / -1;"><label>Descripción</label><input name="descripcion" maxlength="200" placeholder="Ej.: Inventario general noviembre, estante de rulemanes..." /></div>
+        </div>
+        <div class="cli-ayuda">Mientras se cuenta, el taller puede seguir usando repuestos: al cerrar se ajusta la diferencia contra el stock que había en el momento de contar cada producto.</div>
+        <div class="cli-form-error" id="stk-inv-error"></div>
+        <div class="cli-form-acciones">
+          <button type="button" class="cli-btn" data-cerrar>Cancelar</button>
+          <button type="submit" class="cli-btn primario"><i class="fas fa-check"></i> Crear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: cerrar inventario -->
+  <div id="modal-stk-cerrar" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor" style="max-width:520px">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-lock"></i> Cerrar inventario</h2>
+      <div id="stk-cerrar-resumen"></div>
+      <label class="cli-check"><input type="checkbox" id="stk-cerrar-ceros"> Poner en 0 los productos que no se contaron</label>
+      <div class="cli-ayuda" id="stk-cerrar-ceros-ayuda"></div>
+      <div class="cli-form-error" id="stk-cerrar-error"></div>
+      <div class="cli-form-acciones">
+        <button type="button" class="cli-btn" data-cerrar>Volver</button>
+        <button type="button" class="cli-btn primario" id="stk-cerrar-confirmar"><i class="fas fa-check"></i> Cerrar y ajustar el stock</button>
+      </div>
+    </div>
   </div>
 </section>

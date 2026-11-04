@@ -9,6 +9,8 @@ const {
   normalizeGarantiaResolucion
 } = require('../utils/garantia-resoluciones');
 const { insertDomainAudit } = require('../utils/domain-audit');
+// Columnas origen / usuario de movimientos_stock
+const { esquema: esquemaStock, usuarioDe: usuarioStock } = require('../utils/stock');
 let ExcelJS; // lazy require to avoid local dev errors if not installed
 
 const AUDIT_DOMAIN_STOCK = 'movimientos_stock';
@@ -386,6 +388,7 @@ async function aplicarRepuestos(client, req, reparacionId, repuestos) {
   const items = Array.isArray(repuestos) ? repuestos : [];
   if (!items.length) return;
   await ensureReparacionRepuestosTable(client);
+  await esquemaStock;
 
   for (const item of items) {
     const productoId = Number(item.producto_id);
@@ -415,10 +418,10 @@ async function aplicarRepuestos(client, req, reparacionId, repuestos) {
     );
 
     const movResult = await client.query(
-      `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, observacion, reparacion_id)
-       VALUES ($1,$2,'SALIDA',$3,$4,$5)
+      `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, observacion, reparacion_id, origen, usuario)
+       VALUES ($1,$2,'SALIDA',$3,$4,$5,'reparacion',$6)
        RETURNING *`,
-      [productoId, depositoId, cantidad, `Usado en reparación ID ${reparacionId}`, String(reparacionId)]
+      [productoId, depositoId, cantidad, `Usado en reparación ID ${reparacionId}`, String(reparacionId), usuarioStock(req)]
     );
     await safeInsertStockAudit(client, req, movResult.rows[0], {
       origen: 'planilla_reparacion',
@@ -437,6 +440,7 @@ async function aplicarRepuestos(client, req, reparacionId, repuestos) {
 // Se usa antes de re-aplicar en un PUT (editar) y antes de un DELETE.
 async function revertirRepuestos(client, req, reparacionId) {
   await ensureReparacionRepuestosTable(client);
+  await esquemaStock;
   const existentes = await client.query(
     `SELECT * FROM reparacion_repuestos WHERE reparacion_id = $1`,
     [reparacionId]
@@ -450,10 +454,10 @@ async function revertirRepuestos(client, req, reparacionId) {
       [row.producto_id, row.deposito_id, row.cantidad]
     );
     const movResult = await client.query(
-      `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, observacion, reparacion_id)
-       VALUES ($1,$2,'ENTRADA',$3,$4,$5)
+      `INSERT INTO movimientos_stock (producto_id, deposito_id, tipo, cantidad, observacion, reparacion_id, origen, usuario)
+       VALUES ($1,$2,'ENTRADA',$3,$4,$5,'reparacion',$6)
        RETURNING *`,
-      [row.producto_id, row.deposito_id, row.cantidad, `Reversión reparación ID ${reparacionId}`, String(reparacionId)]
+      [row.producto_id, row.deposito_id, row.cantidad, `Reversión reparación ID ${reparacionId}`, String(reparacionId), usuarioStock(req)]
     );
     await safeInsertStockAudit(client, req, movResult.rows[0], {
       origen: 'planilla_reparacion_reversion',
