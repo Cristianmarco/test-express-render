@@ -10,6 +10,14 @@
         <span>Hasta</span>
         <input type="date" id="rep-hasta" />
       </label>
+      <label class="rep-field" id="rep-cliente-wrap">
+        <span>Clientes</span>
+        <select id="rep-cliente">
+          <option value="todos">Todos</option>
+          <option value="dota">Dota (internos)</option>
+          <option value="externos">Externos</option>
+        </select>
+      </label>
       <button id="rep-actualizar" class="rep-apply" type="button"><i class="fa fa-rotate"></i> Actualizar</button>
     </div>
 
@@ -48,12 +56,42 @@
       </div>
     </div>
 
+    <div class="dashboard-row dashboard-row-center">
+      <div class="dashboard-card dashboard-card-large rep-desglose" id="rep-desglose">
+        <h3>¿Qué se reparó?</h3>
+        <div class="rep-cat-grid" id="rep-categorias"></div>
+        <div class="rep-cat-detalle">
+          <div class="rep-cat-detalle-cab">
+            <b id="rep-detalle-titulo">Detalle por equipo</b>
+            <span class="rep-cat-control" id="rep-control"></span>
+          </div>
+          <table class="tabla-erp">
+            <thead><tr><th>Equipo</th><th class="rep-num">Reparaciones</th><th class="rep-num">Garantías</th><th class="rep-num">% del total</th></tr></thead>
+            <tbody id="rep-detalle-equipos"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-row dashboard-row-center">
+      <div class="dashboard-card dashboard-card-large rep-desglose">
+        <h3>Top Técnicos</h3>
+        <div class="rep-tabla-scroll">
+          <table class="tabla-erp">
+            <thead id="rep-tecnicos-cab"></thead>
+            <tbody id="rep-top-tecnicos"></tbody>
+          </table>
+        </div>
+        <div class="rep-nota" id="rep-tecnicos-nota"></div>
+      </div>
+    </div>
+
     <div class="dashboard-row">
       <div class="dashboard-card" style="min-width:380px;">
-        <h3>Top Técnicos</h3>
+        <h3>Por cliente</h3>
         <table class="tabla-erp">
-          <thead><tr><th>Técnico</th><th>Cantidad</th></tr></thead>
-          <tbody id="rep-top-tecnicos"></tbody>
+          <thead><tr><th>Cliente</th><th class="rep-num">Reparaciones</th><th class="rep-num">Garantías</th></tr></thead>
+          <tbody id="rep-por-cliente"></tbody>
         </table>
       </div>
       <div class="dashboard-card" style="min-width:380px;">

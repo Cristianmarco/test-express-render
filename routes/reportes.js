@@ -36,35 +36,102 @@ const FALLA_INFERIDA_SQL = `
   END`;
 const FALLA_EXPR_SQL = `COALESCE(NULLIF(BTRIM(r.garantia_falla),''), ${FALLA_INFERIDA_SQL}, '(Sin falla)')`;
 
-// GET /api/reportes/planilla/resumen?inicio=YYYY-MM-DD&fin=YYYY-MM-DD
+// Filtro de cliente del reporte: todos | dota (internos) | externos
+const CLIENTE_SQL = {
+  dota: ` AND r.cliente_tipo = 'dota'`,
+  externos: ` AND COALESCE(r.cliente_tipo, '') <> 'dota'`,
+};
+// Top Tecnicos: todo lo que cargo el tecnico (reparaciones y garantias que proceso) menos
+// las garantias de equipos que el habia reparado (ultimo_reparador) que fueron devolucion
+// (funciona OK) o aceptadas por falla tecnica o de repuestos
+const GARANTIA_DESCUENTA_REPARADOR = ['funciona_ok', 'aceptada_tecnica', 'aceptada_repuestos'];
+
+// GET /api/reportes/planilla/resumen?inicio=YYYY-MM-DD&fin=YYYY-MM-DD&cliente=todos|dota|externos
 router.get('/planilla/resumen', async (req, res, next) => {
   const inicio = normDate(req.query.inicio);
   const fin = normDate(req.query.fin);
   if(!inicio || !fin) return res.status(400).json({ error: 'Faltan parametros inicio/fin' });
+  const cliente = CLIENTE_SQL[req.query.cliente] ? req.query.cliente : 'todos';
+  const rango = `DATE(r.fecha) BETWEEN $1 AND $2${CLIENTE_SQL[cliente] || ''}`;
   try {
     const params = [inicio, fin];
     const total = await db.query(
       `SELECT
-              SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE COALESCE(r.cantidad, 1) END)::int AS total,
+              COALESCE(SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE COALESCE(r.cantidad, 1) END), 0)::int AS total,
+              COALESCE(SUM(CASE WHEN ${garantiaCase('r')} THEN 1 ELSE 0 END), 0)::int AS garantias
+         FROM equipos_reparaciones r
+        WHERE ${rango}`, params);
+
+    // Por tecnico y categoria (alternadores, arranques...): lo que cargo cada uno (incluidas
+    // las garantias que proceso) y los dias con carga
+    const cat = `COALESCE(c.descripcion, '(Sin categoría)')`;
+    const joins = `LEFT JOIN familia f ON f.id = r.familia_id LEFT JOIN categoria c ON c.id = f.categoria_id`;
+    const cargados = await db.query(
+      `SELECT r.tecnico_id AS id, ${cat} AS categoria,
+              SUM(COALESCE(r.cantidad, 1))::int AS equipos,
+              COALESCE(SUM(COALESCE(r.cantidad, 1)) FILTER (WHERE ${garantiaCase('r')}), 0)::int AS garantias,
+              ARRAY_AGG(DISTINCT DATE(r.fecha)) AS dias
+         FROM equipos_reparaciones r ${joins}
+        WHERE ${rango}
+        GROUP BY r.tecnico_id, ${cat}`, params);
+    // Garantias de su propio trabajo (ultimo reparador) que se le descuentan
+    const descontar = `LOWER(COALESCE(r.resolucion, '')) IN ('${GARANTIA_DESCUENTA_REPARADOR.join("','")}')`;
+    const propias = await db.query(
+      `SELECT r.ultimo_reparador AS id, ${cat} AS categoria, LOWER(r.resolucion) AS resolucion, COUNT(*)::int AS n
+         FROM equipos_reparaciones r ${joins}
+        WHERE ${rango} AND ${garantiaCase('r')} AND ${descontar} AND r.ultimo_reparador IS NOT NULL
+        GROUP BY r.ultimo_reparador, ${cat}, LOWER(r.resolucion)`, params);
+    const nombres = new Map((await db.query('SELECT id, nombre FROM tecnicos')).rows.map((t) => [t.id, String(t.nombre || '').trim()]));
+    const tecnicos = new Map();
+    const fila = (id) => {
+      const k = id || 0;
+      if (!tecnicos.has(k)) {
+        tecnicos.set(k, { tecnico: nombres.get(id) || '(Sin técnico)', por_categoria: {}, cargados: 0, garantias: 0,
+          descuento: { funciona_ok: 0, aceptada_tecnica: 0, aceptada_repuestos: 0 }, descuento_total: 0, total: 0, dias: new Set() });
+      }
+      return tecnicos.get(k);
+    };
+    const totalCategoria = new Map();
+    const sumarCat = (t, c, n) => { t.por_categoria[c] = (t.por_categoria[c] || 0) + n; totalCategoria.set(c, (totalCategoria.get(c) || 0) + n); };
+    for (const r of cargados.rows) {
+      const t = fila(r.id);
+      t.cargados += r.equipos;
+      t.garantias += r.garantias;
+      sumarCat(t, r.categoria, r.equipos);
+      (r.dias || []).forEach((d) => t.dias.add(String(d instanceof Date ? d.toISOString() : d).slice(0, 10)));
+    }
+    for (const r of propias.rows) {
+      const t = fila(r.id);
+      t.descuento[r.resolucion] += r.n;
+      t.descuento_total += r.n;
+      sumarCat(t, r.categoria, -r.n);
+    }
+    const porTecnico = [...tecnicos.values()]
+      .map((t) => {
+        const total = t.cargados - t.descuento_total;
+        return { ...t, total, dias: t.dias.size, promedio_dia: t.dias.size ? Math.round(total / t.dias.size * 10) / 10 : 0 };
+      })
+      .sort((a, b) => (b.cargados > 0) - (a.cargados > 0) || b.total - a.total || a.tecnico.localeCompare(b.tecnico));
+    // Columnas de la tabla: las categorias con equipos, de mayor a menor
+    const categoriasTecnicos = [...totalCategoria.entries()].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).map(([c]) => c);
+
+    // Por cliente: Dota (todos los internos juntos) y cada externo
+    const porCliente = await db.query(
+      `SELECT CASE WHEN r.cliente_tipo = 'dota' THEN 'Dota (internos)' ELSE COALESCE(c.razon_social, c.fantasia, '(Sin cliente)') END AS cliente,
+              (r.cliente_tipo = 'dota') AS interno, MAX(c.codigo) AS codigo,
+              SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE COALESCE(r.cantidad, 1) END)::int AS reparaciones,
               SUM(CASE WHEN ${garantiaCase('r')} THEN 1 ELSE 0 END)::int AS garantias
          FROM equipos_reparaciones r
-        WHERE DATE(r.fecha) BETWEEN $1 AND $2`, params);
-
-    const porTecnico = await db.query(
-      `SELECT COALESCE(t.nombre,'(Sin tecnico)') AS tecnico, SUM(COALESCE(r.cantidad, 1))::int AS cantidad
-         FROM equipos_reparaciones r
-         LEFT JOIN tecnicos t ON t.id = r.tecnico_id
-        WHERE DATE(r.fecha) BETWEEN $1 AND $2
-          AND NOT ${garantiaCase('r')}
-        GROUP BY tecnico
-        ORDER BY cantidad DESC, tecnico ASC
-        LIMIT 10`, params);
+         LEFT JOIN clientes c ON r.cliente_tipo <> 'dota' AND c.id::text = r.cliente_id::text
+        WHERE ${rango}
+        GROUP BY 1, 2
+        ORDER BY 2 DESC, 4 DESC, 1`, params);
 
     const porEquipo = await db.query(
       `SELECT COALESCE(f.descripcion,'(Sin equipo)') AS equipo, SUM(COALESCE(r.cantidad, 1))::int AS cantidad
          FROM equipos_reparaciones r
          LEFT JOIN familia f ON f.id = r.familia_id
-        WHERE DATE(r.fecha) BETWEEN $1 AND $2
+        WHERE ${rango}
           AND NOT ${garantiaCase('r')}
         GROUP BY equipo
         ORDER BY cantidad DESC, equipo ASC
@@ -75,16 +142,46 @@ router.get('/planilla/resumen', async (req, res, next) => {
               SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE COALESCE(r.cantidad, 1) END)::int AS cantidad,
               SUM(CASE WHEN ${garantiaCase('r')} THEN 1 ELSE 0 END)::int AS garantias
          FROM equipos_reparaciones r
-        WHERE DATE(r.fecha) BETWEEN $1 AND $2
+        WHERE ${rango}
         GROUP BY DATE(r.fecha)
         ORDER BY DATE(r.fecha)`, params);
 
+    // Desglose de los totales: por categoria (alternadores, arranques, bombas...) y dentro
+    // de cada una por equipo. Mismo criterio que los totales: reparaciones suma la cantidad
+    // sin las garantias; garantias cuenta los registros de garantia.
+    const detalle = await db.query(
+      `SELECT c.id AS categoria_id, COALESCE(c.descripcion, '(Sin categoría)') AS categoria,
+              f.id AS familia_id, COALESCE(f.descripcion, '(Sin equipo)') AS equipo,
+              SUM(CASE WHEN ${garantiaCase('r')} THEN 0 ELSE COALESCE(r.cantidad, 1) END)::int AS reparaciones,
+              SUM(CASE WHEN ${garantiaCase('r')} THEN 1 ELSE 0 END)::int AS garantias
+         FROM equipos_reparaciones r
+         LEFT JOIN familia f ON f.id = r.familia_id
+         LEFT JOIN categoria c ON c.id = f.categoria_id
+        WHERE ${rango}
+        GROUP BY c.id, c.descripcion, f.id, f.descripcion`, params);
+    const categorias = new Map();
+    for (const d of detalle.rows) {
+      const k = d.categoria_id || 0;
+      if (!categorias.has(k)) categorias.set(k, { categoria_id: d.categoria_id, categoria: d.categoria, reparaciones: 0, garantias: 0, equipos: [] });
+      const c = categorias.get(k);
+      c.reparaciones += d.reparaciones;
+      c.garantias += d.garantias;
+      c.equipos.push({ familia_id: d.familia_id, equipo: d.equipo, reparaciones: d.reparaciones, garantias: d.garantias });
+    }
+    const porCategoria = [...categorias.values()]
+      .map((c) => ({ ...c, equipos: c.equipos.sort((a, b) => b.reparaciones - a.reparaciones || b.garantias - a.garantias || a.equipo.localeCompare(b.equipo)) }))
+      .sort((a, b) => b.reparaciones - a.reparaciones || b.garantias - a.garantias);
+
     res.json({
       rango: { inicio, fin },
+      cliente,
       totales: total.rows[0] || { total: 0, garantias: 0 },
-      porTecnico: porTecnico.rows,
+      porTecnico,
+      categoriasTecnicos,
+      porCliente: porCliente.rows,
       porEquipo: porEquipo.rows,
-      porDia: porDia.rows
+      porDia: porDia.rows,
+      porCategoria
     });
   } catch (e) { next(e); }
 });

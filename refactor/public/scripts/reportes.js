@@ -15,6 +15,99 @@
 
   let tipo = 'planilla-resumen';
 
+  // ---------- Resumen planilla: que se reparo (por categoria y equipo) ----------
+  let desglose = { categorias: [], totales: { total: 0, garantias: 0 } };
+  let categoriaSel = null; // null = todas
+
+  const ICONOS = [
+    [/alternador/i, 'fa-bolt'], [/arranque/i, 'fa-gear'], [/bomba/i, 'fa-oil-can'], [/instalaci/i, 'fa-plug'],
+    [/polea|maza/i, 'fa-circle-notch'], [/limpia/i, 'fa-wind'], [/calefacci/i, 'fa-fan'],
+  ];
+  const iconoDe = (nombre) => (ICONOS.find(([re]) => re.test(nombre)) || [null, 'fa-screwdriver-wrench'])[1];
+  const pct = (n, total) => total ? `${(n / total * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%` : '';
+  const claveCat = (c) => String(c.categoria_id || 0);
+
+  function pintarDesglose(){
+    const { categorias, totales } = desglose;
+    const total = Number(totales.total || 0);
+    const grid = document.getElementById('rep-categorias');
+    if (!grid) return;
+    if (categoriaSel && !categorias.some(c => claveCat(c) === categoriaSel)) categoriaSel = null;
+    grid.innerHTML = categorias.length ? categorias.map(c => `
+      <button type="button" class="rep-cat ${categoriaSel === claveCat(c) ? 'activa' : ''}" data-categoria="${claveCat(c)}" title="Ver el detalle por equipo">
+        <i class="fas ${iconoDe(c.categoria)}"></i>
+        <span class="rep-cat-nombre">${esc(c.categoria)}</span>
+        <span class="rep-cat-num">${c.reparaciones}</span>
+        <span class="rep-cat-sub">${pct(c.reparaciones, total)}${c.garantias ? ` · ${c.garantias} garantía${c.garantias === 1 ? '' : 's'}` : ''}</span>
+      </button>`).join('') : '<div class="rep-cat-vacio">Sin reparaciones en el rango elegido</div>';
+
+    // Control: la suma de las categorias tiene que dar los totales de arriba
+    const sumaRep = categorias.reduce((a, c) => a + c.reparaciones, 0);
+    const sumaGar = categorias.reduce((a, c) => a + c.garantias, 0);
+    const control = document.getElementById('rep-control');
+    const cierra = sumaRep === total && sumaGar === Number(totales.garantias || 0);
+    control.className = `rep-cat-control ${cierra ? '' : 'mal'}`;
+    control.textContent = cierra ? `${sumaRep} reparaciones y ${sumaGar} garantías en total` : `Las categorías suman ${sumaRep} / ${sumaGar}`;
+
+    const lista = categoriaSel ? categorias.filter(c => claveCat(c) === categoriaSel) : categorias;
+    document.getElementById('rep-detalle-titulo').innerHTML = categoriaSel
+      ? `Detalle de ${esc(lista[0].categoria)} <a href="#" data-categoria-todas>(ver todas)</a>` : 'Detalle por equipo';
+    const tb = document.getElementById('rep-detalle-equipos');
+    tb.innerHTML = lista.map(c => `
+      ${categoriaSel ? '' : `<tr class="rep-cat-fila"><td><i class="fas ${iconoDe(c.categoria)}"></i> ${esc(c.categoria)}</td>
+        <td class="rep-num">${c.reparaciones}</td><td class="rep-num">${c.garantias}</td><td class="rep-num">${pct(c.reparaciones, total)}</td></tr>`}
+      ${c.equipos.map(e => `<tr><td class="rep-equipo">${esc(e.equipo)}</td><td class="rep-num">${e.reparaciones}</td>
+        <td class="rep-num">${e.garantias || ''}</td><td class="rep-num">${pct(e.reparaciones, total)}</td></tr>`).join('')}`).join('')
+      || '<tr><td colspan="4">Sin datos</td></tr>';
+  }
+
+  // Top Tecnicos: todo lo que cargo cada tecnico (reparaciones y garantias que proceso) menos
+  // las garantias de equipos que el habia reparado (ultimo reparador) que fueron devolucion o
+  // aceptadas por falla tecnica o de repuestos. Las categorias ya vienen con el descuento.
+  function pintarTecnicos(data){
+    const cats = data.categoriasTecnicos || [];
+    const lista = (data.porTecnico || []).filter(t => t.cargados > 0);
+    const soloPropias = (data.porTecnico || []).filter(t => !t.cargados && t.descuento_total);
+    const corto = (c) => c.replace(/^Bombas Dosificadoras de Urea$/i, 'Bombas').replace(/^Poleas de Motor$/i, 'Poleas')
+      .replace(/^Motores? Limpiaparabrisas$/i, 'Limpiapar.').replace(/^Motore?s? de Calefacci[oó]n$/i, 'Calefacción');
+    const detalleDesc = (d) => [
+      d.aceptada_repuestos ? `${d.aceptada_repuestos} falla de repuestos` : '',
+      d.funciona_ok ? `${d.funciona_ok} devolución${d.funciona_ok === 1 ? '' : 'es'}` : '',
+      d.aceptada_tecnica ? `${d.aceptada_tecnica} falla técnica` : '',
+    ].filter(Boolean).join(', ');
+    document.getElementById('rep-tecnicos-cab').innerHTML = `<tr><th>Técnico</th>
+      ${cats.map(c => `<th class="rep-num" title="${esc(c)}"><i class="fas ${iconoDe(c)}"></i> ${esc(corto(c))}</th>`).join('')}
+      <th class="rep-num" title="Todo lo que cargó: reparaciones y garantías que procesó">Cargados</th>
+      <th class="rep-num" title="Garantías de equipos que él reparó (último reparador): devoluciones, falla técnica o de repuestos">− Garantías propias</th>
+      <th class="rep-num">Total</th>
+      <th class="rep-num" title="Días con algún equipo cargado">Días</th><th class="rep-num">Por día</th></tr>`;
+    document.getElementById('rep-top-tecnicos').innerHTML = lista.map(t => `<tr>
+      <td><b>${esc(t.tecnico)}</b></td>
+      ${cats.map(c => `<td class="rep-num">${t.por_categoria[c] || ''}</td>`).join('')}
+      <td class="rep-num" title="${t.garantias ? `incluye ${t.garantias} garantías que procesó` : ''}">${t.cargados}</td>
+      <td class="rep-num rep-desc" title="${esc(detalleDesc(t.descuento))}">${t.descuento_total ? `−${t.descuento_total}` : ''}</td>
+      <td class="rep-num"><b>${t.total}</b></td>
+      <td class="rep-num">${t.dias}</td>
+      <td class="rep-num">${t.promedio_dia.toLocaleString('es-AR')}</td>
+    </tr>`).join('') || `<tr><td colspan="${cats.length + 6}">Sin datos</td></tr>`;
+    document.getElementById('rep-tecnicos-nota').textContent =
+      'Total = todo lo que cargó el técnico (reparaciones y garantías que procesó) menos las garantías de equipos que él había reparado ' +
+      '(último reparador) que fueron devolución o aceptadas por falla técnica o de repuestos. Pasá el mouse por el descuento para ver el detalle.' +
+      (soloPropias.length ? ` Garantías propias de técnicos sin equipos en el rango: ${soloPropias.map(t => `${t.tecnico} ${t.descuento_total}`).join(', ')}.` : '');
+  }
+
+  // onclick (no addEventListener): este script se vuelve a cargar al entrar a Reportes
+  // y asi el manejador se reemplaza en vez de duplicarse
+  function bindDesglose(){
+    const card = document.getElementById('rep-desglose');
+    if (!card) return;
+    card.onclick = (e) => {
+      const cat = e.target.closest('[data-categoria]');
+      if (cat) { categoriaSel = categoriaSel === cat.dataset.categoria ? null : cat.dataset.categoria; pintarDesglose(); return; }
+      if (e.target.closest('[data-categoria-todas]')) { e.preventDefault(); categoriaSel = null; pintarDesglose(); }
+    };
+  }
+
   async function cargar(){
     const desde = document.getElementById('rep-desde');
     const hasta = document.getElementById('rep-hasta');
@@ -24,21 +117,29 @@
     if (hasta && !hasta.value) hasta.value = df;
 
     if (tipo === 'planilla-resumen') {
-      const res = await fetch(`/api/reportes/planilla/resumen?inicio=${encodeURIComponent(di)}&fin=${encodeURIComponent(df)}`, { credentials:'include' });
+      const cliente = (document.getElementById('rep-cliente') || {}).value || 'todos';
+      const res = await fetch(`/api/reportes/planilla/resumen?inicio=${encodeURIComponent(di)}&fin=${encodeURIComponent(df)}&cliente=${cliente}`, { credentials:'include' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error');
 
       document.getElementById('rep-total').textContent = data.totales?.total ?? 0;
       document.getElementById('rep-garantias').textContent = data.totales?.garantias ?? 0;
 
-      const tbTec = document.getElementById('rep-top-tecnicos');
-      tbTec.innerHTML = (data.porTecnico || []).map(r => `<tr><td>${r.tecnico}</td><td>${r.cantidad}</td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
+      pintarTecnicos(data);
+
+      const tbCli = document.getElementById('rep-por-cliente');
+      tbCli.innerHTML = (data.porCliente || []).map(r => `<tr class="${r.interno ? 'rep-cat-fila' : ''}"><td>${esc(r.cliente)}</td>
+        <td class="rep-num">${r.reparaciones}</td><td class="rep-num">${r.garantias || ''}</td></tr>`).join('') || '<tr><td colspan="3">Sin datos</td></tr>';
 
       const tbEq = document.getElementById('rep-top-equipos');
       tbEq.innerHTML = (data.porEquipo || []).map(r => `<tr><td>${r.equipo}</td><td>${r.cantidad}</td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
 
       const tbDia = document.getElementById('rep-por-dia');
       tbDia.innerHTML = (data.porDia || []).map(r => `<tr><td>${fmt(r.fecha)}</td><td>${r.cantidad}</td><td>${r.garantias}</td></tr>`).join('') || '<tr><td colspan="3">Sin datos</td></tr>';
+
+      desglose = { categorias: data.porCategoria || [], totales: data.totales || { total: 0, garantias: 0 } };
+      bindDesglose();
+      pintarDesglose();
     } else if (tipo === 'equipos-por-tecnico-promedio-diario') {
       await cargarPromedioPorTecnico(di, df);
     } else if (tipo === 'garantias-por-resolucion-reparador') {
@@ -56,6 +157,8 @@
       btn._bound = true;
       btn.addEventListener('click', cargar);
     }
+    const selCliente = document.getElementById('rep-cliente');
+    if (selCliente) selCliente.onchange = cargar;
 
     let btnMenu = document.getElementById('rep-menu-btn');
     let menu = document.getElementById('rep-menu');
@@ -122,6 +225,9 @@
   function updateVistaSegunTipo(){
     const bloquePlanilla = document.getElementById('rep-planilla-resumen');
     const bloqueDynamic = document.getElementById('rep-dynamic');
+    // El filtro de clientes es del resumen planilla
+    const cliente = document.getElementById('rep-cliente-wrap');
+    if (cliente) cliente.style.display = tipo === 'planilla-resumen' ? '' : 'none';
     if (!bloquePlanilla || !bloqueDynamic) return;
     if (tipo === 'planilla-resumen') {
       bloquePlanilla.style.display = '';

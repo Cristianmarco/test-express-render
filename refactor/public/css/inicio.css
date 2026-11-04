@@ -218,3 +218,39 @@
 .dashboard-cards-principal::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+/* ===== Reportes: que se reparo (por categoria / equipo) ===== */
+/* La tarjeta base centra el contenido (align-items: center) y eso achica la grilla a una columna */
+.dashboard-card.rep-desglose { width: 100%; max-width: 1200px; box-sizing: border-box; align-items: stretch; padding: 26px 30px; }
+.dashboard-card.rep-desglose > h3 { align-self: center; }
+.dashboard-card.rep-desglose:hover { transform: none; }
+.rep-cat-grid { width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin-bottom: 18px; }
+/* Tarjeta compacta: icono a la izquierda; nombre, numero y detalle a la derecha */
+.rep-cat { display: grid; grid-template-columns: 38px 1fr; grid-template-rows: auto auto auto; column-gap: 10px; align-items: center; text-align: left;
+  padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; cursor: pointer; font-family: inherit;
+  transition: border-color .15s, background .15s; }
+.rep-cat:hover { border-color: #93c5fd; background: #eff6ff; }
+.rep-cat.activa { border-color: #0072ff; background: #e0efff; box-shadow: 0 0 0 2px rgba(0,114,255,.15); }
+.rep-cat > i { grid-row: 1 / 4; font-size: 1.25rem; color: #0072ff; width: 38px; height: 38px; border-radius: 10px; background: #e0efff;
+  display: flex; align-items: center; justify-content: center; }
+.rep-cat-nombre { font-size: .8rem; font-weight: 600; color: #334155; line-height: 1.2; }
+.rep-cat-num { font-size: 1.45rem; font-weight: 700; color: #0f172a; line-height: 1.15; }
+.rep-cat-sub { font-size: .72rem; color: #6d7b93; }
+.rep-cat-vacio { grid-column: 1 / -1; color: #6d7b93; font-size: .9rem; text-align: center; padding: 10px; }
+.rep-cat-detalle-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; font-size: .95rem; }
+.rep-cat-detalle-cab a { font-size: .82rem; font-weight: 400; }
+.rep-cat-control { font-size: .8rem; color: #15803d; }
+.rep-cat-control.mal { color: #b91c1c; }
+.rep-desglose .tabla-erp { width: 100%; font-size: .9rem; }
+.rep-desglose .rep-num { text-align: right; }
+.rep-desglose tr.rep-cat-fila td { background: #f1f5f9; font-weight: 700; color: #1e3a8a; }
+.rep-desglose tr.rep-cat-fila i { color: #0072ff; margin-right: 4px; }
+.rep-desglose td.rep-equipo { padding-left: 26px; }
+.rep-tabla-scroll { width: 100%; overflow-x: auto; }
+.rep-tabla-scroll th { white-space: nowrap; }
+.rep-tabla-scroll th i { color: #0072ff; font-size: .8rem; }
+.rep-nota { font-size: .78rem; color: #6d7b93; margin-top: 8px; line-height: 1.4; }
+#rep-cliente { border: none; outline: none; font-size: .95rem; color: #2c3e50; background: transparent; font-family: inherit; cursor: pointer; }
+.dashboard-card .tabla-erp .rep-num, .dashboard-card .tabla-erp th.rep-num { text-align: right; }
+.dashboard-card .tabla-erp tr.rep-cat-fila td { background: #f1f5f9; font-weight: 700; color: #1e3a8a; }
+.dashboard-card .tabla-erp td.rep-desc { color: #b91c1c; cursor: help; }
