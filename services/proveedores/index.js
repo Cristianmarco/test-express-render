@@ -15,11 +15,15 @@ const hardimpex = require('./hardimpex');
 const byc = require('./byc');
 // Catalogo de equipos originales (sin precios): fichas, despiece y codigos de repuestos
 const delcoremy = require('./delcoremy');
-// Catalogos tecnicos de fabricantes: solo busqueda avanzada (se importan desde Nosso)
+// Catalogo de la app de escritorio de DER (lo sube a la base scripts/sincronizar_der.js)
+const der = require('./der');
+// Catalogos tecnicos de fabricantes: solo busqueda avanzada (ZEN y ZM se importan desde
+// Nosso; Gauss, desde DER)
 const zen = require('./zen');
 const zm = require('./zm');
+const gauss = require('./gauss');
 
-const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser, hardimpex, byc, delcoremy, zen, zm];
+const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser, hardimpex, byc, delcoremy, der, zen, zm, gauss];
 
 function lectorPorId(id) {
   const k = String(id || '').trim().toLowerCase();
