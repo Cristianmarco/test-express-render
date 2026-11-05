@@ -196,7 +196,8 @@
 
   function renderFicha(){
     const p = st.ficha;
-    const wa = linkWhatsapp(p.telefono);
+    // WhatsApp propio del proveedor; si no tiene, el telefono
+    const wa = linkWhatsapp(p.whatsapp || p.telefono);
     el('prov-ficha').innerHTML = `
       <div class="cli-ficha-head">
         <div>
@@ -212,7 +213,7 @@
         <div class="cli-ficha-acciones">
           <button type="button" class="cli-btn" data-accion="editar"><i class="fas fa-pen"></i> Editar</button>
           ${p.web ? `<a class="cli-btn" href="${esc(urlWeb(p.web))}" target="_blank" rel="noopener" title="Abrir ${esc(p.web)}"><i class="fas fa-globe"></i> Web</a>` : ''}
-          ${wa ? `<a class="cli-btn verde" href="${wa}" target="_blank" rel="noopener" title="WhatsApp ${esc(p.telefono)}"><i class="fab fa-whatsapp"></i></a>` : ''}
+          ${wa ? `<a class="cli-btn verde" href="${wa}" target="_blank" rel="noopener" title="WhatsApp ${esc(p.whatsapp || p.telefono)}"><i class="fab fa-whatsapp"></i></a>` : ''}
           ${p.email ? `<a class="cli-btn" href="mailto:${esc(p.email)}" title="Escribir a ${esc(p.email)}"><i class="fas fa-envelope"></i></a>` : ''}
           <button type="button" class="cli-btn" data-accion="activo" title="${p.activo === false ? 'Volver a activar' : 'Desactivar (deja de aparecer en el listado)'}">
             <i class="fas ${p.activo === false ? 'fa-toggle-off' : 'fa-toggle-on'}"></i> ${p.activo === false ? 'Activar' : 'Desactivar'}
@@ -268,7 +269,9 @@
     const dias = diasDesde(p.ultima_sync);
     let bonif = p.descuento_pct != null ? `${Number(p.descuento_pct).toLocaleString('es-AR')}%` : '—';
     if (imp && imp.descuento) bonif = `${Number(imp.descuento.pct).toLocaleString('es-AR')}%`;
-    const direccion = [p.direccion, p.localidad, p.provincia].filter(x => String(x || '').trim()).map(esc).join(', ');
+    const localidad = [p.localidad, p.codigo_postal && `(CP ${p.codigo_postal})`].filter(Boolean).join(' ');
+    const direccion = [p.direccion, localidad, p.provincia].filter(x => String(x || '').trim()).map(esc).join(', ');
+    const waProv = linkWhatsapp(p.whatsapp);
     const contactos = (p.contactos || []).map(x => {
       const wa = linkWhatsapp(x.telefono);
       return `<div class="cli-contacto">
@@ -305,6 +308,7 @@
             ${filaDato('IVA', esc(p.condicion_iva))}
             ${filaDato('Dirección', direccion)}
             ${filaDato('Teléfono', esc(p.telefono), { falta: true })}
+            ${filaDato('WhatsApp', p.whatsapp ? (waProv ? `<a href="${waProv}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> ${esc(p.whatsapp)}</a>` : esc(p.whatsapp)) : '')}
             ${filaDato('Email', p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : '', { falta: true })}
             ${filaDato('Web', p.web ? `<a href="${esc(urlWeb(p.web))}" target="_blank" rel="noopener">${esc(p.web)}</a>` : '')}
           </dl>
@@ -405,7 +409,7 @@
     return tr;
   }
 
-  const CAMPOS = ['razon_social','fantasia','direccion','localidad','provincia','telefono','email','web','cuit','notas',
+  const CAMPOS = ['razon_social','fantasia','direccion','localidad','codigo_postal','provincia','telefono','whatsapp','email','web','cuit','notas',
     'condicion_iva','condicion_pago','plazo_entrega','descuento_pct','pedido_minimo'];
 
   function abrirModal(prov){

@@ -976,6 +976,10 @@ function renderPlanillaTable(data) {
     const esGar = String(rep.garantia || '').toLowerCase() === 'si';
     const garTxt = esGar ? 'Si' : 'No';
     const garClass = esGar ? 'garantia-si' : 'garantia-no';
+    // Tilde cuando ya se imprimio el informe de garantia (sin texto, para no cambiar el "Si" de la celda)
+    const garImpreso = esGar && rep.garantia_impreso_en
+      ? ` <i class="fas fa-check" style="color:#1e8e3e; font-size:0.85em;" title="Informe impreso el ${esc(new Date(rep.garantia_impreso_en).toLocaleString('es-AR'))}"></i>`
+      : '';
     return `
       <tr data-id="${rep.id || ''}"
           data-familia-id="${rep.familia_id || ''}"
@@ -989,7 +993,7 @@ function renderPlanillaTable(data) {
         <td>${esc(rep.coche_numero) || '-'}</td>
         <td>${esc(rep.equipo) || '-'}${Number(rep.cantidad) > 1 ? ` <b title="Carga por lote" style="color:#1a5a90;">x${rep.cantidad}</b>` : ''}</td>
         <td>${esc(rep.tecnico) || '-'}</td>
-        <td class="${garClass}">${garTxt}</td>
+        <td class="${garClass}">${garTxt}${garImpreso}</td>
         <td>${esc(rep.nro_pedido_ref) || '-'}</td>
         <td>${esc(rep.observaciones) || '-'}</td>
         <td style="display:none" class="col-hora-inicio">${esc(rep.hora_inicio)}</td>
@@ -1011,6 +1015,17 @@ function renderPlanillaTable(data) {
       </tr>`;
   }).join('');
 }
+
+// La pagina del informe de garantia avisa cuando se imprimio: se muestra el tilde sin recargar
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin || !e.data || e.data.tipo !== 'garantia-impresa') return;
+  const rep = (planillaData || []).find((r) => String(r.id) === String(e.data.id));
+  if (!rep) return;
+  rep.garantia_impreso_en = e.data.en || new Date().toISOString();
+  const sel = document.querySelector('#tbody-reparaciones tr.selected')?.dataset.id;
+  renderPlanillaTable(planillaData);
+  if (sel) document.querySelector(`#tbody-reparaciones tr[data-id="${sel}"]`)?.classList.add('selected');
+});
 
 function bindOrdenPlanilla() {
   const ordenSelect = document.getElementById('orden-planilla');

@@ -12,7 +12,7 @@ const { tieneSeccion } = require("../utils/permisos");
 const CONDICIONES_IVA = ["Responsable Inscripto", "Monotributo", "Exento", "Consumidor Final"];
 const MAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Campos de texto que se guardan tal cual (recortados)
-const CAMPOS_TEXTO = ["razon_social", "fantasia", "direccion", "localidad", "provincia", "telefono", "email", "web",
+const CAMPOS_TEXTO = ["razon_social", "fantasia", "direccion", "localidad", "codigo_postal", "provincia", "telefono", "whatsapp", "email", "web",
   "notas", "condicion_pago", "plazo_entrega"];
 
 class ErrorProveedor extends Error {
@@ -103,8 +103,10 @@ router.get("/exportar", requireSeccion, async (req, res, next) => {
       { header: "Condición IVA", key: "condicion_iva", width: 20 },
       { header: "Dirección", key: "direccion", width: 30 },
       { header: "Localidad", key: "localidad", width: 18 },
+      { header: "Código postal", key: "codigo_postal", width: 12 },
       { header: "Provincia", key: "provincia", width: 16 },
       { header: "Teléfono", key: "telefono", width: 18 },
+      { header: "WhatsApp", key: "whatsapp", width: 18 },
       { header: "Email", key: "email", width: 28 },
       { header: "Web", key: "web", width: 28 },
       { header: "Bonificación %", key: "bonificacion", width: 12 },

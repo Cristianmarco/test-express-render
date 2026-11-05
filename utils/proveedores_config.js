@@ -24,6 +24,8 @@ const esquemaProveedores = (async () => {
       ADD COLUMN IF NOT EXISTS condicion_iva text,
       ADD COLUMN IF NOT EXISTS localidad text,
       ADD COLUMN IF NOT EXISTS provincia text,
+      ADD COLUMN IF NOT EXISTS codigo_postal text,
+      ADD COLUMN IF NOT EXISTS whatsapp text,
       ADD COLUMN IF NOT EXISTS notas text,
       ADD COLUMN IF NOT EXISTS rubros text[],
       ADD COLUMN IF NOT EXISTS descuento_pct numeric(5,2),

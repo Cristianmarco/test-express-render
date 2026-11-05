@@ -40,10 +40,29 @@
   </style>
   <script>
     function imprimir(){
+      if (typeof marcarImpreso === 'function') marcarImpreso();
       window.print();
       return false;
     }
   </script>
+  <% if (reporte.id) { %>
+  <script>
+    // Al imprimir (boton o Ctrl+P) se marca el informe como impreso: tilde en la planilla
+    var marcado = false;
+    function marcarImpreso(){
+      if (marcado) return;
+      marcado = true;
+      fetch('/api/garantias/report/<%= reporte.id %>/impreso', { method: 'POST', credentials: 'same-origin' })
+        .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(d){
+          if (window.opener) window.opener.postMessage({ tipo: 'garantia-impresa', id: '<%= reporte.id %>', en: d.garantia_impreso_en }, location.origin);
+        })
+        .catch(function(e){ marcado = false; console.error('No se pudo marcar el informe como impreso', e); });
+    }
+    window.addEventListener('beforeprint', marcarImpreso);
+    window.addEventListener('afterprint', marcarImpreso);
+  </script>
+  <% } %>
 </head>
 <body>
   <div style="display:flex; justify-content:flex-end; margin-bottom:12px;" class="print-hide">

@@ -70,6 +70,11 @@ const columnaCantidad = pool.query(
   "ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS cantidad INTEGER NOT NULL DEFAULT 1"
 ).catch((err) => console.error('equipos_reparaciones.cantidad:', err.message));
 
+// Cuando se imprimio el informe de garantia (lo marca routes/garantia_report.js)
+const columnaInformeImpreso = pool.query(
+  "ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS garantia_impreso_en TIMESTAMP"
+).catch((err) => console.error('equipos_reparaciones.garantia_impreso_en:', err.message));
+
 // Al cargar la reparacion real de una garantia externa (por su Nro de ID/Pedido),
 // se marca como resuelta poniendo pendiente en 0 (no se borra, a diferencia de Dota).
 async function cerrarGarantiaExternaPorNroId(dbClient, nroId) {
@@ -512,6 +517,7 @@ router.get("/historial/:id_reparacion", async (req, res) => {
   try {
     await ensurePlanillaGarantiaColumns(pool);
     await ensureReparacionRepuestosTable(pool);
+    await columnaInformeImpreso;
     const query = `
       SELECT
         r.id,
@@ -1051,6 +1057,7 @@ router.get("/", async (req, res) => {
         r.garantia_informe_trabajo,
         r.garantia_informe_observaciones,
         r.garantia_falla,
+        r.garantia_impreso_en,
         r.cantidad,
         COALESCE((
           SELECT json_agg(json_build_object(
