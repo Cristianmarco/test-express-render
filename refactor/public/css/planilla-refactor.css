@@ -498,6 +498,10 @@
 .tabla-vigentes .vc-etapa { width: 140px; }
 .tabla-vigentes .vc-cotiz { width: 66px; }
 .tabla-vigentes .vig-etapa-sel { width: 100%; padding: 3px 4px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
+.tabla-vigentes .vig-cajones { width: 100%; padding: 3px 6px; font-size: 0.8rem; text-align: left; border: 1px solid #93c5fd; border-radius: 6px; background: #eff6ff; color: #1e3a8a; cursor: pointer; line-height: 1.25; }
+.tabla-vigentes .vig-cajones.vacio { border-style: dashed; background: #fff; color: #475569; }
+.tabla-vigentes .vig-cajones:hover { background: #dbeafe; }
+.tabla-vigentes .vig-cajon-demora { color: #b45309; font-weight: 700; white-space: nowrap; }
 .tabla-vigentes .vig-etapa-sel.listo { border-color: #16a34a; background: #f0fdf4; color: #15803d; font-weight: 600; }
 .tabla-vigentes .vig-etapa-fin { font-size: 0.85rem; color: #15803d; font-weight: 600; }
 .tabla-vigentes .vc-foto { width: 70px; }

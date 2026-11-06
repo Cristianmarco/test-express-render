@@ -1309,6 +1309,11 @@ async function cargarVigentes(){
           abrirModalCotizacionDetalle(cotBtn.dataset.cotId);
           return;
         }
+        const cajBtn = e.target.closest('.vig-cajones');
+        if (cajBtn) {
+          abrirCajonesVigente(cajBtn.dataset.id);
+          return;
+        }
         const tr = e.target.closest('tr'); if(!tr) return;
         vigSeleccionada = tr.dataset.id || null;
         tb.querySelectorAll('tr').forEach(x=> x.classList.remove('selected'));
@@ -1318,6 +1323,7 @@ async function cargarVigentes(){
     if (!tb._dblBound){
       tb._dblBound = true;
       tb.addEventListener('dblclick', (e)=>{
+        if (e.target.closest('.vig-cajones')) return;
         const tr = e.target.closest('tr'); if(!tr) return;
         abrirModalDetalleVigente({
           id: tr.dataset.id || '',
@@ -1350,8 +1356,186 @@ async function cargarVigentes(){
 // no tiene etapa que cambiar.
 function celdaEtapa(r, devuelto){
   if (devuelto) return '<span class="vig-etapa-fin" style="color:#64748b;">Devuelto</span>';
+  if (usaCajonVigente(r.descripcion)) return celdaCajones(r);
   if (r.pendientes != null && Number(r.pendientes) <= 0) return '<span class="vig-etapa-fin">Reparado</span>';
   return `<select class="vig-etapa-sel${r.etapa === 'listo' ? ' listo' : ''}" data-id="${r.id}" data-actual="${r.etapa || ''}" title="Etapa del taller">${opcionesEtapa(r.etapa || '')}</select>`;
+}
+
+// ---- Cajones del taller (arranques y alternadores) ----
+// Cada equipo va en un cajon con chapa QR; los lectores de cada puesto marcan la fase
+// (ver utils/taller.js y la Central de fases en /taller/central)
+const FASES_TALLER = [['ingreso', 'Ingreso'], ['desarme', 'Desarme'], ['diagnostico', 'Diagnóstico'], ['armado', 'Armado'], ['salida', 'Salida']];
+const DEMORAS_TALLER = [['aprobacion', 'Esperando aprobación'], ['repuesto', 'Esperando repuesto']];
+const usaCajonVigente = (descripcion) => /^\s*(arranque|alternador)/i.test(String(descripcion || ''));
+
+function celdaCajones(r){
+  const fases = r.taller_fases || {};
+  const activos = Object.values(fases).reduce((t, n) => t + n, 0);
+  const pendientes = r.pendientes != null ? Number(r.pendientes) : Number(r.cantidad) || 0;
+  if (pendientes <= 0 && !activos) return '<span class="vig-etapa-fin">Reparado</span>';
+  const partes = FASES_TALLER.filter(([id]) => fases[id]).map(([id, n]) => `${fases[id]} ${n}`);
+  const sinCajon = Math.max(pendientes - activos, 0);
+  if (sinCajon && activos) partes.push(`${sinCajon} sin cajón`);
+  const demora = r.taller_demorados ? ` <span class="vig-cajon-demora" title="${r.taller_demorados} con demora">⏸ ${r.taller_demorados}</span>` : '';
+  const texto = activos ? partes.join(' · ') : 'Asignar cajón';
+  return `<button type="button" class="vig-cajones${activos ? '' : ' vacio'}" data-id="${r.id}" title="Cajones del taller: asignar, ver fases y demoras">
+    <i class="fas fa-box"></i> ${esc(texto)}${demora}</button>`;
+}
+
+function ensureCajonesModal(){
+  let m = document.getElementById('modal-vig-cajones');
+  if (m) return m;
+  m = document.createElement('div');
+  m.id = 'modal-vig-cajones'; m.className = 'modal-refactor'; m.style.display = 'none';
+  m.innerHTML = `
+    <div class="modal-contenido-refactor" style="max-width:820px;">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-box"></i> Cajones del taller</h2>
+      <div id="vcaj-cab" style="margin-bottom:10px;color:#334155;"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input id="vcaj-input" placeholder="Escaneá o escribí el cajón (ej: C023)" autocomplete="off" style="flex:1;min-width:220px;padding:8px 10px;font-size:1.05rem;border:1px solid #94a3b8;border-radius:6px;text-transform:uppercase;">
+        <button type="button" id="vcaj-asignar" class="btn-secundario"><i class="fas fa-plus"></i> Asignar</button>
+        <a href="/taller/central" target="_blank" rel="noopener" class="btn-secundario" title="Pantalla que reciben los lectores de los puestos"><i class="fas fa-barcode"></i> Central de fases</a>
+      </div>
+      <div id="vcaj-msg" style="min-height:20px;margin:6px 0;font-size:.9rem;"></div>
+      <div style="max-height:55vh;overflow:auto;">
+        <table class="tabla-erp" style="width:100%;">
+          <thead><tr><th>Equipo</th><th>Cajón</th><th>Fase</th><th>Demora</th><th></th></tr></thead>
+          <tbody id="vcaj-tbody"></tbody>
+        </table>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const cerrar = () => { m.style.display = 'none'; if (m._cambio) cargarVigentes(); };
+  m.querySelector('[data-cerrar]').addEventListener('click', cerrar);
+  m.addEventListener('click', (e) => { if (e.target === m) cerrar(); });
+  const input = m.querySelector('#vcaj-input');
+  const asignar = () => asignarCajonVigente(input.value);
+  m.querySelector('#vcaj-asignar').addEventListener('click', asignar);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); asignar(); } });
+  m.querySelector('#vcaj-tbody').addEventListener('change', (e) => {
+    const sel = e.target.closest('.vcaj-demora');
+    if (sel) cambiarDemoraCajon(sel);
+  });
+  m.querySelector('#vcaj-tbody').addEventListener('click', (e) => {
+    const b = e.target.closest('.vcaj-quitar');
+    if (b) quitarCajon(b.dataset.id, b.dataset.cajon);
+  });
+  return m;
+}
+
+function msgCajones(texto, tipo){
+  const el = document.getElementById('vcaj-msg');
+  if (el) { el.textContent = texto || ''; el.style.color = tipo === 'error' ? '#b91c1c' : '#15803d'; }
+}
+
+async function abrirCajonesVigente(id){
+  const m = ensureCajonesModal();
+  m._vigenteId = id;
+  m._cambio = false;
+  msgCajones('');
+  m.style.display = 'flex';
+  await cargarCajonesVigente();
+  const input = m.querySelector('#vcaj-input');
+  input.value = '';
+  input.focus();
+}
+
+async function cargarCajonesVigente(){
+  const m = document.getElementById('modal-vig-cajones');
+  const tr = document.querySelector(`#tbody-vigentes tr[data-id="${m._vigenteId}"]`);
+  const tb = m.querySelector('#vcaj-tbody');
+  tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;">Cargando...</td></tr>';
+  try {
+    const res = await fetch(`/api/taller/vigente/${m._vigenteId}`, { credentials: 'include' });
+    const lista = await res.json();
+    if (!res.ok) throw new Error(lista.error || 'Error');
+    const activos = lista.filter(e => !e.cerrado_en);
+    const pend = tr ? Number(tr.dataset.pendientes || tr.dataset.cantidad || 0) : 0;
+    const cab = tr ? `<b>${esc(tr.dataset.descripcion)}</b> · ${esc(tr.dataset.razon || '')}${tr.dataset.nro ? ` · Pedido ${esc(tr.dataset.nro)}` : ''}` : '';
+    m.querySelector('#vcaj-cab').innerHTML = `${cab}<div style="margin-top:4px;font-size:.9rem;">${activos.length} en cajón de ${pend} pendiente${pend === 1 ? '' : 's'}${lista.length > activos.length ? ` · ${lista.length - activos.length} ya salieron` : ''}</div>`;
+    const fecha = (v) => v ? new Date(v).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    tb.innerHTML = lista.map(e => {
+      const fase = (FASES_TALLER.find(([id]) => id === e.fase) || [null, e.fase])[1];
+      const unidad = e.cantidad > 1 ? `${e.unidad} de ${e.cantidad}` : 'Equipo';
+      if (e.cerrado_en) {
+        return `<tr style="color:#94a3b8;"><td>${unidad}</td><td>${esc(e.cajon)}</td><td>Salió ${fecha(e.cerrado_en)}</td><td>—</td><td></td></tr>`;
+      }
+      const opciones = '<option value="">Sin demora</option>' + DEMORAS_TALLER.map(([id, n]) => `<option value="${id}" ${e.demora === id ? 'selected' : ''}>${n}</option>`).join('');
+      return `<tr>
+        <td>${unidad}</td>
+        <td><b>${esc(e.cajon)}</b></td>
+        <td>${esc(fase)} <span style="color:#64748b;font-size:.82rem;">${fecha(e.fase_at)}</span></td>
+        <td><select class="vcaj-demora" data-id="${e.id}" data-actual="${e.demora || ''}" title="${esc(e.demora_motivo || '')}">${opciones}</select>
+          ${e.demora_motivo ? `<div style="font-size:.8rem;color:#b45309;">${esc(e.demora_motivo)}</div>` : ''}</td>
+        <td><button type="button" class="vcaj-quitar" data-id="${e.id}" data-cajon="${esc(e.cajon)}" title="Sacar del cajón (asignado por error)" style="background:none;border:none;color:#b91c1c;cursor:pointer;"><i class="fas fa-xmark"></i></button></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="5" style="text-align:center;color:#64748b;">Ningún equipo en cajón todavía. Escaneá el cajón donde ponés cada equipo.</td></tr>';
+  } catch (err) {
+    tb.innerHTML = `<tr><td colspan="5" style="color:#b91c1c;">No se pudieron cargar los cajones: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+async function asignarCajonVigente(texto){
+  const m = document.getElementById('modal-vig-cajones');
+  const input = m.querySelector('#vcaj-input');
+  const cajon = String(texto || '').trim();
+  if (!cajon) return;
+  input.value = '';
+  try {
+    const res = await fetch(`/api/taller/vigente/${m._vigenteId}/asignar`, {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cajon })
+    });
+    const js = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(js.error || 'Error');
+    m._cambio = true;
+    msgCajones(`${js.equipo.cajon} asignado${js.equipo.referencia ? ' · ' + js.equipo.referencia : ''}`);
+    await cargarCajonesVigente();
+  } catch (err) {
+    msgCajones(err.message, 'error');
+  }
+  input.focus();
+}
+
+async function cambiarDemoraCajon(sel){
+  const m = document.getElementById('modal-vig-cajones');
+  let motivo = '';
+  if (sel.value) {
+    const r = prompt('Motivo (opcional), ej: "falta regulador, pedido a DER":', '');
+    if (r === null) { sel.value = sel.dataset.actual; return; }
+    motivo = r;
+  }
+  sel.disabled = true;
+  try {
+    const res = await fetch(`/api/taller/equipos/${sel.dataset.id}/demora`, {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ demora: sel.value || null, motivo })
+    });
+    const js = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(js.error || 'Error');
+    m._cambio = true;
+    await cargarCajonesVigente();
+  } catch (err) {
+    alert('No se pudo cambiar la demora: ' + err.message);
+    sel.value = sel.dataset.actual;
+    sel.disabled = false;
+  }
+}
+
+async function quitarCajon(id, cajon){
+  if (!confirm(`¿Sacar el equipo del cajón ${cajon}? Se borra su recorrido por las fases y el cajón queda libre.`)) return;
+  const m = document.getElementById('modal-vig-cajones');
+  try {
+    const res = await fetch(`/api/taller/equipos/${id}`, { method: 'DELETE', credentials: 'include' });
+    const js = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(js.error || 'Error');
+    m._cambio = true;
+    msgCajones(`${cajon} quedó libre`);
+    await cargarCajonesVigente();
+  } catch (err) {
+    msgCajones(err.message, 'error');
+  }
 }
 
 async function cambiarEtapaVigente(sel){

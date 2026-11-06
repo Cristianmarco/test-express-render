@@ -1,0 +1,83 @@
+<section class="cli-section" id="op-root">
+  <div class="cli-top">
+    <h2><i class="fas fa-money-check-dollar"></i> Órdenes de pago</h2>
+  </div>
+
+  <div class="cli-card">
+    <div class="cli-toolbar">
+      <input type="search" id="op-buscar" placeholder="Buscar proveedor, número, observación..." autocomplete="off" />
+      <select id="op-filtro-proveedor"><option value="">Todos los proveedores</option></select>
+      <input type="date" id="op-desde" title="Desde" />
+      <input type="date" id="op-hasta" title="Hasta" />
+      <select id="op-filtro-estado">
+        <option value="confirmada">Confirmadas</option>
+        <option value="anulada">Anuladas</option>
+        <option value="">Todas</option>
+      </select>
+    </div>
+    <div class="cli-tabla-wrap">
+      <table class="cli-tabla">
+        <thead><tr><th>Fecha</th><th>Número</th><th>Proveedor</th><th>Medios</th><th class="num">Facturas</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody id="op-tbody"></tbody>
+      </table>
+    </div>
+    <div class="cli-acciones-lista">
+      <button type="button" class="cli-btn primario" id="op-nueva"><i class="fas fa-plus"></i> Nueva orden de pago</button>
+    </div>
+  </div>
+
+  <datalist id="op-proveedores-lista"></datalist>
+
+  <!-- Modal: nueva orden de pago -->
+  <div id="modal-orden-pago" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor fc-modal">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-money-check-dollar"></i> Nueva orden de pago</h2>
+      <form id="op-form" autocomplete="off" novalidate>
+        <div class="cli-form-grid">
+          <div style="grid-column: span 2;">
+            <label>Proveedor *</label>
+            <input id="op-proveedor" list="op-proveedores-lista" placeholder="Escribí el nombre o el código" />
+            <div class="cli-ayuda" id="op-proveedor-info"></div>
+          </div>
+          <div><label>Fecha *</label><input name="fecha" type="date" /></div>
+        </div>
+
+        <fieldset>
+          <legend>Facturas a pagar</legend>
+          <div id="op-facturas"><div class="cli-ayuda">Elegí el proveedor para ver sus facturas pendientes.</div></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Medios de pago</legend>
+          <table class="cli-tabla op-medios">
+            <thead><tr><th style="width:150px">Medio</th><th class="num" style="width:150px">Importe</th><th>Banco</th><th>Nº operación / cheque</th><th style="width:150px">Fecha de cobro</th><th style="width:36px"></th></tr></thead>
+            <tbody id="op-medios"></tbody>
+          </table>
+          <button type="button" class="cli-btn" id="op-agregar-medio" style="margin:8px 0 10px"><i class="fas fa-plus"></i> Agregar medio</button>
+        </fieldset>
+
+        <div class="op-totales" id="op-totales"></div>
+
+        <fieldset>
+          <legend>Observaciones</legend>
+          <textarea name="observaciones" style="min-height:50px"></textarea>
+        </fieldset>
+
+        <div class="cli-form-error" id="op-error"></div>
+        <div class="cli-form-acciones">
+          <button type="button" class="cli-btn" data-cerrar>Cancelar</button>
+          <button type="submit" class="cli-btn primario" id="op-guardar"><i class="fas fa-check"></i> Confirmar e imprimir</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: detalle -->
+  <div id="modal-orden-detalle" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor fc-modal">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <div id="op-detalle"></div>
+    </div>
+  </div>
+</section>

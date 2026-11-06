@@ -13,13 +13,26 @@
     <h2><i class="fas fa-lock"></i> Iniciar Sesion</h2>
     <form id="loginForm">
       <input type="email" id="usuario" placeholder="Email" required>
-      <input type="password" id="password" placeholder="Contrasena" required>
+      <div class="login-pass">
+        <input type="password" id="password" placeholder="Contrasena" required>
+        <button type="button" class="login-ojo" id="verPassword" title="Mostrar contraseña" aria-label="Mostrar contraseña"><i class="fas fa-eye"></i></button>
+      </div>
       <button type="submit">Ingresar</button>
     </form>
     <p id="login-msg"></p>
   </div>
 
   <script>
+    // Ojito: muestra u oculta la contraseña
+    document.getElementById("verPassword").addEventListener("click", (e) => {
+      const input = document.getElementById("password");
+      const ver = input.type === "password";
+      input.type = ver ? "text" : "password";
+      e.currentTarget.innerHTML = `<i class="fas fa-eye${ver ? "-slash" : ""}"></i>`;
+      e.currentTarget.title = ver ? "Ocultar contraseña" : "Mostrar contraseña";
+      input.focus();
+    });
+
     document.getElementById("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const usuario = document.getElementById("usuario").value.trim();

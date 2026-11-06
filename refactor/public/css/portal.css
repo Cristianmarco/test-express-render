@@ -183,6 +183,9 @@ body.portal-body {
 .badge-naranja { background: #ffedd5; color: #c2410c; }
 .badge-gris   { background: #f1f5f9; color: #475569; }
 .badge-rojo   { background: #fee2e2; color: #b91c1c; }
+.badge-violeta { background: #ede9fe; color: #6d28d9; }
+.badge-amarillo { background: #fef9c3; color: #a16207; }
+.badge-turquesa { background: #ccfbf1; color: #0f766e; }
 
 /* ── Mensaje vacío / error / spinner ────────────────────────────────────── */
 .portal-empty {

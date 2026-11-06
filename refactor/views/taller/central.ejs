@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Central de fases</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root { --ok:#15803d; --aviso:#b45309; --error:#b91c1c; --borde:#cbd5e1; --suave:#64748b; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, Segoe UI, Arial, sans-serif; background:#f1f5f9; color:#0f172a; }
+    header { display:flex; align-items:center; gap:16px; padding:12px 20px; background:#0f3a5f; color:#fff; flex-wrap:wrap; }
+    header h1 { font-size:1.3rem; margin:0; flex:1; }
+    .contadores { display:flex; gap:8px; flex-wrap:wrap; }
+    .contador { background:rgba(255,255,255,.12); border-radius:8px; padding:4px 10px; font-size:.9rem; }
+    .contador b { font-size:1.1rem; }
+    main { padding:16px 20px; display:grid; grid-template-columns: 1fr 380px; gap:16px; }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+    .panel { background:#fff; border:1px solid var(--borde); border-radius:10px; padding:14px; }
+    #entrada-box { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    #entrada { flex:1; min-width:220px; font-size:1.4rem; padding:10px 12px; border:2px solid #0f3a5f; border-radius:8px; text-transform:uppercase; }
+    #fase-manual { font-size:1rem; padding:10px; border:1px solid var(--borde); border-radius:8px; }
+    .ayuda { color:var(--suave); font-size:.85rem; margin-top:8px; }
+    #ultima { margin-top:14px; border-radius:10px; padding:22px; text-align:center; background:#e2e8f0; min-height:150px; display:flex; flex-direction:column; justify-content:center; }
+    #ultima .grande { font-size:2.2rem; font-weight:700; }
+    #ultima .detalle { font-size:1.1rem; margin-top:6px; }
+    #ultima.ok { background:#dcfce7; color:var(--ok); }
+    #ultima.aviso { background:#fef3c7; color:var(--aviso); }
+    #ultima.error { background:#fee2e2; color:var(--error); }
+    #foco { display:none; margin-top:10px; padding:10px; border-radius:8px; background:var(--error); color:#fff; font-weight:600; text-align:center; cursor:pointer; }
+    h2 { font-size:1rem; margin:0 0 10px; color:#0f3a5f; }
+    #movimientos { list-style:none; margin:0; padding:0; max-height:70vh; overflow:auto; }
+    #movimientos li { padding:7px 4px; border-bottom:1px solid #e2e8f0; font-size:.9rem; }
+    #movimientos .hora { color:var(--suave); font-size:.8rem; }
+    #movimientos .aviso { color:var(--aviso); }
+    .tag { display:inline-block; padding:1px 7px; border-radius:6px; background:#e0f2fe; color:#075985; font-weight:600; font-size:.8rem; }
+    .opciones { display:flex; gap:14px; margin-top:10px; font-size:.9rem; color:var(--suave); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><i class="fas fa-barcode"></i> Central de fases</h1>
+    <div class="contadores" id="contadores"></div>
+    <a href="/taller/chapas" target="_blank" style="color:#fff;font-size:.85rem;" title="QR de los cajones para imprimir o mandar a grabar"><i class="fas fa-qrcode"></i> QR de cajones</a>
+  </header>
+  <main>
+    <section>
+      <div class="panel">
+        <div id="entrada-box">
+          <input id="entrada" autocomplete="off" autofocus placeholder="Escaneá un cajón (o escribí ej: DES C023)">
+          <select id="fase-manual" title="Fase para lecturas sin prefijo (lector sin configurar o escritas a mano)">
+            <option value="">Fase: según el lector</option>
+            <% fases.filter(f => f.id !== 'ingreso').forEach(f => { %>
+              <option value="<%= f.id %>"><%= f.nombre %> (<%= f.prefijo %>)</option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="ayuda">
+          Cada lector escribe su prefijo antes del cajón:
+          <% fases.filter(f => f.id !== 'ingreso').forEach(f => { %><span class="tag"><%= f.prefijo %></span> <%= f.nombre %> &nbsp;<% }) %>
+          · Si el lector no tiene prefijo, elegí la fase en el selector.
+        </div>
+        <div class="opciones">
+          <label><input type="checkbox" id="opt-sonido" checked> Sonido</label>
+          <label><input type="checkbox" id="opt-voz"> Decir la lectura en voz alta</label>
+        </div>
+        <div id="foco">La central no está recibiendo las lecturas. Hacé clic acá.</div>
+        <div id="ultima"><div class="grande">Esperando lecturas…</div></div>
+      </div>
+    </section>
+    <aside class="panel">
+      <h2><i class="fas fa-clock-rotate-left"></i> Últimos movimientos</h2>
+      <ul id="movimientos"></ul>
+    </aside>
+  </main>
+
+  <script>
+    const entrada = document.getElementById('entrada');
+    const faseManual = document.getElementById('fase-manual');
+    const ultima = document.getElementById('ultima');
+    const avisoFoco = document.getElementById('foco');
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    const NOMBRES = <%- JSON.stringify(Object.fromEntries(fases.map(f => [f.id, f.nombre]))) %>;
+
+    // Los lectores escriben como un teclado: la entrada tiene que tener siempre el foco
+    function enfocar(){ entrada.focus(); }
+    document.addEventListener('click', (e) => { if (!e.target.closest('select, label, input[type=checkbox]')) enfocar(); });
+    faseManual.addEventListener('change', enfocar);
+    function revisarFoco(){ avisoFoco.style.display = document.hasFocus() && document.activeElement === entrada ? 'none' : 'block'; }
+    window.addEventListener('blur', revisarFoco);
+    window.addEventListener('focus', () => { enfocar(); revisarFoco(); });
+    entrada.addEventListener('blur', () => setTimeout(revisarFoco, 50));
+    entrada.addEventListener('focus', revisarFoco);
+    avisoFoco.addEventListener('click', enfocar);
+
+    // Sonidos: uno corto agudo (ok), doble medio (aviso), largo grave (error)
+    let audio;
+    function tono(frec, dur, inicio){
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = frec; o.type = 'sine';
+      o.connect(g); g.connect(audio.destination);
+      const t = audio.currentTime + (inicio || 0);
+      g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.start(t); o.stop(t + dur);
+    }
+    function sonar(nivel){
+      if (!document.getElementById('opt-sonido').checked) return;
+      try {
+        if (nivel === 'ok') tono(1320, 0.15);
+        else if (nivel === 'aviso') { tono(880, 0.12); tono(880, 0.12, 0.18); }
+        else { tono(220, 0.6); }
+      } catch (_) {}
+    }
+    function decir(texto){
+      if (!document.getElementById('opt-voz').checked || !window.speechSynthesis) return;
+      const u = new SpeechSynthesisUtterance(texto); u.lang = 'es-AR';
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }
+
+    function mostrar(r){
+      ultima.className = r.nivel;
+      const e = r.equipo;
+      ultima.innerHTML = `<div class="grande">${esc(r.mensaje)}</div>`
+        + (e ? `<div class="detalle">${esc(e.titulo)}</div><div class="detalle">${esc(e.referencia)}</div>` : '');
+      sonar(r.nivel);
+      if (r.nivel !== 'error' && e) decir(`${NOMBRES[e.fase] || ''}. ${e.descripcion || ''}${e.nro_pedido ? '. Pedido ' + e.nro_pedido : ''}`);
+      else if (r.nivel === 'error') decir('Error. ' + r.mensaje);
+    }
+
+    let enviando = Promise.resolve();
+    entrada.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      const texto = entrada.value.trim();
+      entrada.value = '';
+      if (!texto) return;
+      // En orden, aunque lleguen dos lecturas seguidas
+      enviando = enviando.then(() => procesar(texto));
+    });
+
+    async function procesar(texto){
+      try {
+        const res = await fetch('/api/taller/lectura', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texto, fase: faseManual.value || undefined })
+        });
+        const r = await res.json().catch(() => ({}));
+        if (res.status === 401) return mostrar({ nivel: 'error', mensaje: 'Se cerró la sesión: volvé a entrar al sistema' });
+        if (!res.ok) return mostrar({ nivel: 'error', mensaje: r.error || 'Error del servidor' });
+        mostrar(r);
+        cargar();
+      } catch (err) {
+        mostrar({ nivel: 'error', mensaje: 'Sin conexión con el servidor' });
+      }
+    }
+
+    async function cargar(){
+      try {
+        const [cajones, movs] = await Promise.all([
+          fetch('/api/taller/cajones', { credentials: 'same-origin' }).then(r => r.json()),
+          fetch('/api/taller/movimientos?limite=40', { credentials: 'same-origin' }).then(r => r.json())
+        ]);
+        const ocupados = cajones.filter(c => c.equipo);
+        const porFase = {};
+        ocupados.forEach(c => { porFase[c.equipo.fase] = (porFase[c.equipo.fase] || 0) + 1; });
+        const demorados = ocupados.filter(c => c.equipo.demora).length;
+        document.getElementById('contadores').innerHTML =
+          `<span class="contador"><b>${ocupados.length}</b> / ${cajones.length} cajones ocupados</span>`
+          + Object.entries(NOMBRES).filter(([id]) => id !== 'salida').map(([id, n]) => `<span class="contador">${esc(n)}: <b>${porFase[id] || 0}</b></span>`).join('')
+          + (demorados ? `<span class="contador">⏸ Demorados: <b>${demorados}</b></span>` : '');
+        document.getElementById('movimientos').innerHTML = movs.map(m => {
+          const hora = new Date(m.creado_en).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+          const que = m.tipo === 'fase' ? `<b>${esc(m.valor_nombre)}</b>` : `⏸ ${esc(m.valor_nombre)}`;
+          const unidad = m.cantidad > 1 && m.unidad ? ` (${m.unidad}/${m.cantidad})` : '';
+          return `<li><span class="tag">${esc(m.cajon)}</span> ${que} · ${esc(m.descripcion || '')}${m.nro_pedido ? ' · Ped. ' + esc(m.nro_pedido) : ''}${unidad}
+            <div class="hora">${hora}${m.aviso ? ` · <span class="aviso">${esc(m.aviso)}</span>` : ''}</div></li>`;
+        }).join('') || '<li style="color:#64748b">Sin movimientos todavía.</li>';
+      } catch (_) {}
+    }
+    cargar();
+    setInterval(cargar, 20000);
+    enfocar();
+    revisarFoco();
+  </script>
+</body>
+</html>

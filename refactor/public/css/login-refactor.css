@@ -52,3 +52,27 @@ body.login-body {
 .login-card button:hover {
   background: #15803d;
 }
+
+/* Contraseña con el ojito para verla */
+.login-pass {
+  position: relative;
+  margin-bottom: 10px;
+}
+.login-card .login-pass input {
+  margin-bottom: 0;
+  padding-right: 40px;
+}
+.login-card button.login-ojo {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: auto;
+  padding: 6px 8px;
+  background: none;
+  color: #64748b;
+}
+.login-card button.login-ojo:hover {
+  background: none;
+  color: #0f172a;
+}

@@ -45,6 +45,7 @@ const API = {
   equipos: { leer: TODOS, escribir: ['configuracion'] },
   fichas: { leer: ['fichas', 'planilla', 'productos'], escribir: ['fichas'] },
   reparaciones_planilla: { leer: ['planilla'], escribir: ['planilla'] },
+  taller: { leer: ['licitaciones', 'planilla'], escribir: ['licitaciones', 'planilla'] },
   reparaciones: { leer: ['planilla'], escribir: ['planilla'] },
   entregadas: { leer: ['planilla'], escribir: ['planilla'] },
   historial: { leer: ['planilla'], escribir: ['planilla'] },
@@ -59,6 +60,7 @@ const API = {
   },
   compras: { leer: ['compras'], escribir: ['compras'] },
   facturas_compra: { leer: ['compras'], escribir: ['compras'] },
+  ordenes_pago: { leer: ['compras'], escribir: ['compras'] },
   reportes: { leer: ['reportes'], escribir: ['reportes'] },
   estadisticas: { leer: ['reportes'], escribir: ['reportes'] },
 };

@@ -69,7 +69,15 @@
                     </ul>
                 </li><% } %>
                 <% if (puede('stock')) { %><li><a href="#" class="menu-link" data-view="stock"><i class="fa fa-warehouse"></i> Stock</a></li><% } %>
-                <% if (puede('proveedores')) { %><li><a href="#" class="menu-link" data-view="proveedores"><i class="fa fa-truck"></i> Proveedores</a>
+                <% if (puede('proveedores') && puede('compras')) { %><li>
+                    <button class="menu-item" data-toggle="proveedores">
+                        <i class="fa fa-truck"></i> Proveedores <i class="fa fa-chevron-down" style="margin-left:auto;"></i>
+                    </button>
+                    <ul class="submenu" data-parent="proveedores" style="display:none;">
+                        <li><a href="#" class="menu-link" data-view="proveedores"><i class="fa fa-address-book"></i> Proveedores</a></li>
+                        <li><a href="#" class="menu-link" data-view="ordenes_pago"><i class="fa fa-money-check-dollar"></i> Órdenes de pago</a></li>
+                    </ul>
+                </li><% } else if (puede('proveedores')) { %><li><a href="#" class="menu-link" data-view="proveedores"><i class="fa fa-truck"></i> Proveedores</a>
                 </li><% } %>
                 <% if (puede('planilla')) { %><li><a href="#" class="menu-link" data-view="planilla"><i class="fa fa-calendar-check"></i> Planilla
                         diaria</a></li><% } %>

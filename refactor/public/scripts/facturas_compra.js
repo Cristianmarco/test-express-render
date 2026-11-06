@@ -730,11 +730,12 @@
           ${cc.movimientos.length ? cc.movimientos.slice().reverse().map(m => `
             <tr ${m.tipo === 'comprobante' ? `data-factura="${m.id}"` : 'style="cursor:default"'}>
               <td>${fecha(m.fecha)}</td>
-              <td>${m.tipo === 'comprobante' ? esc(m.numero_completo) : `Pago · ${esc(MEDIOS[m.medio] || m.medio)}${m.referencia ? ` · ${esc(m.referencia)}` : ''}`}</td>
+              <td>${m.tipo === 'comprobante' ? esc(m.numero_completo) : m.tipo === 'orden' ? `Orden de pago · ${esc(m.numero_completo)}` : `Pago · ${esc(MEDIOS[m.medio] || m.medio)}${m.referencia ? ` · ${esc(m.referencia)}` : ''}`}</td>
               <td class="num">${m.debe ? pesos(m.debe) : ''}</td>
               <td class="num">${m.haber ? pesos(m.haber) : ''}</td>
               <td class="num"><b>${pesos(m.saldo)}</b></td>
-              <td>${m.tipo === 'pago' ? `<button type="button" class="cli-btn peligro" style="padding:2px 8px" data-anular-pago="${m.id}" title="Anular pago"><i class="fas fa-ban"></i></button>` : ''}</td>
+              <td>${m.tipo === 'pago' ? `<button type="button" class="cli-btn peligro" style="padding:2px 8px" data-anular-pago="${m.id}" title="Anular pago"><i class="fas fa-ban"></i></button>`
+                : m.tipo === 'orden' ? `<a class="cli-btn" style="padding:2px 8px" href="/ordenes_pago/${m.id}/imprimir" target="_blank" rel="noopener" title="Ver / imprimir la orden de pago"><i class="fas fa-print"></i></a>` : ''}</td>
             </tr>`).join('') : '<tr><td colspan="6" class="cli-vacio">Sin movimientos</td></tr>'}
           </tbody></table>
         </div>`;

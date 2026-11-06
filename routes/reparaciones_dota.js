@@ -10,6 +10,7 @@ const {
 
 const { fotosDeRegistro } = require('../utils/fotos_registro');
 const { ETAPAS, esEtapa } = require('../utils/etapas_reparacion');
+const taller = require('../utils/taller');
 
 const AUDIT_DOMAIN = 'reparaciones_dota';
 
@@ -129,13 +130,20 @@ router.post('/', async (req, res, next) => {
 // GET: listar reparaciones vigentes
 router.get('/', async (req, res, next) => {
   try {
+    await taller.esquema;
     const result = await db.query(`
       SELECT r.*,
              c.id     AS cotizacion_id,
              c.numero AS cotizacion_numero,
              c.estado AS cotizacion_estado,
              (SELECT count(*)::int FROM reparaciones_dota_fotos f WHERE f.vigente_id = r.id) AS fotos,
-             (SELECT min(f.id) FROM reparaciones_dota_fotos f WHERE f.vigente_id = r.id) AS foto_id
+             (SELECT min(f.id) FROM reparaciones_dota_fotos f WHERE f.vigente_id = r.id) AS foto_id,
+             -- Cajones del taller: equipos por fase, demorados y los que ya salieron
+             (SELECT json_object_agg(s.fase, s.n) FROM (
+                SELECT te.fase, count(*)::int AS n FROM taller_equipos te
+                 WHERE te.vigente_id = r.id AND te.cerrado_en IS NULL GROUP BY te.fase) s) AS taller_fases,
+             (SELECT count(*)::int FROM taller_equipos te WHERE te.vigente_id = r.id AND te.cerrado_en IS NULL AND te.demora IS NOT NULL) AS taller_demorados,
+             (SELECT count(*)::int FROM taller_equipos te WHERE te.vigente_id = r.id AND te.cerrado_en IS NOT NULL) AS taller_salidos
       FROM reparaciones_dota r
       LEFT JOIN cotizaciones_reparacion c ON c.vigente_id = r.id
       ORDER BY r.fecha_ingreso DESC NULLS LAST, r.id DESC

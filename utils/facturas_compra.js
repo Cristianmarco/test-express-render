@@ -2,7 +2,9 @@
 // Facturas de compra (y notas de credito/debito) de proveedores: Libro IVA Compras,
 // ingreso de stock, ultimo costo de los articulos y cuenta corriente con pagos.
 //
-// Signo en la cuenta corriente: FC y ND suman deuda, NC y pagos la bajan.
+// Signo en la cuenta corriente: FC y ND suman deuda, NC, pagos y ordenes de pago la bajan.
+// Las ordenes de pago se imputan a las facturas que se eligieron; lo demas (pagos sueltos,
+// NC y lo que la orden pago de mas) se imputa a las facturas que vencen primero.
 // Stock: una FC/ND con "ingresa_stock" da ENTRADA de sus renglones con articulo; una NC
 // con "ingresa_stock" es una devolucion y da SALIDA. Anular revierte el movimiento.
 const db = require('../db');
@@ -101,6 +103,45 @@ const esquema = (async () => {
       anulado_por text
     )`);
   await db.query('CREATE INDEX IF NOT EXISTS pagos_proveedor_proveedor_idx ON pagos_proveedor (proveedor_id)');
+  // Ordenes de pago: el numero es el id. total = lo que se paga (suma de los medios),
+  // imputado = lo que cancela de las facturas elegidas (el resto queda a cuenta)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ordenes_pago (
+      id serial PRIMARY KEY,
+      proveedor_id integer NOT NULL REFERENCES proveedores(id),
+      fecha date NOT NULL,
+      total numeric(14,2) NOT NULL CHECK (total > 0),
+      imputado numeric(14,2) NOT NULL DEFAULT 0,
+      observaciones text,
+      estado text NOT NULL DEFAULT 'confirmada' CHECK (estado IN ('confirmada', 'anulada')),
+      creado_por text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      anulada_at timestamptz,
+      anulada_por text,
+      anulada_motivo text
+    )`);
+  await db.query('CREATE INDEX IF NOT EXISTS ordenes_pago_proveedor_idx ON ordenes_pago (proveedor_id)');
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ordenes_pago_facturas (
+      id serial PRIMARY KEY,
+      orden_id integer NOT NULL REFERENCES ordenes_pago(id) ON DELETE CASCADE,
+      factura_id integer NOT NULL REFERENCES facturas_compra(id),
+      importe numeric(14,2) NOT NULL CHECK (importe > 0)
+    )`);
+  await db.query('CREATE INDEX IF NOT EXISTS ordenes_pago_facturas_orden_idx ON ordenes_pago_facturas (orden_id)');
+  await db.query('CREATE INDEX IF NOT EXISTS ordenes_pago_facturas_factura_idx ON ordenes_pago_facturas (factura_id)');
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ordenes_pago_medios (
+      id serial PRIMARY KEY,
+      orden_id integer NOT NULL REFERENCES ordenes_pago(id) ON DELETE CASCADE,
+      medio text NOT NULL,
+      importe numeric(14,2) NOT NULL CHECK (importe > 0),
+      banco text,
+      referencia text,
+      fecha_cobro date,
+      orden integer NOT NULL DEFAULT 0
+    )`);
+  await db.query('CREATE INDEX IF NOT EXISTS ordenes_pago_medios_orden_idx ON ordenes_pago_medios (orden_id)');
   // Ultimo costo pagado por cada articulo
   await db.query(`
     ALTER TABLE productos
@@ -132,6 +173,19 @@ function iso(d) {
 }
 const usuarioDe = (req) => (req.session && req.session.user && req.session.user.email) || null;
 const numeroComprobante = (f) => `${f.comprobante} ${f.letra} ${String(f.punto_venta).padStart(5, '0')}-${String(f.numero).padStart(8, '0')}`;
+const numeroOrden = (id) => `OP ${String(id).padStart(8, '0')}`;
+
+// Lo que las ordenes de pago confirmadas le imputaron a cada factura: Map factura_id -> importe
+async function imputadoPorOrdenes(proveedorIds) {
+  const { rows } = await db.query(
+    `SELECT opf.factura_id, sum(opf.importe)::float8 AS importe
+       FROM ordenes_pago_facturas opf JOIN ordenes_pago o ON o.id = opf.orden_id
+      WHERE o.proveedor_id = ANY($1) AND o.estado = 'confirmada'
+      GROUP BY opf.factura_id`,
+    [proveedorIds]
+  );
+  return new Map(rows.map((r) => [r.factura_id, Number(r.importe)]));
+}
 
 // Dias de plazo a partir de la condicion de pago ("Cta. cte. 30 dias" -> 30)
 function diasDePago(condicion) {
@@ -326,6 +380,12 @@ async function anularFactura(client, req, id, motivo) {
   if (!rows.length) throw new ErrorFactura(404, 'Comprobante no encontrado');
   const f = rows[0];
   if (f.estado === 'anulada') throw new ErrorFactura(409, 'El comprobante ya está anulado');
+  const enOrden = await client.query(
+    `SELECT o.id FROM ordenes_pago_facturas opf JOIN ordenes_pago o ON o.id = opf.orden_id
+      WHERE opf.factura_id = $1 AND o.estado = 'confirmada' ORDER BY o.id`, [id]);
+  if (enOrden.rows.length) {
+    throw new ErrorFactura(409, `El comprobante está pagado en ${enOrden.rows.map((o) => numeroOrden(o.id)).join(', ')}: anulá primero la orden de pago`);
+  }
   const items = (await client.query('SELECT * FROM facturas_compra_items WHERE factura_id = $1', [id])).rows;
   if (f.ingresa_stock) {
     await moverStock(client, f, items, f.comprobante === 'NC' ? 1 : -1, `Anulación compra: ${numeroComprobante(f)}`, req);
@@ -352,36 +412,49 @@ async function cuentaCorriente(proveedorId) {
      SELECT 'pago', p.id, p.fecha, NULL, NULL, NULL, NULL, NULL, 0, p.importe, p.medio, p.referencia, p.created_at
        FROM pagos_proveedor p
       WHERE p.proveedor_id = $1 AND p.estado = 'confirmado'
+     UNION ALL
+     SELECT 'orden', o.id, o.fecha, NULL, NULL, NULL, NULL, NULL, 0, o.total, NULL, NULL, o.created_at
+       FROM ordenes_pago o
+      WHERE o.proveedor_id = $1 AND o.estado = 'confirmada'
       ORDER BY 3, created_at`,
     [proveedorId]
   );
+  const aplicadas = await imputadoPorOrdenes([proveedorId]);
   let saldo = 0;
   const movimientos = movs.map((m) => {
     saldo = n2(saldo + Number(m.debe) - Number(m.haber));
     return {
       ...m, fecha: iso(m.fecha), vencimiento: iso(m.vencimiento), debe: Number(m.debe), haber: Number(m.haber), saldo,
-      numero_completo: m.tipo === 'comprobante' ? numeroComprobante(m) : null,
+      numero_completo: m.tipo === 'comprobante' ? numeroComprobante(m) : m.tipo === 'orden' ? numeroOrden(m.id) : null,
     };
   });
   const hoy = iso(new Date());
-  const { deudas, credito } = imputar(movimientos);
+  const { deudas, credito } = imputar(movimientos, aplicadas);
   const pendientes = deudas.filter((m) => m.pendiente > TOLERANCIA)
     .map((m) => ({ ...m, vencida: !!m.vencimiento && m.vencimiento < hoy }));
   return { movimientos, saldo, pendientes, a_favor: n2(credito) };
 }
 
-// Imputacion FIFO: lo que se pago/acredito (haber) cancela las deudas (debe) que vencen primero.
-// Devuelve cada deuda con lo que le queda pendiente y el credito que sobra.
-function imputar(movimientos) {
+// Imputacion: primero lo que las ordenes de pago le asignaron a cada factura (aplicadas:
+// Map factura_id -> importe); el resto de lo pagado/acreditado (haber) cancela las deudas
+// (debe) que vencen primero. Devuelve cada deuda con lo que le queda pendiente y el
+// credito que sobra.
+function imputar(movimientos, aplicadas = new Map()) {
   let credito = movimientos.reduce((a, m) => a + Number(m.haber), 0);
   const deudas = movimientos.filter((x) => Number(x.debe) > 0)
-    .sort((a, b) => String(a.vencimiento || a.fecha).localeCompare(String(b.vencimiento || b.fecha)))
     .map((m) => {
-      const aplicado = Math.min(credito, Number(m.debe));
-      credito = n2(credito - aplicado);
-      return { ...m, pendiente: n2(Number(m.debe) - aplicado) };
-    });
-  return { deudas, credito };
+      const fijo = Math.min(aplicadas.get(m.id) || 0, Number(m.debe));
+      credito -= fijo;
+      return { ...m, resto: n2(Number(m.debe) - fijo) };
+    })
+    .sort((a, b) => String(a.vencimiento || a.fecha).localeCompare(String(b.vencimiento || b.fecha)));
+  credito = Math.max(n2(credito), 0);
+  const conPendiente = deudas.map(({ resto, ...m }) => {
+    const aplicado = Math.min(credito, resto);
+    credito = n2(credito - aplicado);
+    return { ...m, pendiente: n2(resto - aplicado) };
+  });
+  return { deudas: conPendiente, credito };
 }
 
 // Estado de pago de las facturas/ND de esos proveedores: Map id -> { pendiente, total }
@@ -398,9 +471,14 @@ async function estadoPagos(proveedorIds) {
      UNION ALL
      SELECT p.proveedor_id, NULL, p.fecha, NULL, 0, p.importe::float8
        FROM pagos_proveedor p
-      WHERE p.proveedor_id = ANY($1) AND p.estado = 'confirmado'`,
+      WHERE p.proveedor_id = ANY($1) AND p.estado = 'confirmado'
+     UNION ALL
+     SELECT o.proveedor_id, NULL, o.fecha, NULL, 0, o.total::float8
+       FROM ordenes_pago o
+      WHERE o.proveedor_id = ANY($1) AND o.estado = 'confirmada'`,
     [ids]
   );
+  const aplicadas = await imputadoPorOrdenes(ids);
   const porProveedor = new Map();
   for (const r of rows) {
     if (!porProveedor.has(r.proveedor_id)) porProveedor.set(r.proveedor_id, []);
@@ -408,7 +486,7 @@ async function estadoPagos(proveedorIds) {
   }
   const estado = new Map();
   for (const movs of porProveedor.values()) {
-    for (const d of imputar(movs).deudas) estado.set(d.id, { pendiente: d.pendiente, total: d.debe });
+    for (const d of imputar(movs, aplicadas).deudas) estado.set(d.id, { pendiente: d.pendiente, total: d.debe });
   }
   return estado;
 }
@@ -423,11 +501,14 @@ async function saldos() {
          FROM facturas_compra WHERE estado = 'confirmada'
        UNION ALL
        SELECT proveedor_id, -importe, NULL FROM pagos_proveedor WHERE estado = 'confirmado'
+       UNION ALL
+       SELECT proveedor_id, -total, NULL FROM ordenes_pago WHERE estado = 'confirmada'
      )
      SELECT p.id, p.codigo, p.razon_social, p.fantasia, sum(m.importe)::numeric(14,2) AS saldo,
             min(m.vencimiento) AS primer_vencimiento,
             (SELECT max(fecha) FROM facturas_compra f WHERE f.proveedor_id = p.id AND f.estado = 'confirmada') AS ultima_factura,
-            (SELECT max(fecha) FROM pagos_proveedor x WHERE x.proveedor_id = p.id AND x.estado = 'confirmado') AS ultimo_pago
+            GREATEST((SELECT max(fecha) FROM pagos_proveedor x WHERE x.proveedor_id = p.id AND x.estado = 'confirmado'),
+                     (SELECT max(fecha) FROM ordenes_pago x WHERE x.proveedor_id = p.id AND x.estado = 'confirmada')) AS ultimo_pago
        FROM mov m JOIN proveedores p ON p.id = m.proveedor_id
       GROUP BY p.id
       ORDER BY sum(m.importe) DESC`
@@ -454,5 +535,5 @@ async function libroIva(mes) {
 
 module.exports = {
   esquema, ErrorFactura, COMPROBANTES, LETRAS, ALICUOTAS, MEDIOS_PAGO, IMPORTES,
-  crearFactura, anularFactura, cuentaCorriente, estadoPagos, saldos, TOLERANCIA, libroIva, numeroComprobante, importe, n2, usuarioDe, diasDePago, iso,
+  crearFactura, anularFactura, cuentaCorriente, estadoPagos, saldos, TOLERANCIA, libroIva, numeroComprobante, numeroOrden, importe, n2, usuarioDe, diasDePago, iso,
 };

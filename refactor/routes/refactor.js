@@ -10,7 +10,7 @@ const BUILD_ID = String(Date.now());
 // Vistas que corresponden a una sección del menú (las demás no tienen datos propios)
 const VISTAS_CON_PERMISO = new Set(['usuarios', ...permisos.SECCIONES.map(s => s.id)]);
 // Vistas que dependen de la seccion de otra
-const SECCION_DE_VISTA = { facturas_compra: 'compras' };
+const SECCION_DE_VISTA = { facturas_compra: 'compras', ordenes_pago: 'compras' };
 
 // === LOGIN del refactor (público) ===
 router.get("/login", (req, res) => {

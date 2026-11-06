@@ -70,6 +70,14 @@ async function loadView(view, opts = {}) {
     window.showSpinner && window.showSpinner();
     try {
       const res = await fetch(`/refactor/view/${view}`);
+      // La sesion ya no es de personal (se cerro, o en este navegador entro un cliente
+      // al portal): se va a donde redirigio el servidor, sin meter esa pagina en la pestaña
+      if (res.redirected) {
+        openTabs.pop();
+        tab.remove();
+        window.location.href = res.url;
+        return;
+      }
       html = await res.text();
       if (!res.ok) {
         if (res.status === 401) {
@@ -163,6 +171,9 @@ window.closeTab = closeTab;
       break;
     case "facturas_compra":
       cargarScript("/static/scripts/facturas_compra.js");
+      break;
+    case "ordenes_pago":
+      cargarScript("/static/scripts/ordenes_pago.js");
       break;
     default:
       try { console.log(`No hay script especifico para ${view}`); } catch {}

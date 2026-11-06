@@ -8,6 +8,7 @@ const db = require('../db');
 const { fotosDeRegistro } = require('./fotos_registro');
 const { garantiaResolucionLabel } = require('./garantia-resoluciones');
 const { nombreEtapa } = require('./etapas_reparacion');
+const taller = require('./taller');
 
 // Mismas tablas de fotos que usa el ERP (las crean sus routers al arrancar)
 const fotosVigente = fotosDeRegistro({ tabla: 'reparaciones_dota_fotos', columna: 'vigente_id', tablaPadre: 'reparaciones_dota', urlBase: '' });
@@ -103,11 +104,17 @@ const vacio = (alc) => !alc.ids.length && !alc.grupo;
 // devolver). En las tandas o licitaciones quedan hasta que sale el ultimo pendiente.
 async function vigentes(alc) {
   if (vacio(alc)) return [];
+  await taller.esquema;
   const { rows } = await db.query(
     `SELECT rd.id, rd.nro_pedido, rd.licitacion_nro, rd.codigo, rd.descripcion, rd.cantidad, rd.pendientes,
             rd.fecha_ingreso, rd.fecha_limite_entrega, rd.etapa, rd.etapa_at, rd.coche,
             COALESCE(c.razon_social, rd.razon_social) AS empresa,
-            ${fotosVigente.sqlResumen('rd')}
+            ${fotosVigente.sqlResumen('rd')},
+            -- Cajones del taller: equipos por estado (la demora pisa a la fase) y los que salieron
+            (SELECT json_object_agg(s.estado, s.n) FROM (
+               SELECT COALESCE(te.demora, te.fase) AS estado, count(*)::int AS n FROM taller_equipos te
+                WHERE te.vigente_id = rd.id AND te.cerrado_en IS NULL GROUP BY 1) s) AS taller_estados,
+            ${SQL_TALLER_SALIDOS('rd')} AS taller_salidos
        FROM reparaciones_dota rd
        LEFT JOIN clientes c ON c.id = rd.cliente_id
       WHERE ${SQL_VIGENTE_DEL_CLIENTE('rd')}
@@ -116,7 +123,37 @@ async function vigentes(alc) {
       ORDER BY rd.fecha_ingreso DESC NULLS LAST, rd.id DESC`,
     [alc.ids, alc.grupo]
   );
-  return rows.map((r) => ({ ...r, etapa_nombre: nombreEtapa(r.etapa) }));
+  return rows.map((r) => {
+    const { taller_estados, taller_salidos, ...resto } = r;
+    return { ...resto, etapa_nombre: nombreEtapa(r.etapa), taller: estadosTaller(r) };
+  });
+}
+
+// Lo que ve el cliente de los cajones del taller
+const ESTADOS_TALLER = [
+  ['ingreso', 'Ingresado'], ['desarme', 'En desarme'], ['diagnostico', 'En diagnóstico'],
+  ['aprobacion', 'Esperando aprobación'], ['repuesto', 'Esperando repuesto'],
+  ['armado', 'En armado'], ['listo', 'Listo para retirar'], ['espera', 'En espera']
+];
+
+// Los que salieron por la salida y todavia no tienen la ficha en la planilla
+const SQL_TALLER_SALIDOS = (rd) =>
+  `(SELECT count(*)::int FROM taller_equipos te WHERE te.vigente_id = ${rd}.id AND te.cerrado_en IS NOT NULL)`;
+const SQL_TALLER_LISTOS = (rd) =>
+  `LEAST(${rd}.pendientes, GREATEST(${SQL_TALLER_SALIDOS(rd)} - (COALESCE(${rd}.cantidad, 0) - ${rd}.pendientes), 0))`;
+
+// null si el pedido no usa cajones (sigue con la etapa de siempre)
+function estadosTaller(r) {
+  const activos = r.taller_estados || {};
+  const salidos = Number(r.taller_salidos) || 0;
+  const enCajon = Object.values(activos).reduce((t, n) => t + n, 0);
+  if (!enCajon && !salidos) return null;
+  const pendientes = Number(r.pendientes) || 0;
+  const reparados = Math.max((Number(r.cantidad) || 0) - pendientes, 0);
+  const cuenta = { ...activos, salida: 0 };
+  cuenta.listo = Math.min(pendientes, Math.max(salidos - reparados, 0));
+  cuenta.espera = Math.max(pendientes - enCajon - cuenta.listo, 0);
+  return ESTADOS_TALLER.filter(([id]) => cuenta[id] > 0).map(([id, nombre]) => ({ estado: id, nombre, cantidad: cuenta[id] }));
 }
 
 // Historial: lo reparado, de la planilla, un registro por ID de reparacion. En Dota
@@ -221,10 +258,13 @@ async function presupuestos(alc, { borradores = false } = {}) {
 // Resumen: equipos en el taller, listos, garantias y presupuestos por responder.
 // Las licitaciones en curso traen el avance (reparados de la cantidad).
 async function resumen(alc) {
+  await taller.esquema;
   const [taller, licitaciones, garantiasPend, porResponder] = await Promise.all([
     db.query(
       `SELECT COALESCE(sum(rd.pendientes), 0)::int AS en_taller,
-              COALESCE(sum(rd.pendientes) FILTER (WHERE rd.etapa = 'listo'), 0)::int AS listos
+              COALESCE(sum(CASE WHEN EXISTS (SELECT 1 FROM taller_equipos te WHERE te.vigente_id = rd.id)
+                                THEN ${SQL_TALLER_LISTOS('rd')}
+                                WHEN rd.etapa = 'listo' THEN rd.pendientes ELSE 0 END), 0)::int AS listos
          FROM reparaciones_dota rd
         WHERE ${SQL_VIGENTE_DEL_CLIENTE('rd')}
           AND COALESCE(rd.pendientes, 0) > 0 AND NOT COALESCE(rd.devuelto, false)`,

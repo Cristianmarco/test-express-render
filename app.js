@@ -140,6 +140,14 @@ app.use('/api/fichas', requireLogin, fichasRouter);
 app.use('/api/cotizaciones_reparacion', requireLogin, cotizacionesReparacionRouter);
 app.use('/api/compras', requireLogin, comprasRouter);
 app.use('/api/facturas_compra', requireLogin, require('./routes/facturas_compra'));
+// Cajones y fases del taller (lectores QR por puesto)
+const taller = require('./routes/taller');
+app.use('/api/taller', requireLogin, taller.router);
+app.use('/taller', requireLogin, taller.paginas);
+// Ordenes de pago a proveedores
+const ordenesPago = require('./routes/ordenes_pago');
+app.use('/api/ordenes_pago', requireLogin, ordenesPago.router);
+app.use('/ordenes_pago', requireLogin, ordenesPago.paginas);
 
 
 // ============================

@@ -48,9 +48,25 @@ async function loadTab(tab) {
 }
 
 // Etapa del taller en la que esta el equipo
+// Un color por estado, en el orden del taller (fases de los cajones y etapas de R.Vigentes)
+const COLOR_ESTADO = {
+  ingreso: 'gris', ingresado: 'gris', espera: 'gris',
+  desarme: 'violeta',
+  diagnostico: 'azul',
+  aprobacion: 'amarillo', presupuesto: 'amarillo',
+  repuesto: 'naranja', repuestos: 'naranja',
+  armado: 'turquesa', reparacion: 'turquesa', prueba: 'turquesa',
+  listo: 'verde'
+};
+const badgeEstado = (estado, texto) => `<span class="badge badge-${COLOR_ESTADO[estado] || 'azul'}">${esc(texto)}</span>`;
+
 function estadoEquipo(r) {
-  const clase = r.etapa === 'listo' ? 'badge-verde' : r.etapa === 'presupuesto' ? 'badge-naranja' : 'badge-azul';
-  return `<span class="badge ${clase}">${esc(r.etapa_nombre || 'En reparación')}</span>`;
+  // Pedidos con cajones: la fase de cada equipo, agrupada (en las tandas puede haber varias)
+  if (r.taller && r.taller.length) {
+    const uno = r.taller.length === 1 && r.taller[0].cantidad === Number(r.pendientes);
+    return r.taller.map(t => badgeEstado(t.estado, `${uno ? '' : `${t.cantidad} `}${t.nombre}`)).join('<br>');
+  }
+  return badgeEstado(r.etapa, r.etapa_nombre || 'En reparación');
 }
 
 // Hay columna Empresa cuando el usuario ve varias razones sociales (Dota)
