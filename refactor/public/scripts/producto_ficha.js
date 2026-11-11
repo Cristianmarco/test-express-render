@@ -811,6 +811,7 @@
     // opts: { url?, productoId?, busqueda?, alTerminar? }
     function abrir(opts = {}) {
       opciones = opts;
+      proveedorElegido = null; // cada apertura arranca en "Todos los proveedores"
       asegurarModal().style.display = 'flex';
       if (opts.url) mostrarVistaPrevia(opts.url);
       else mostrarBuscador(opts.busqueda || '');
@@ -818,7 +819,11 @@
 
     // ---- Selector de proveedor ----
     let proveedores = null;
-    const PREF_PROVEEDOR = 'erp_importar_proveedor';
+    // Opcion del selector que busca en todos los proveedores a la vez
+    const TODOS = '*';
+    // Proveedor elegido en esta apertura del importador (se conserva al volver de la vista
+    // previa; al abrirlo de nuevo arranca en "Todos los proveedores")
+    let proveedorElegido = null;
 
     async function cargarProveedores() {
       if (proveedores) return proveedores;
@@ -831,24 +836,25 @@
     // para la busqueda avanzada)
     const proveedoresPorCodigo = () => (proveedores || []).filter((p) => !p.solo_avanzada);
 
+    // Id del proveedor que arranca elegido: el de esta apertura, el que corresponde al
+    // producto que se esta completando o, si no, todos los proveedores
     function proveedorPreferido() {
+      if (proveedorElegido) return proveedorElegido;
       const disponibles = proveedoresPorCodigo().filter((p) => p.configurado);
       const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       // Al buscar un producto ya cargado: el proveedor que corresponde a su prefijo
       // ("EFR SD1841" -> Ferman, "ZEN 0790" -> Nosso) o, si no, al proveedor del producto
       if (opciones.prefijo) {
         const p = disponibles.find((x) => (x.prefijos || [x.prefijo]).some((pr) => norm(pr) === norm(opciones.prefijo)));
-        if (p) return p;
+        if (p) return p.id;
       }
       if (opciones.proveedorNombre) {
         const nom = norm(opciones.proveedorNombre);
         // Alguna palabra del nombre del lector aparece en la razon social ("Encendido Ferman" ~ "Ferman")
         const p = disponibles.find((x) => String(x.nombre).split(/[\s()]+/).map(norm).filter((w) => w.length >= 3).some((w) => nom.includes(w)));
-        if (p) return p;
+        if (p) return p.id;
       }
-      let id = null;
-      try { id = localStorage.getItem(PREF_PROVEEDOR); } catch (_) {}
-      return (disponibles.find((p) => p.id === id) || disponibles[0] || proveedoresPorCodigo()[0] || null);
+      return TODOS;
     }
 
     async function mostrarBuscador(texto) {
@@ -863,11 +869,12 @@
         <h2><i class="fas fa-cloud-arrow-down"></i> Importar producto desde proveedor</h2>
         <div class="pfi-sub">${opciones.productoId
           ? `Buscá el artículo en el proveedor para completar la ficha de <b>${esc(opciones.productoCodigo || '')}</b>. Queda vinculado y después se puede actualizar con un clic.`
-          : 'Elegí el proveedor y escribí el código del artículo.'}</div>
+          : 'Escribí el código del artículo: se busca en todos los proveedores, o elegí uno.'}</div>
         ${pestanias('codigo')}
         <form class="pfi-buscar">
           <select name="proveedor" class="pfi-proveedor" title="Proveedor">
-            ${proveedoresPorCodigo().map((p) => `<option value="${esc(p.id)}" ${p.id === actual.id ? 'selected' : ''} ${p.configurado ? '' : 'disabled'}>${esc(p.nombre)}${p.configurado ? '' : ' (sin credenciales)'}</option>`).join('')}
+            <option value="${TODOS}" ${actual === TODOS ? 'selected' : ''}>— Elegí el proveedor —</option>
+            ${proveedoresPorCodigo().map((p) => `<option value="${esc(p.id)}" ${p.id === actual ? 'selected' : ''} ${p.configurado ? '' : 'disabled'}>${esc(p.nombre)}${p.configurado ? '' : ' (sin credenciales)'}</option>`).join('')}
           </select>
           <input name="q" value="${esc(texto)}" autocomplete="off" required>
           <button class="pf-btn primario" type="submit"><i class="fas fa-search"></i> Buscar</button>
@@ -879,13 +886,18 @@
       const select = form.querySelector('select');
       const ayuda = cuerpo().querySelector('.pfi-ayuda');
       const aplicarProveedor = () => {
-        const p = proveedores.find((x) => x.id === select.value) || actual;
+        const p = proveedores.find((x) => x.id === select.value);
+        if (!p) {
+          input.placeholder = 'Código del artículo, Nº original o equivalencia';
+          ayuda.innerHTML = '<i class="fas fa-circle-info"></i> Sin elegir proveedor se busca en todos a la vez; los resultados aparecen por proveedor a medida que responden. Elegí uno para buscar solo en ese.';
+          return;
+        }
         input.placeholder = `Código del artículo en ${p.nombre} (ej: ${p.ejemplo || ''})`;
         ayuda.innerHTML = `<i class="fas fa-circle-info"></i> ${esc(p.ayuda || '')}${p.prefijo ? ` · Se crea con el prefijo <b>${esc(p.prefijo)}</b>` : ''}`;
       };
       aplicarProveedor();
       select.addEventListener('change', () => {
-        try { localStorage.setItem(PREF_PROVEEDOR, select.value); } catch (_) {}
+        proveedorElegido = select.value;
         aplicarProveedor();
         if (input.value.trim()) buscar(input.value, select.value);
         input.focus();
@@ -897,6 +909,7 @@
     }
 
     async function buscar(q, proveedorId) {
+      if (proveedorId === TODOS) return buscarEnTodos(q);
       const zona = cuerpo().querySelector('.pfi-resultados');
       const prov = (proveedores || []).find((p) => p.id === proveedorId);
       const nombre = prov ? prov.nombre : 'el proveedor';
@@ -908,6 +921,44 @@
       } catch (e) {
         zona.innerHTML = `<div class="pfi-estado error"><i class="fas fa-triangle-exclamation"></i> ${esc(e.message)}</div>`;
       }
+    }
+
+    // Busca el codigo en todos los proveedores a la vez. Cada uno tiene su bloque, que se
+    // completa cuando responde; los que no tienen resultados (o fallan) desaparecen.
+    let busquedaTodos = 0;
+    async function buscarEnTodos(q) {
+      const zona = cuerpo().querySelector('.pfi-resultados');
+      const lista = proveedoresPorCodigo().filter((p) => p.configurado);
+      const id = ++busquedaTodos; // si se busca otra cosa antes de que respondan, se descarta
+      zona.innerHTML = `
+        <div class="pfi-estado pfi-todos-estado"><i class="fas fa-spinner fa-spin"></i> Buscando en ${lista.length} proveedores...</div>
+        ${lista.map((p) => `<div class="pfi-grupo" data-prov="${esc(p.id)}" hidden></div>`).join('')}`;
+      const estado = zona.querySelector('.pfi-todos-estado');
+      let pendientes = lista.length;
+      let conResultados = 0;
+      const fallidos = [];
+      await Promise.all(lista.map(async (p) => {
+        let items = [];
+        try {
+          items = await api(`/api/productos/importar/buscar?proveedor=${encodeURIComponent(p.id)}&q=${encodeURIComponent(q.trim())}`);
+        } catch (_) { fallidos.push(p.nombre); }
+        if (id !== busquedaTodos) return;
+        pendientes--;
+        const grupo = zona.querySelector(`.pfi-grupo[data-prov="${CSS.escape(p.id)}"]`);
+        if (grupo && items.length) {
+          conResultados++;
+          grupo.hidden = false;
+          grupo.innerHTML = `<div class="pfi-grupo-titulo">${esc(p.nombre)} <span>${items.length} resultado${items.length === 1 ? '' : 's'}</span></div><div class="pfi-grupo-items"></div>`;
+          pintarResultados(grupo.querySelector('.pfi-grupo-items'), items, (it) => mostrarVistaPrevia(it.url, q));
+        }
+        const nota = fallidos.length ? ` · No respondió: ${esc(fallidos.join(', '))}` : '';
+        estado.classList.toggle('pfi-estado-fin', pendientes === 0);
+        estado.innerHTML = pendientes
+          ? `<i class="fas fa-spinner fa-spin"></i> Buscando... faltan ${pendientes} de ${lista.length} proveedores${nota}`
+          : (conResultados
+            ? `Encontrado en ${conResultados} de ${lista.length} proveedores${nota}`
+            : `Sin resultados en ningún proveedor${nota}`);
+      }));
     }
 
     function pintarResultados(zona, items, alElegir) {

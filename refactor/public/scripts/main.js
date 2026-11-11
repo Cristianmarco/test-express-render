@@ -175,6 +175,9 @@ window.closeTab = closeTab;
     case "ordenes_pago":
       cargarScript("/static/scripts/ordenes_pago.js");
       break;
+    case "recambios":
+      cargarScript("/static/scripts/recambios.js");
+      break;
     default:
       try { console.log(`No hay script especifico para ${view}`); } catch {}
   }

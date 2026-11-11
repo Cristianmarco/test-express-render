@@ -22,8 +22,10 @@ const der = require('./der');
 const zen = require('./zen');
 const zm = require('./zm');
 const gauss = require('./gauss');
+// Electromecanica PH: catalogo sin precios; si el articulo esta en DER trae su precio
+const ph = require('./ph');
 
-const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser, hardimpex, byc, delcoremy, der, zen, zm, gauss];
+const LECTORES = [nosso, ferman, bmh, dipra, exintrader, rodaser, hardimpex, byc, delcoremy, der, zen, zm, gauss, ph];
 
 function lectorPorId(id) {
   const k = String(id || '').trim().toLowerCase();

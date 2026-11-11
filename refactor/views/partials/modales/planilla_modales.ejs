@@ -427,10 +427,14 @@
     #modal-lote .lote-filtros input, #modal-lote .lote-filtros select, #modal-lote .lote-textos textarea {
       width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid #c5d8ef; border-radius: 6px; font-size: 13px;
     }
-    #modal-lote .erp-table-card { max-height: 46vh; overflow-y: auto; }
+    /* La tabla no se achica: el estilo general de los modales (flex 1 1 0, min-height 0) la
+       dejaba en altura 0 en pantallas bajas; si no entra todo, scrollea el modal */
+    #modal-lote .erp-table-card { flex: 0 0 auto; min-height: 220px; max-height: 46vh; overflow-y: auto; }
     #modal-lote .tabla-erp td { vertical-align: middle; }
     #modal-lote .tabla-erp tr.lote-sel td { background: #eef6ff; }
-    #modal-lote .lote-cant { width: 70px; padding: 4px 6px; border: 1px solid #c5d8ef; border-radius: 4px; text-align: right; }
+    #modal-lote .lote-cant, #modal-lote .lote-dev { width: 70px; padding: 4px 6px; border: 1px solid #c5d8ef; border-radius: 4px; text-align: right; }
+    #modal-lote .lote-dev:not(:disabled) { border-color: #e2b4b4; }
+    #modal-lote .lote-motivo { display: block; width: 190px; margin: 4px 0 0 auto; padding: 4px 6px; border: 1px solid #e2b4b4; border-radius: 4px; font-size: 12px; }
     #modal-lote .lote-sub { font-size: 11px; color: #64748b; }
     #modal-lote .lote-textos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
     #modal-lote .lote-pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
@@ -442,7 +446,7 @@
   <div class="modal-contenido-refactor modal-erp-producto">
     <span class="cerrar" onclick="cerrarModalLote()">&times;</span>
     <h2 class="modal-titulo-principal"><i class="fas fa-layer-group"></i> Carga por lote</h2>
-    <p class="lote-sub" style="margin:-6px 0 12px;">Elegí los pedidos de R.Vigentes que se terminaron y cuántos equipos de cada uno. Cada pedido queda como una fila de la planilla con su cantidad y se descuenta de los pendientes.</p>
+    <p class="lote-sub" style="margin:-6px 0 12px;">Elegí los pedidos de R.Vigentes que se terminaron y cuántos equipos de cada uno. Cada pedido queda como una fila de la planilla con su cantidad y se descuenta de los pendientes. Si alguno vuelve sin reparar, cargalo en <b>Devueltos</b> con el motivo.</p>
 
     <div class="lote-filtros">
       <div>
@@ -488,7 +492,8 @@
             <th>Equipo</th>
             <th>Ingreso</th>
             <th style="text-align:right;">Pendientes</th>
-            <th style="text-align:right;">Terminados</th>
+            <th style="text-align:right;">Reparados</th>
+            <th style="text-align:right;" title="Equipos que vuelven al cliente sin reparar (no tienen reparación, exceden presupuesto...)">Devueltos</th>
           </tr>
         </thead>
         <tbody id="tbody-lote"></tbody>
@@ -656,7 +661,7 @@
 
     <div class="erp-table-card historial-tabla">
       <table class="tabla-erp tabla-historial-reparaciones">
-        <colgroup>
+        <colgroup id="historial-colgroup">
           <col style="width: 110px;">
           <col style="width: 110px;">
           <col style="width: 340px;">

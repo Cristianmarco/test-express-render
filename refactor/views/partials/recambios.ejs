@@ -1,0 +1,138 @@
+<section class="cli-section" id="rc-root">
+  <div class="cli-top">
+    <h2><i class="fas fa-arrows-rotate"></i> Recambios</h2>
+  </div>
+  <p class="cli-ayuda" style="margin:-4px 0 12px">Cuerpos usados que se mandan a reparar al proveedor. Cuando vuelven reparados se reciben (acá con su remito, o en Facturas y pagos al cargar la factura de la reparación): se dan de baja de lo pendiente y entran al stock.</p>
+
+  <div class="rc-tabs">
+    <button type="button" class="rc-tab activa" data-tab="envios"><i class="fas fa-truck-arrow-right"></i> Envíos</button>
+    <button type="button" class="rc-tab" data-tab="afuera"><i class="fas fa-box-open"></i> Afuera por producto</button>
+  </div>
+
+  <div class="cli-card" data-panel="envios">
+    <div class="cli-toolbar">
+      <input type="search" id="rc-buscar" placeholder="Buscar número, proveedor, código o descripción..." autocomplete="off" />
+      <select id="rc-filtro-proveedor"><option value="">Todos los proveedores</option></select>
+      <select id="rc-filtro-estado">
+        <option value="pendientes">Pendientes</option>
+        <option value="recibidos">Recibidos</option>
+        <option value="anulados">Anulados</option>
+        <option value="todos">Todos</option>
+      </select>
+      <input type="date" id="rc-desde" title="Enviados desde" />
+      <input type="date" id="rc-hasta" title="Enviados hasta" />
+    </div>
+    <div class="cli-tabla-wrap">
+      <table class="cli-tabla">
+        <thead><tr><th>Fecha</th><th>Número</th><th>Proveedor</th><th>Recambios</th><th class="num">Enviados</th><th class="num">Recibidos</th><th class="num">Pendientes</th><th>Estado</th><th></th></tr></thead>
+        <tbody id="rc-tbody"></tbody>
+      </table>
+    </div>
+    <div class="cli-acciones-lista">
+      <button type="button" class="cli-btn primario" id="rc-nuevo"><i class="fas fa-plus"></i> Nuevo envío</button>
+    </div>
+  </div>
+
+  <div class="cli-card" data-panel="afuera" style="display:none;">
+    <div class="cli-toolbar">
+      <select id="rc-afuera-proveedor"><option value="">Todos los proveedores</option></select>
+    </div>
+    <div class="cli-tabla-wrap">
+      <table class="cli-tabla">
+        <thead><tr><th>Código</th><th>Descripción</th><th>Proveedor</th><th class="num">Afuera</th><th>Enviado desde</th></tr></thead>
+        <tbody id="rc-afuera-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <datalist id="rc-proveedores-lista"></datalist>
+  <datalist id="rc-productos-lista"></datalist>
+
+  <!-- Modal: nuevo envio -->
+  <div id="modal-rc-envio" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor fc-modal">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-truck-arrow-right"></i> Nuevo envío de recambios</h2>
+      <form id="rc-form" autocomplete="off" novalidate>
+        <div class="cli-form-grid">
+          <div style="grid-column: span 2;">
+            <label>Proveedor *</label>
+            <input id="rc-proveedor" list="rc-proveedores-lista" placeholder="Escribí el nombre o el código" />
+          </div>
+          <div><label>Fecha *</label><input name="fecha" type="date" /></div>
+        </div>
+
+        <fieldset>
+          <legend>Recambios que se mandan</legend>
+          <table class="cli-tabla rc-items">
+            <thead><tr><th style="width:110px" class="num">Cantidad</th><th>Producto (código o descripción)</th><th style="width:36px"></th></tr></thead>
+            <tbody id="rc-items"></tbody>
+          </table>
+          <button type="button" class="cli-btn" id="rc-agregar-item" style="margin:8px 0 10px"><i class="fas fa-plus"></i> Agregar renglón</button>
+        </fieldset>
+
+        <fieldset>
+          <legend>Observaciones</legend>
+          <textarea name="observaciones" style="min-height:50px" placeholder="Ej: reparar y reemplazar rulemanes"></textarea>
+        </fieldset>
+
+        <div class="cli-form-error" id="rc-error"></div>
+        <div class="cli-form-acciones">
+          <button type="button" class="cli-btn" data-cerrar>Cancelar</button>
+          <button type="submit" class="cli-btn primario" id="rc-guardar"><i class="fas fa-check"></i> Guardar e imprimir remito</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: recibir lo reparado -->
+  <div id="modal-rc-recibir" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor fc-modal">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <h2 class="modal-titulo-principal"><i class="fas fa-truck-ramp-box"></i> Recibir recambios reparados</h2>
+      <form id="rc-recibir-form" autocomplete="off" novalidate>
+        <div class="cli-ayuda" id="rc-recibir-info" style="margin-bottom:10px"></div>
+        <div class="cli-form-grid">
+          <div><label>Fecha *</label><input name="fecha" type="date" /></div>
+          <div><label>Depósito donde entran *</label><select name="deposito_id"></select></div>
+          <div><label>Remito del proveedor</label><input name="remito" maxlength="60" placeholder="Opcional" /></div>
+        </div>
+        <fieldset>
+          <legend>Lo que volvió reparado</legend>
+          <table class="cli-tabla">
+            <thead><tr><th>Código</th><th>Descripción</th><th class="num">Enviados</th><th class="num">Ya recibidos</th><th class="num" style="width:120px">Reciben ahora</th></tr></thead>
+            <tbody id="rc-recibir-items"></tbody>
+          </table>
+        </fieldset>
+        <div class="cli-form-error" id="rc-recibir-error"></div>
+        <div class="cli-form-acciones">
+          <button type="button" class="cli-btn" data-cerrar>Cancelar</button>
+          <button type="submit" class="cli-btn primario" id="rc-recibir-guardar"><i class="fas fa-check"></i> Recibir e ingresar al stock</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: detalle -->
+  <div id="modal-rc-detalle" class="modal-refactor" style="display:none;">
+    <div class="modal-contenido-refactor fc-modal">
+      <span class="cerrar" data-cerrar>&times;</span>
+      <div id="rc-detalle"></div>
+    </div>
+  </div>
+
+  <style>
+    #rc-root .rc-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    #rc-root .rc-tab { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 8px; padding: 6px 14px; cursor: pointer; font: inherit; font-weight: 600; }
+    #rc-root .rc-tab.activa { background: #1a5a90; border-color: #1a5a90; color: #fff; }
+    #rc-root tr[data-envio] { cursor: pointer; }
+    #rc-root .rc-resumen { max-width: 380px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #rc-root .rc-items input, #rc-root #rc-recibir-items input { width: 100%; box-sizing: border-box; }
+    #rc-root .rc-items .num input, #rc-root #rc-recibir-items .num input { text-align: right; }
+    #rc-root .rc-prod-info { font-size: .75rem; color: #64748b; margin-top: 2px; min-height: 1em; }
+    #rc-root .rc-prod-info.error { color: #b91c1c; }
+    #rc-root .fc-estado.recibido { background: #dcfce7; color: #166534; }
+    #rc-root .fc-estado.anulado { background: #fee2e2; color: #991b1b; }
+    #rc-root .rc-detalle-acciones { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 14px; }
+  </style>
+</section>

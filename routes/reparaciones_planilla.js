@@ -9,6 +9,7 @@ const {
   normalizeGarantiaResolucion
 } = require('../utils/garantia-resoluciones');
 const { insertDomainAudit } = require('../utils/domain-audit');
+const devoluciones = require('../utils/devoluciones_vigentes');
 // Columnas origen / usuario de movimientos_stock
 const { esquema: esquemaStock, usuarioDe: usuarioStock } = require('../utils/stock');
 let ExcelJS; // lazy require to avoid local dev errors if not installed
@@ -205,6 +206,8 @@ async function recalculatePedidoPendientes(dbClient, nroPedido) {
   // línea disponible por orden de creación. Un mismo pedido puede tener mas
   // de un equipo distinto (ej: un arranque y un alternador) y consumir la
   // línea equivocada dejaba el pendiente real sin descontar.
+  // Tambien descuenta los equipos devueltos sin reparar (devoluciones parciales).
+  await devoluciones.esquema;
   await dbClient.query(
     `
       WITH usados AS (
@@ -221,7 +224,7 @@ async function recalculatePedidoPendientes(dbClient, nroPedido) {
       calc AS (
         SELECT
           r.id,
-          GREATEST(COALESCE(r.cantidad, 0) - COALESCE(u.usados, 0), 0) AS new_pendientes
+          GREATEST(COALESCE(r.cantidad, 0) - COALESCE(u.usados, 0) - ${devoluciones.SQL_DEVUELTOS}, 0) AS new_pendientes
         FROM reparaciones_dota r
         LEFT JOIN usados u
           ON btrim(r.nro_pedido) = u.nro_pedido
@@ -536,6 +539,7 @@ router.get("/historial/:id_reparacion", async (req, res) => {
         r.resolucion,
         r.garantia_prueba_banco,
         r.garantia_desarme,
+        r.nro_pedido_ref,
         f.descripcion AS equipo,
         t.nombre AS tecnico,
         COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
@@ -642,15 +646,21 @@ router.get("/garantia-destino", async (req, res) => {
   }
 });
 
-router.get("/buscar", async (req, res) => {
-  const q = (req.query.q || "").trim();
-  if (!q) return res.json([]);
-
-  try {
-    // Asegurar columna auxiliar si aún no existe
-    await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
-    const pattern = `%${q}%`;
-    const sql = `
+// Equipos (id_reparacion + familia) que coinciden con la busqueda, con los datos de su
+// ULTIMA reparacion (no la ultima que coincide: buscando por tecnico se veria la ultima
+// vez que lo reparo ese tecnico) y cuantas veces se reparo. Primero los mas recientes,
+// asi el LIMIT no deja afuera lo reparado hace poco.
+function sqlEquiposBuscados(filtro, limite) {
+  return `
+    WITH coinciden AS (
+      SELECT DISTINCT r.id_reparacion, r.familia_id
+        FROM equipos_reparaciones r
+        LEFT JOIN familia f ON r.familia_id = f.id
+        LEFT JOIN tecnicos t ON r.tecnico_id = t.id
+        LEFT JOIN clientes c ON r.cliente_id = c.id
+       WHERE ${filtro}
+    ),
+    ultimas AS (
       SELECT DISTINCT ON (r.id_reparacion, r.familia_id)
         r.id_reparacion,
         r.familia_id,
@@ -660,21 +670,37 @@ router.get("/buscar", async (req, res) => {
         t.nombre AS tecnico,
         COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
         r.fecha,
-        r.hora_inicio
+        r.hora_inicio,
+        r.nro_pedido_ref,
+        count(*) OVER (PARTITION BY r.id_reparacion, r.familia_id)::int AS reparaciones
       FROM equipos_reparaciones r
+      JOIN coinciden m ON m.id_reparacion = r.id_reparacion AND m.familia_id IS NOT DISTINCT FROM r.familia_id
       LEFT JOIN familia f ON r.familia_id = f.id
       LEFT JOIN tecnicos t ON r.tecnico_id = t.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
-      WHERE
+      ORDER BY r.id_reparacion, r.familia_id, r.fecha DESC NULLS LAST, r.hora_inicio DESC NULLS LAST, r.id DESC
+    )
+    SELECT * FROM ultimas
+     ORDER BY fecha DESC NULLS LAST, hora_inicio DESC NULLS LAST, id_reparacion
+     LIMIT ${limite}`;
+}
+
+router.get("/buscar", async (req, res) => {
+  const q = (req.query.q || "").trim();
+  if (!q) return res.json([]);
+
+  try {
+    // Asegurar columna auxiliar si aún no existe
+    await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
+    const pattern = `%${q}%`;
+    const sql = sqlEquiposBuscados(`
         CAST(r.id_reparacion AS TEXT) ILIKE $1 OR
         COALESCE(r.id_dota::text, '') ILIKE $1 OR
         COALESCE(r.coche_numero::text, '') ILIKE $1 OR
         COALESCE(f.descripcion, '') ILIKE $1 OR
         COALESCE(t.nombre, '') ILIKE $1 OR
         COALESCE(c.fantasia, c.razon_social, '') ILIKE $1 OR
-        COALESCE(r.nro_pedido_ref, '') ILIKE $1
-      ORDER BY r.id_reparacion, r.familia_id, r.fecha DESC, r.hora_inicio DESC, r.id DESC
-      LIMIT 50`;
+        COALESCE(r.nro_pedido_ref, '') ILIKE $1`, 50);
 
     const { rows } = await pool.query(sql, [pattern]);
     return res.json(rows);
@@ -779,25 +805,7 @@ router.get("/por_pedido", async (req, res) => {
   try {
     await pool.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
     const pattern = `%${nro}%`;
-    const sql = `
-      SELECT DISTINCT ON (r.id_reparacion, r.familia_id)
-        r.id_reparacion,
-        r.familia_id,
-        r.id_dota,
-        r.coche_numero,
-        f.descripcion AS equipo,
-        t.nombre AS tecnico,
-        COALESCE(c.fantasia, c.razon_social, 'Dota') AS cliente,
-        r.fecha,
-        r.hora_inicio,
-        r.nro_pedido_ref
-      FROM equipos_reparaciones r
-      LEFT JOIN familia f ON r.familia_id = f.id
-      LEFT JOIN tecnicos t ON r.tecnico_id = t.id
-      LEFT JOIN clientes c ON r.cliente_id = c.id
-      WHERE COALESCE(r.nro_pedido_ref,'') ILIKE $1
-      ORDER BY r.id_reparacion, r.familia_id, r.fecha DESC, r.hora_inicio DESC, r.id DESC
-      LIMIT 100`;
+    const sql = sqlEquiposBuscados(`COALESCE(r.nro_pedido_ref,'') ILIKE $1`, 100);
     const { rows } = await pool.query(sql, [pattern]);
     return res.json(rows);
   } catch (err) {
@@ -1865,24 +1873,40 @@ router.get("/lote/pendientes", async (req, res) => {
   }
 });
 
-// Guarda el lote: { fecha, tecnico_id, trabajo, observaciones, items: [{ vigente_id, cantidad }] }
+// Guarda el lote: { fecha, tecnico_id, trabajo, observaciones,
+//   items: [{ vigente_id, cantidad, devueltos, motivo }] }
+// cantidad: reparados (fila de la planilla). devueltos: equipos del renglon que vuelven
+// al cliente sin reparar (ej: 40 poleas, 39 reparadas y 1 devuelta); quedan asentados
+// como devolucion parcial del renglon y tambien salen de los pendientes.
 router.post("/lote", async (req, res) => {
   const fecha = normalizeOptionalText(req.body?.fecha);
   const tecnicoId = normalizeOptionalInteger(req.body?.tecnico_id);
   const trabajo = normalizeOptionalText(req.body?.trabajo) || ''; // la columna no admite NULL
   const observaciones = normalizeOptionalText(req.body?.observaciones);
+  const entero0 = (v) => (v === undefined || v === null || v === '' ? 0 : Number(v));
   const items = (Array.isArray(req.body?.items) ? req.body.items : [])
-    .map((i) => ({ vigente_id: Number(i?.vigente_id), cantidad: Number(i?.cantidad) }))
-    .filter((i) => Number.isInteger(i.vigente_id) && Number.isInteger(i.cantidad) && i.cantidad > 0);
+    .map((i) => ({
+      vigente_id: Number(i?.vigente_id),
+      cantidad: entero0(i?.cantidad),
+      devueltos: entero0(i?.devueltos),
+      motivo: normalizeOptionalText(i?.motivo)
+    }))
+    .filter((i) => Number.isInteger(i.vigente_id) && Number.isInteger(i.cantidad) && Number.isInteger(i.devueltos)
+      && i.cantidad >= 0 && i.devueltos >= 0 && i.cantidad + i.devueltos > 0);
   if (!fecha) return res.status(400).json({ error: "Falta la fecha." });
   if (!tecnicoId) return res.status(400).json({ error: "Elegí el técnico." });
   if (!items.length) return res.status(400).json({ error: "Elegí al menos un pedido con cantidad." });
+  const sinMotivo = items.find((i) => i.devueltos > 0 && !i.motivo);
+  if (sinMotivo) return res.status(400).json({ error: "Indicá el motivo de los equipos devueltos sin reparar." });
 
   await columnaCantidad;
+  await devoluciones.esquema;
+  const usuario = (req.session && req.session.user && (req.session.user.email || req.session.user.nombre)) || null;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const creadas = [];
+    let totalDevueltos = 0;
     for (const item of items) {
       const { rows } = await client.query(
         `SELECT rd.id, rd.nro_pedido, rd.codigo, rd.pendientes, rd.cliente_id, rd.cliente_tipo, rd.devuelto,
@@ -1899,9 +1923,23 @@ router.post("/lote", async (req, res) => {
       if (!v || v.devuelto) throw errorLote(400, "Uno de los renglones ya no está vigente. Recargá la lista.");
       const nroPedido = normalizePedidoRef(v.nro_pedido);
       if (!nroPedido) throw errorLote(400, `El renglón del equipo ${v.codigo} no tiene nro de pedido.`);
-      if (!v.familia_id) throw errorLote(400, `El código ${v.codigo} (pedido ${nroPedido}) no tiene equipo cargado en familias.`);
-      if (item.cantidad > Number(v.pendientes || 0)) {
-        throw errorLote(400, `El pedido ${nroPedido} tiene ${v.pendientes} pendientes del ${v.codigo}; no se pueden cargar ${item.cantidad}.`);
+      if (item.cantidad > 0 && !v.familia_id) throw errorLote(400, `El código ${v.codigo} (pedido ${nroPedido}) no tiene equipo cargado en familias.`);
+      if (item.cantidad + item.devueltos > Number(v.pendientes || 0)) {
+        throw errorLote(400, `El pedido ${nroPedido} tiene ${v.pendientes} pendientes del ${v.codigo}; no se pueden cargar ${item.cantidad} reparados y ${item.devueltos} devueltos.`);
+      }
+
+      // Solo devueltos: no hay fila en la planilla, queda la devolucion del renglon
+      if (item.cantidad === 0) {
+        const dev = await client.query(
+          `INSERT INTO reparaciones_dota_devoluciones (vigente_id, cantidad, motivo, fecha, usuario)
+           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+          [v.id, item.devueltos, item.motivo, fecha, usuario]
+        );
+        await recalculatePedidoPendientes(client, nroPedido);
+        await insertDomainAudit(client, req, 'reparaciones_dota', v.id, 'devolucion_parcial', { snapshot: dev.rows[0] });
+        totalDevueltos += item.devueltos;
+        creadas.push({ id: null, id_reparacion: null, nro_pedido: nroPedido, cantidad: 0, devueltos: item.devueltos });
+        continue;
       }
 
       // Las reparaciones de Dota van sin cliente (como en la carga individual)
@@ -1916,26 +1954,49 @@ router.post("/lote", async (req, res) => {
       );
       const idReparacion = usados.rowCount ? `${base}-${usados.rowCount + 1}` : base;
 
+      // Los devueltos quedan escritos tambien en la fila, para verlos desde la planilla
+      const notaDevueltos = item.devueltos > 0
+        ? `Devuelto${item.devueltos === 1 ? '' : 's'} sin reparar: ${item.devueltos} (${item.motivo})`
+        : null;
+      const observacionesFila = [observaciones, notaDevueltos].filter(Boolean).join(' · ') || null;
+
       const ins = await client.query(
         `INSERT INTO equipos_reparaciones
            (id_reparacion, cliente_id, cliente_tipo, tecnico_id, trabajo, observaciones, fecha, garantia,
             familia_id, nro_pedido_ref, cantidad)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'no', $8, $9, $10)
          RETURNING *`,
-        [idReparacion, tipo === 'externo' ? v.cliente_id : null, tipo, tecnicoId, trabajo, observaciones, fecha,
+        [idReparacion, tipo === 'externo' ? v.cliente_id : null, tipo, tecnicoId, trabajo, observacionesFila, fecha,
           v.familia_id, nroPedido, item.cantidad]
       );
       const fila = ins.rows[0];
+      // Devolucion atada a la fila: si se borra la fila, se borra con ella
+      if (item.devueltos > 0) {
+        const dev = await client.query(
+          `INSERT INTO reparaciones_dota_devoluciones (vigente_id, cantidad, motivo, fecha, reparacion_id, usuario)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+          [v.id, item.devueltos, item.motivo, fecha, fila.id, usuario]
+        );
+        await insertDomainAudit(client, req, 'reparaciones_dota', v.id, 'devolucion_parcial', { snapshot: dev.rows[0] });
+        totalDevueltos += item.devueltos;
+      }
       await recalculatePedidoPendientes(client, nroPedido);
       await safeInsertPlanillaAudit(client, req, 'create', fila, {
         lote: true,
         cantidad: item.cantidad,
+        devueltos: item.devueltos,
         snapshot: pickAuditSnapshot(fila)
       });
-      creadas.push({ id: fila.id, id_reparacion: idReparacion, nro_pedido: nroPedido, cantidad: item.cantidad });
+      creadas.push({ id: fila.id, id_reparacion: idReparacion, nro_pedido: nroPedido, cantidad: item.cantidad, devueltos: item.devueltos });
     }
     await client.query("COMMIT");
-    res.json({ ok: true, creadas, equipos: creadas.reduce((t, c) => t + c.cantidad, 0) });
+    res.json({
+      ok: true,
+      creadas,
+      filas: creadas.filter((c) => c.id).length,
+      equipos: creadas.reduce((t, c) => t + c.cantidad, 0),
+      devueltos: totalDevueltos
+    });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     if (err.status) return res.status(err.status).json({ error: err.message });

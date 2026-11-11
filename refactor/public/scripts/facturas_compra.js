@@ -152,7 +152,72 @@
       cantidad, precio_unitario: precio, bonificacion_pct: bonif,
       alicuota_iva: Number(v('alicuota_iva')),
       subtotal: r2((cantidad || 0) * (precio || 0) * (1 - (bonif || 0) / 100)),
+      recambio_item_id: tr._recambio ? tr._recambio.item_id : null,
     };
+  }
+
+  // ---------- Recambios del proveedor que vuelven reparados con esta factura ----------
+  // Cada renglon de un envio pendiente se puede agregar como renglon de la factura: al
+  // guardarla se recibe (baja de lo pendiente y entra al stock como recambio).
+  let recambiosDe = null; // proveedor_id de la lista cargada
+  async function cargarRecambios(){
+    const cont = el('fc-recambios');
+    const prov = proveedorDeTexto(el('fc-proveedor').value);
+    const nc = el('fc-form').elements.comprobante.value === 'NC';
+    if (!prov || nc) { st.recambios = []; recambiosDe = null; cont.hidden = true; return; }
+    if (recambiosDe !== prov.id) {
+      recambiosDe = prov.id;
+      st.recambios = [];
+      try { st.recambios = await getJson(`${API}/recambios_pendientes/${prov.id}`); } catch (e) { console.error(e); }
+      if (recambiosDe !== prov.id) return;
+    }
+    pintarRecambios();
+  }
+
+  function filasRecambio(){ return Array.from(el('fc-items').querySelectorAll('tr')).filter(tr => tr._recambio); }
+
+  function pintarRecambios(){
+    const cont = el('fc-recambios');
+    const usados = new Set(filasRecambio().map(tr => tr._recambio.item_id));
+    const libres = (st.recambios || []).filter(r => !usados.has(r.item_id));
+    if (!(st.recambios || []).length) { cont.hidden = true; return; }
+    cont.hidden = false;
+    const total = st.recambios.reduce((t, r) => t + r.pendiente, 0);
+    cont.innerHTML = `
+      <div class="fc-rec-titulo"><i class="fas fa-arrows-rotate"></i> Este proveedor tiene ${total} recambio${total === 1 ? '' : 's'} reparándose.
+        ${libres.length ? 'Agregá los que vienen facturados:' : 'Ya están todos en la factura.'}</div>
+      ${libres.length ? `<table><tbody>${libres.map(r => `
+        <tr>
+          <td style="width:120px"><b>${esc(r.numero)}</b><div class="fc-rec-sub">${fecha(r.fecha)}</div></td>
+          <td><b>${esc(r.codigo)}</b> ${esc(r.descripcion || '')}</td>
+          <td class="num">${r.pendiente} pend.</td>
+          <td class="num" style="width:110px"><button type="button" class="cli-btn" data-agregar-recambio="${r.item_id}"><i class="fas fa-plus"></i> Agregar</button></td>
+        </tr>`).join('')}</tbody></table>` : ''}`;
+  }
+
+  function agregarRecambio(itemId){
+    const r = (st.recambios || []).find(x => x.item_id === Number(itemId));
+    if (!r) return;
+    // Usa el primer renglon si esta vacio
+    let tr = Array.from(el('fc-items').querySelectorAll('tr')).find(x => !x._recambio && !x._articulo
+      && !x.querySelector('[data-k="articulo"]').value.trim() && !x.querySelector('[data-k="descripcion"]').value.trim());
+    if (!tr) {
+      tr = filaItem();
+      el('fc-items').appendChild(tr);
+      if (!discrimina()) tr.querySelector('.fc-col-iva').style.display = 'none';
+    }
+    tr._articulo = { id: r.producto_id, codigo: r.codigo, codigo_fabricante: r.codigo_fabricante, descripcion: r.descripcion };
+    tr._recambio = { item_id: r.item_id, numero: r.numero, max: r.pendiente };
+    const art = tr.querySelector('[data-k="articulo"]');
+    art.value = `${r.codigo} | ${r.descripcion || ''}`;
+    art.readOnly = true;
+    art.removeAttribute('list');
+    tr.querySelector('[data-k="descripcion"]').value = `Reparación ${r.descripcion || r.codigo}`;
+    tr.querySelector('[data-k="cantidad"]').value = r.pendiente;
+    actualizarItem(tr);
+    actualizarControl();
+    pintarRecambios();
+    tr.querySelector('[data-k="precio_unitario"]').focus();
   }
 
   // ---------- Articulos que no estan: se crean con el importador del proveedor ----------
@@ -242,6 +307,14 @@
     const a = tr._articulo;
     actualizarFaltantes();
     if (tr._importando) return;
+    if (tr._recambio) {
+      const rc = tr._recambio;
+      const fuera = Number.isInteger(it.cantidad) && it.cantidad > 0 && it.cantidad <= rc.max;
+      info.className = fuera ? 'fc-art-info vinculado' : 'fc-art-info cambio';
+      info.innerHTML = `<span class="fc-recambio-tag"><i class="fas fa-arrows-rotate"></i> Recambio ${esc(rc.numero)}</span> `
+        + (fuera ? `vuelve reparado y entra al stock (no cambia el último costo)` : `la cantidad tiene que ser entera, de 1 a ${rc.max}`);
+      return;
+    }
     if (!a) {
       const txt = tr.querySelector('[data-k="articulo"]').value.trim();
       info.className = 'fc-art-info';
@@ -389,6 +462,8 @@
       f.vencimiento.value = sumarDias(f.fecha.value, dias);
       el('fc-venc-ayuda').textContent = dias ? `Según "${prov.condicion_pago}"` : 'Contado (sin plazo cargado)';
     }
+    // Recambios que el proveedor tiene reparandose (para recibirlos con esta factura)
+    cargarRecambios();
   }
 
   // ---------- QR de AFIP ----------
@@ -578,6 +653,9 @@
     form.elements.fecha.value = hoyIso();
     el('fc-items').innerHTML = '';
     el('fc-items').appendChild(filaItem());
+    st.recambios = [];
+    recambiosDe = null;
+    el('fc-recambios').hidden = true;
     actualizarFaltantes();
     actualizarLetra();
     abrirModal('modal-factura-compra');
@@ -598,6 +676,12 @@
       if (!(it.cantidad > 0)) { error.textContent = `Renglón ${i + 1}: cantidad inválida`; return; }
       if (Number.isNaN(it.precio_unitario)) { error.textContent = `Renglón ${i + 1}: precio inválido`; return; }
     }
+    const recFilas = filasRecambio();
+    for (const tr of recFilas) {
+      const c = datosItem(tr).cantidad;
+      if (!Number.isInteger(c) || c < 1 || c > tr._recambio.max) { error.textContent = `Recambio ${tr._recambio.numero}: la cantidad tiene que ser entera, de 1 a ${tr._recambio.max}`; return; }
+    }
+    if (recFilas.length && !f.deposito_id.value) { error.textContent = 'Elegí el depósito donde entran los recambios'; return; }
     const payload = {
       proveedor_id: prov.id, comprobante: f.comprobante.value, letra: f.letra.value,
       punto_venta: f.punto_venta.value, numero: f.numero.value, fecha: f.fecha.value,
@@ -608,10 +692,13 @@
       cuit_qr: st.cuitQr,
     };
     IMPORTES.forEach(k => { payload[k] = f[k].value; });
-    const conStock = payload.ingresa_stock && items.some(it => it.producto_id);
+    const mercaderia = items.filter(it => it.producto_id && !it.recambio_item_id);
+    const conStock = payload.ingresa_stock && mercaderia.length;
+    const recibidos = items.filter(it => it.recambio_item_id).reduce((t, it) => t + it.cantidad, 0);
     const tipo = { FC: 'la factura', NC: 'la nota de crédito', ND: 'la nota de débito' }[payload.comprobante];
     if (!confirm(`¿Confirmar ${tipo} de ${nombreProv(prov)} por ${pesos(leerNum(payload.total))}?` +
-      (conStock ? `\n\n${payload.comprobante === 'NC' ? 'Se descuentan del' : 'Ingresan al'} stock ${items.filter(it => it.producto_id).length} artículos.` : ''))) return;
+      (conStock ? `\n\n${payload.comprobante === 'NC' ? 'Se descuentan del' : 'Ingresan al'} stock ${mercaderia.length} artículos.` : '') +
+      (recibidos ? `\n\nSe reciben ${recibidos} recambio${recibidos === 1 ? '' : 's'} reparado${recibidos === 1 ? '' : 's'} y entran al stock.` : ''))) return;
     const btn = el('fc-guardar');
     btn.disabled = true;
     try {
@@ -647,7 +734,7 @@
           <div><span>Cargado por</span>${esc(f.creado_por || '—')} · ${new Date(f.created_at).toLocaleString('es-AR')}</div>
         </div>
         ${f.items.length ? `<table class="cli-tabla"><thead><tr><th>Código</th><th>Descripción</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Bonif.</th><th class="num">IVA</th><th class="num">Subtotal</th></tr></thead><tbody>
-          ${f.items.map(i => `<tr style="cursor:default"><td>${esc(i.producto_codigo || i.codigo || '')}</td><td>${esc(i.descripcion)}</td>
+          ${f.items.map(i => `<tr style="cursor:default"><td>${esc(i.producto_codigo || i.codigo || '')}</td><td>${esc(i.descripcion)}${i.recambio_envio ? ` <span class="fc-recambio-tag" title="Reparación del recambio: se recibió con esta factura"><i class="fas fa-arrows-rotate"></i> Recambio ${esc(i.recambio_envio)}</span>` : ''}</td>
             <td class="num">${num2(i.cantidad)}</td><td class="num">${pesos(i.precio_unitario)}</td><td class="num">${Number(i.bonificacion_pct) ? `${num2(i.bonificacion_pct)}%` : ''}</td>
             <td class="num">${num2(i.alicuota_iva)}%</td><td class="num">${pesos(i.subtotal)}</td></tr>`).join('')}
         </tbody></table>` : '<div class="cmp-detalle">Sin renglones.</div>'}
@@ -877,13 +964,18 @@
     // Al cambiar el proveedor cambian los botones para crear articulos con su importador
     const renglones = () => el('fc-items').querySelectorAll('tr').forEach(actualizarItem);
     el('fc-proveedor').addEventListener('change', () => { actualizarProveedor(); renglones(); });
-    el('fc-proveedor').addEventListener('input', () => { if (proveedorDeTexto(el('fc-proveedor').value)) actualizarProveedor(); renglones(); });
+    el('fc-proveedor').addEventListener('input', () => { if (proveedorDeTexto(el('fc-proveedor').value)) actualizarProveedor(); else cargarRecambios(); renglones(); });
+    el('fc-recambios').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-agregar-recambio]');
+      if (b) agregarRecambio(b.dataset.agregarRecambio);
+    });
     form.elements.fecha.addEventListener('change', actualizarProveedor);
     form.elements.comprobante.addEventListener('change', () => {
       const nc = form.elements.comprobante.value === 'NC';
       el('fc-stock-ayuda').textContent = nc ? 'Nota de crédito por devolución: los renglones con artículo SALEN del stock.' : 'Los renglones con artículo suman al stock del depósito.';
       if (nc) form.elements.vencimiento.value = '';
       else actualizarProveedor();
+      cargarRecambios();
     });
     form.elements.vencimiento.addEventListener('input', () => { st.vencAuto = false; });
     form.elements.letra.addEventListener('change', actualizarLetra);
@@ -915,7 +1007,7 @@
     items.addEventListener('change', (e) => { const tr = e.target.closest('tr'); if (tr && e.target.dataset.k === 'articulo') elegirArticulo(tr); });
     items.addEventListener('click', (e) => {
       const tr = e.target.closest('tr');
-      if (e.target.closest('[data-quitar]')) { tr.remove(); actualizarControl(); actualizarFaltantes(); return; }
+      if (e.target.closest('[data-quitar]')) { const eraRecambio = !!tr._recambio; tr.remove(); actualizarControl(); actualizarFaltantes(); if (eraRecambio) pintarRecambios(); return; }
       if (e.target.closest('[data-importar]')) return importarArticulo(tr);
       const parecido = e.target.closest('[data-importar-url]');
       if (parecido) importarArticulo(tr, parecido.dataset.importarUrl);

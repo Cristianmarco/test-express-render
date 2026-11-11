@@ -148,6 +148,10 @@ app.use('/taller', requireLogin, taller.paginas);
 const ordenesPago = require('./routes/ordenes_pago');
 app.use('/api/ordenes_pago', requireLogin, ordenesPago.router);
 app.use('/ordenes_pago', requireLogin, ordenesPago.paginas);
+// Recambios: cuerpos usados que se mandan a reparar al proveedor
+const recambios = require('./routes/recambios');
+app.use('/api/recambios', requireLogin, recambios.router);
+app.use('/recambios', requireLogin, recambios.paginas);
 
 
 // ============================

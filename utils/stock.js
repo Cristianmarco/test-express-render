@@ -6,7 +6,8 @@ const db = require('../db');
 const { insertDomainAudit } = require('./domain-audit');
 
 const AUDIT_DOMAIN = 'movimientos_stock';
-const ORIGENES = ['manual', 'ajuste', 'transferencia', 'inventario', 'reparacion', 'compra'];
+// recambio: cuerpos que vuelven reparados del proveedor (utils/recambios.js)
+const ORIGENES = ['manual', 'ajuste', 'transferencia', 'inventario', 'reparacion', 'compra', 'recambio'];
 
 class ErrorStock extends Error {
   constructor(status, message) { super(message); this.status = status; }

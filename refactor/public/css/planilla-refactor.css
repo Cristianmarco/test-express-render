@@ -340,6 +340,17 @@
 #modal-historial[data-mode="seleccion"] .tabla-erp td {
   text-align: left;
 }
+#modal-historial[data-mode="seleccion"] .tabla-erp th.hist-ordenable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+#modal-historial[data-mode="seleccion"] .tabla-erp th.hist-ordenable i { opacity: 0.4; font-size: 0.8em; }
+#modal-historial[data-mode="seleccion"] .tabla-erp th.hist-ordenable.activo i { opacity: 1; }
+#modal-historial[data-mode="seleccion"] .tabla-erp td .hist-meta {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
 #modal-historial[data-mode="seleccion"] .tabla-erp td.hist-ver {
   color: #15803d;
   font-weight: 600;
@@ -1210,6 +1221,9 @@ form#form-reparacion .btn-guardar {
   gap: 3px;
 }
 .historial-tabla .historial-trabajo-item { display: block; }
+.historial-tabla .historial-trabajo-viejo { color: #6b7280; font-style: italic; }
+.historial-tabla tr.historial-rep-row { cursor: pointer; }
+.historial-tabla tr.historial-rep-row:hover td { background: #f0fdf4; }
 
 /* Separación extra antes de la tabla del historial */
 .erp-table-card.historial-tabla { margin-top: 10px; }

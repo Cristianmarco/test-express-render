@@ -1,0 +1,92 @@
+<%
+  const fecha = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+  const e = envio;
+  const domicilio = [e.direccion, e.codigo_postal ? `(CP ${e.codigo_postal})` : null, e.localidad, e.provincia].filter(Boolean).join(' · ');
+%>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title><%= e.numero %> - <%= e.razon_social %></title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; background: #f1f5f9; font-size: 12px; }
+    .hoja { width: 210mm; min-height: 297mm; margin: 10px auto; background: #fff; padding: 14mm 14mm 12mm; position: relative; }
+    .barra { width: 210mm; margin: 10px auto 0; display: flex; gap: 8px; }
+    .barra button { padding: 8px 16px; font-size: 14px; cursor: pointer; }
+    .cab { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 8px; }
+    .cab img { height: 42px; }
+    .cab .titulo { text-align: right; }
+    .cab .titulo h1 { margin: 0; font-size: 20px; letter-spacing: .5px; }
+    .cab .titulo div { font-size: 13px; margin-top: 3px; }
+    .bloque { border: 1px solid #999; border-radius: 4px; padding: 8px 10px; margin-top: 10px; }
+    .bloque b { display: inline-block; min-width: 90px; }
+    h2 { font-size: 13px; text-transform: uppercase; margin: 16px 0 6px; letter-spacing: .4px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #999; padding: 6px; text-align: left; }
+    th { background: #eee; font-size: 11px; text-transform: uppercase; }
+    .num { text-align: right; white-space: nowrap; width: 80px; }
+    tfoot td { font-weight: 700; background: #f7f7f7; }
+    .obs { margin-top: 12px; }
+    .leyenda { margin-top: 12px; font-size: 11px; color: #333; }
+    .firmas { display: flex; justify-content: space-between; gap: 30px; margin-top: 70px; }
+    .firmas div { flex: 1; border-top: 1px solid #111; text-align: center; padding-top: 4px; font-size: 11px; }
+    .anulada { position: absolute; top: 40%; left: 0; right: 0; text-align: center; font-size: 90px; font-weight: 700; color: rgba(185, 28, 28, .18); transform: rotate(-25deg); pointer-events: none; }
+    .pie { margin-top: 18px; font-size: 10px; color: #555; }
+    @media print {
+      body { background: #fff; }
+      .barra { display: none; }
+      .hoja { margin: 0; width: auto; min-height: 0; padding: 0; }
+      @page { size: A4; margin: 12mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="barra">
+    <button onclick="window.print()">Imprimir</button>
+    <button onclick="window.close()">Cerrar</button>
+  </div>
+  <div class="hoja">
+    <% if (e.anulado) { %><div class="anulada">ANULADO</div><% } %>
+    <div class="cab">
+      <img src="/static/images/logo.png" alt="Amorim">
+      <div class="titulo">
+        <h1>REMITO DE RECAMBIOS</h1>
+        <div>Nº <b><%= e.numero %></b></div>
+        <div>Fecha: <b><%= fecha(e.fecha) %></b></div>
+      </div>
+    </div>
+
+    <div class="bloque">
+      <div><b>Proveedor:</b> <%= e.razon_social %><%= e.fantasia && e.fantasia !== e.razon_social ? ` (${e.fantasia})` : '' %> · Código <%= e.proveedor_codigo %></div>
+      <% if (e.cuit || e.condicion_iva) { %><div><b>CUIT:</b> <%= e.cuit || '—' %><%= e.condicion_iva ? ` · ${e.condicion_iva}` : '' %></div><% } %>
+      <% if (domicilio) { %><div><b>Domicilio:</b> <%= domicilio %></div><% } %>
+      <% if (e.telefono) { %><div><b>Teléfono:</b> <%= e.telefono %></div><% } %>
+    </div>
+
+    <h2>Cuerpos que se envían para reparar</h2>
+    <table>
+      <thead><tr><th class="num">Cantidad</th><th style="width:150px">Código</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <% e.items.forEach((i) => { %>
+          <tr>
+            <td class="num"><%= i.cantidad %></td>
+            <td><%= i.codigo_fabricante || i.codigo %><% if (i.codigo_fabricante && i.codigo_fabricante !== i.codigo) { %><div style="font-size:10px;color:#555">Nuestro: <%= i.codigo %></div><% } %></td>
+            <td><%= i.descripcion %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+      <tfoot><tr><td class="num"><%= e.cantidad %></td><td colspan="2">unidades en total</td></tr></tfoot>
+    </table>
+
+    <% if (e.observaciones) { %><div class="obs"><b>Observaciones:</b> <%= e.observaciones %></div><% } %>
+    <div class="leyenda">Cuerpos usados que se envían para su reparación. Al devolverlos, por favor indicar este número de remito (<%= e.numero %>).</div>
+
+    <div class="firmas">
+      <div>Entregó</div>
+      <div>Recibió (firma y aclaración)</div>
+    </div>
+    <div class="pie">Emitido por <%= e.usuario || 'el sistema' %></div>
+  </div>
+</body>
+</html>

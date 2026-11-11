@@ -15,7 +15,7 @@
     inv: null,          // inventario abierto en el detalle
     invFiltro: 'todos',
   };
-  const ORIGENES = { reparacion: 'Reparación', compra: 'Compra', inventario: 'Inventario', ajuste: 'Ajuste', transferencia: 'Transferencia', manual: 'Manual' };
+  const ORIGENES = { reparacion: 'Reparación', compra: 'Compra', recambio: 'Recambio', inventario: 'Inventario', ajuste: 'Ajuste', transferencia: 'Transferencia', manual: 'Manual' };
   const ALCANCES = { todos: 'Todos los productos', proveedor: 'Proveedor', familia: 'Familia', negativos: 'Los negativos', vacio: 'Escaneados' };
 
   const el = (id) => document.getElementById(id);

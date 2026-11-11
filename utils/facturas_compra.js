@@ -10,6 +10,8 @@
 const db = require('../db');
 // Columnas origen / factura_compra_id / usuario de movimientos_stock
 const { esquema: esquemaStock } = require('./stock');
+// Recambios que vuelven reparados con la factura (se carga al usarlo)
+const recambios = () => require('./recambios');
 
 const COMPROBANTES = { FC: 'Factura', NC: 'Nota de crédito', ND: 'Nota de débito' };
 const LETRAS = ['A', 'B', 'C', 'M'];
@@ -76,6 +78,9 @@ const esquema = (async () => {
       subtotal numeric(14,2) NOT NULL DEFAULT 0,
       orden integer NOT NULL DEFAULT 0
     )`);
+  // Renglon que es la reparacion de un recambio (utils/recambios.js): al cargar la factura
+  // se recibe ese recambio (entra al stock como recambio, no como compra)
+  await db.query('ALTER TABLE facturas_compra_items ADD COLUMN IF NOT EXISTS recambio_item_id integer');
   await db.query('CREATE INDEX IF NOT EXISTS facturas_compra_items_factura_idx ON facturas_compra_items (factura_id)');
   await db.query('CREATE INDEX IF NOT EXISTS facturas_compra_items_producto_idx ON facturas_compra_items (producto_id)');
   // El PDF / foto de la factura (aparte, para no cargarlo en los listados)
@@ -152,6 +157,14 @@ const esquema = (async () => {
 
 class ErrorFactura extends Error {
   constructor(status, message) { super(message); this.status = status; }
+}
+
+// Los errores de validacion de Recambios se devuelven como errores de la factura
+async function conErrorFactura(fn) {
+  try { return await fn(); } catch (e) {
+    if (e && e.status && !(e instanceof ErrorFactura)) throw new ErrorFactura(e.status, e.message);
+    throw e;
+  }
 }
 
 const n2 = (v) => Math.round(Number(v || 0) * 100) / 100;
@@ -241,8 +254,13 @@ function prepararFactura(body) {
       precio_unitario: importe(x.precio_unitario),
       bonificacion_pct: importe(x.bonificacion_pct),
       alicuota_iva: discrimina ? importe(x.alicuota_iva === '' || x.alicuota_iva == null ? 21 : x.alicuota_iva) : 0,
+      recambio_item_id: Number(x.recambio_item_id) > 0 ? Number(x.recambio_item_id) : null,
       orden: i,
     };
+    if (it.recambio_item_id) {
+      if (f.comprobante === 'NC') throw new ErrorFactura(400, `Renglón ${i + 1}: un recambio no puede ir en una nota de crédito`);
+      if (!Number.isInteger(it.cantidad)) throw new ErrorFactura(400, `Renglón ${i + 1}: la cantidad del recambio tiene que ser entera`);
+    }
     if (!it.descripcion) throw new ErrorFactura(400, `Renglón ${i + 1}: falta la descripción`);
     if (!(it.cantidad > 0)) throw new ErrorFactura(400, `Renglón ${i + 1}: la cantidad tiene que ser mayor a 0`);
     if (it.precio_unitario < 0) throw new ErrorFactura(400, `Renglón ${i + 1}: precio inválido`);
@@ -254,7 +272,8 @@ function prepararFactura(body) {
     it.subtotal = n2(it.cantidad * it.precio_unitario * (1 - it.bonificacion_pct / 100));
     return it;
   });
-  if (f.ingresa_stock && items.some((it) => it.producto_id) && !f.deposito_id) {
+  // Los recambios siempre entran al stock (aunque la factura no ingrese mercaderia)
+  if (((f.ingresa_stock && items.some((it) => it.producto_id)) || items.some((it) => it.recambio_item_id)) && !f.deposito_id) {
     throw new ErrorFactura(400, 'Elegí el depósito donde ingresa la mercadería');
   }
   return { f, items };
@@ -264,7 +283,8 @@ function prepararFactura(body) {
 async function moverStock(client, factura, items, signo, observacion, req) {
   await esquemaStock;
   for (const it of items) {
-    if (!it.producto_id) continue;
+    // Los recambios entran (y salen al anular) por su recepcion, no como compra
+    if (!it.producto_id || it.recambio_item_id) continue;
     const cant = Math.round(Number(it.cantidad));
     if (!cant) continue;
     await client.query(
@@ -327,6 +347,13 @@ async function crearFactura(client, req, body) {
     const netoFactura = (f.letra === 'A' || f.letra === 'M') ? n2(f.neto_21 + f.neto_105 + f.neto_27 + f.exento) : n2(f.no_gravado);
     if (Math.abs(netoItems - netoFactura) > 1) avisos.push(`Los renglones suman ${netoItems} y el neto del comprobante es ${netoFactura} (puede ser un flete o un cargo sin renglón)`);
   }
+  // Recambios: se validan contra lo pendiente del proveedor y el renglon queda con el
+  // producto del recambio
+  const deRecambio = items.filter((it) => it.recambio_item_id);
+  if (deRecambio.length) {
+    const productos = await conErrorFactura(() => recambios().validarParaFactura(client, f.proveedor_id, deRecambio));
+    for (const it of deRecambio) it.producto_id = productos.get(it.recambio_item_id);
+  }
 
   const cols = ['proveedor_id', 'comprobante', 'letra', 'punto_venta', 'numero', 'fecha', 'vencimiento', 'cae', ...IMPORTES,
     'total', 'ingresa_stock', 'deposito_id', 'orden_compra_id', 'observaciones'];
@@ -339,9 +366,9 @@ async function crearFactura(client, req, body) {
   for (const it of items) {
     await client.query(
       `INSERT INTO facturas_compra_items (factura_id, producto_id, codigo, descripcion, cantidad, precio_unitario,
-         bonificacion_pct, alicuota_iva, subtotal, orden)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [id, it.producto_id, it.codigo, it.descripcion, it.cantidad, it.precio_unitario, it.bonificacion_pct, it.alicuota_iva, it.subtotal, it.orden]
+         bonificacion_pct, alicuota_iva, subtotal, orden, recambio_item_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [id, it.producto_id, it.codigo, it.descripcion, it.cantidad, it.precio_unitario, it.bonificacion_pct, it.alicuota_iva, it.subtotal, it.orden, it.recambio_item_id]
     );
   }
   const nombre = `${numeroComprobante(f)} de ${prov.rows[0].razon_social}`;
@@ -349,10 +376,17 @@ async function crearFactura(client, req, body) {
     // NC = devolucion: sale del stock
     await moverStock(client, { ...f, id }, items, f.comprobante === 'NC' ? -1 : 1, `Compra: ${nombre}`, req);
   }
-  // Ultimo costo (precio neto con bonificacion) de las facturas, si es la mas reciente
+  // Recambios reparados: se reciben (bajan de lo pendiente y entran al stock como recambio)
+  if (deRecambio.length) {
+    await conErrorFactura(() => recambios().recibirDeFactura(client, req, {
+      factura_id: id, comprobante: numeroComprobante(f), proveedor_id: f.proveedor_id, deposito_id: f.deposito_id, fecha: f.fecha
+    }, deRecambio));
+  }
+  // Ultimo costo (precio neto con bonificacion) de las facturas, si es la mas reciente.
+  // La reparacion de un recambio no es el costo del articulo: no se toma.
   if (f.comprobante === 'FC') {
     for (const it of items) {
-      if (!it.producto_id || !(it.precio_unitario > 0)) continue;
+      if (!it.producto_id || it.recambio_item_id || !(it.precio_unitario > 0)) continue;
       await client.query(
         `UPDATE productos SET ultimo_costo = $2, ultimo_costo_at = $3, ultimo_costo_factura_id = $4
           WHERE id = $1 AND (ultimo_costo_at IS NULL OR ultimo_costo_at <= $3)`,
@@ -390,6 +424,8 @@ async function anularFactura(client, req, id, motivo) {
   if (f.ingresa_stock) {
     await moverStock(client, f, items, f.comprobante === 'NC' ? 1 : -1, `Anulación compra: ${numeroComprobante(f)}`, req);
   }
+  // Los recambios que recibio vuelven a quedar pendientes (y salen del stock)
+  if (items.some((it) => it.recambio_item_id)) await conErrorFactura(() => recambios().anularRecepcionesDeFactura(client, req, id));
   await client.query(
     `UPDATE facturas_compra SET estado = 'anulada', anulada_at = now(), anulada_por = $2, anulada_motivo = $3 WHERE id = $1`,
     [id, usuarioDe(req), String(motivo || '').trim().slice(0, 500) || null]

@@ -6,6 +6,7 @@
 // completan con la ficha de gauss.com.br: datos tecnicos, aplicaciones, equivalencias y fotos.
 const catalogo = require('../../utils/der_catalogo');
 const gauss = require('./gauss');
+const ph = require('./ph');
 
 const NOMBRE = 'DER Distribuciones';
 const PREFIJO = 'DER';
@@ -14,6 +15,8 @@ const limpiar = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 const urlDe = (a) => `der:${a.id_art}`;
 const idDeUrl = (url) => { const m = String(url || '').trim().match(/^der:(\d+)$/i); return m ? Number(m[1]) : null; };
 const esGauss = (a) => /^GAUSS$/i.test(a.marca || '');
+// Marcas que vende Electromecanica PH (su catalogo tiene datos, aplicaciones y fotos)
+const esPh = (a) => /^(PH|DNI)$/i.test(a.prefijo || '');
 
 function estadoDe(a) {
   return [a.estado, a.oferta].filter(Boolean).join(' · ') || null;
@@ -96,6 +99,20 @@ async function leerFicha(url) {
       console.warn('DER: no se pudo leer la ficha de Gauss', a.codigo, e.message);
     }
   }
+  // PH / DNI: datos tecnicos, aplicacion, equipos en los que va, originales y foto de PH
+  if (esPh(a)) {
+    try {
+      const p = await ph.fichaPorCodigo(a.prefijo, a.codigo);
+      if (p) {
+        especificaciones.push(...p.especificaciones);
+        if (p.aplicaciones.length) aplicaciones.splice(0, aplicaciones.length, ...p.aplicaciones);
+        for (const e of p.equivalencias) sumar(e.fabricante, e.codigo);
+        fotos = p.fotos;
+      }
+    } catch (e) {
+      console.warn('DER: no se pudo leer la ficha de PH', a.codigo, e.message);
+    }
+  }
 
   return {
     proveedor: 'der',
@@ -127,8 +144,11 @@ async function leerFicha(url) {
   };
 }
 
+// Las fotos vienen de Gauss o de PH, segun la marca del articulo
 async function descargarImagen(url) {
-  return gauss.descargarImagen(url);
+  let host = '';
+  try { host = new URL(url).hostname; } catch (_) {}
+  return /electromecanicaph\.com\.ar$/i.test(host) ? ph.descargarImagen(url) : gauss.descargarImagen(url);
 }
 
 // ---- Busqueda avanzada: rubro de DER + palabras ----

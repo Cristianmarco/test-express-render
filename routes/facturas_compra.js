@@ -255,13 +255,25 @@ router.get('/:id(\\d+)', async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Comprobante no encontrado' });
     const items = await db.query(
-      `SELECT i.*, p.codigo AS producto_codigo FROM facturas_compra_items i
+      `SELECT i.*, p.codigo AS producto_codigo,
+              CASE WHEN ri.envio_id IS NOT NULL THEN 'RC-' || lpad(ri.envio_id::text, 8, '0') END AS recambio_envio
+         FROM facturas_compra_items i
          LEFT JOIN productos p ON p.id = i.producto_id
+         LEFT JOIN recambios_items ri ON ri.id = i.recambio_item_id
         WHERE i.factura_id = $1 ORDER BY i.orden, i.id`,
       [req.params.id]
     );
     const f = rows[0];
     res.json({ ...f, fecha: fc.iso(f.fecha), vencimiento: fc.iso(f.vencimiento), numero_completo: fc.numeroComprobante(f), items: items.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Recambios del proveedor que estan afuera reparandose, para agregarlos a la factura
+router.get('/recambios_pendientes/:proveedorId(\\d+)', async (req, res, next) => {
+  try {
+    res.json(await require('../utils/recambios').pendientesProveedor(Number(req.params.proveedorId)));
   } catch (err) {
     next(err);
   }

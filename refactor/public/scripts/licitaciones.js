@@ -1283,7 +1283,9 @@ async function cargarVigentes(){
         <td>${esc(r.destino) || '-'}</td>
         <td class="vig-texto">${esc(r.razon_social) || '-'}</td>
         <td>${tipoTxt}</td>
-        <td>${r.pendientes!=null?r.pendientes:'-'}</td>
+        <td>${r.pendientes!=null?r.pendientes:'-'}${Number(r.devueltos_parcial) > 0
+          ? `<div class="badge-devuelto" style="margin-top:3px;" title="${attr('Devueltos sin reparar: ' + (r.devueltos_detalle || r.devueltos_parcial))}"><i class="fas fa-rotate-left"></i> ${r.devueltos_parcial} dev.</div>`
+          : ''}</td>
         <td class="vig-nowrap">${fechaIngresoTxt}</td>
         <td class="vig-nowrap">${fechaLimiteTxt}${devuelto ? '' : marcaAtraso}</td>
         <td>${celdaEtapa(r, devuelto)}</td>

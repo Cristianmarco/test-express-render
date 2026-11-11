@@ -77,7 +77,9 @@
   }
 
   // ---------- Nueva orden ----------
-  function nuevaOrden(proveedorId){
+  async function nuevaOrden(proveedorId){
+    // Se relee la lista de proveedores: puede haberse cargado uno nuevo con esta pestaña abierta
+    try { await cargarProveedores(); } catch (e) { console.error(e); }
     const form = el('op-form');
     form.reset();
     form.elements.fecha.value = hoyIso();

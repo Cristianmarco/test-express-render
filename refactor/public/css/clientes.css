@@ -120,17 +120,17 @@
 /* Modal de alta / edicion */
 :is(#modal-cliente-ref, #modal-proveedor-ref) .modal-contenido-refactor { max-width: 860px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; box-sizing: border-box; padding: 20px 24px 14px; }
 :is(#modal-cliente-ref, #modal-proveedor-ref) .modal-titulo-principal { margin-bottom: 12px; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) { overflow-y: auto; min-height: 0; padding-right: 4px; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) fieldset { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 4px; margin: 0 0 12px; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) legend { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) .cli-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; margin-bottom: 10px; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) label { display: block; font-weight: 600; color: #334155; margin-bottom: 4px; font-size: 0.86rem; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) input, :is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) select, :is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) textarea { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 0.9rem; font-family: inherit; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) textarea { min-height: 70px; resize: vertical; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) input[type="checkbox"] { width: auto; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) .cli-check { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-top: 24px; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) .cli-ayuda { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; }
-:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form) .cli-ayuda.error { color: #b91c1c; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) { overflow-y: auto; min-height: 0; padding-right: 4px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) fieldset { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 4px; margin: 0 0 12px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) legend { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) .cli-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; margin-bottom: 10px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) label { display: block; font-weight: 600; color: #334155; margin-bottom: 4px; font-size: 0.86rem; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) input, :is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) select, :is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) textarea { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 0.9rem; font-family: inherit; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) textarea { min-height: 70px; resize: vertical; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) input[type="checkbox"] { width: auto; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) .cli-check { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-top: 24px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) .cli-ayuda { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; }
+:is(#form-cliente-ref, #form-proveedor-ref, #fc-form, #fc-pago-form, #op-form, #stk-mov-form, #stk-inv-form, #rc-form, #rc-recibir-form) .cli-ayuda.error { color: #b91c1c; }
 .cli-contactos-tabla { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-bottom: 8px; }
 .cli-contactos-tabla th { text-align: left; font-size: 0.76rem; color: var(--text-muted); font-weight: 600; padding: 2px 4px; }
 .cli-contactos-tabla td { padding: 3px 4px; }
@@ -234,6 +234,17 @@
 .stk-origen { font-size: .72rem; font-weight: 700; border-radius: 999px; padding: 1px 8px; background: #f1f5f9; color: #475569; white-space: nowrap; }
 .stk-origen.reparacion { background: #fef3c7; color: #92400e; }
 .stk-origen.compra { background: #dcfce7; color: #166534; }
+.stk-origen.recambio { background: #ccfbf1; color: #115e59; }
+/* Factura de compra: recambios pendientes del proveedor */
+.fc-recambios { border: 1px solid #99f6e4; background: #f0fdfa; border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; font-size: .85rem; }
+.fc-recambios[hidden] { display: none; }
+.fc-recambios .fc-rec-titulo { font-weight: 700; color: #115e59; margin-bottom: 6px; }
+.fc-recambios table { width: 100%; border-collapse: collapse; }
+.fc-recambios td { padding: 3px 6px; border-top: 1px solid #ccfbf1; vertical-align: middle; }
+.fc-recambios td.num { text-align: right; white-space: nowrap; }
+.fc-recambios .fc-rec-sub { color: #64748b; font-size: .78rem; }
+.fc-recambios button { padding: 2px 10px; }
+.fc-recambio-tag { display: inline-block; font-size: .72rem; font-weight: 700; color: #115e59; background: #ccfbf1; border-radius: 999px; padding: 1px 8px; margin-left: 4px; white-space: nowrap; }
 .stk-origen.inventario, .stk-origen.ajuste { background: #ede9fe; color: #5b21b6; }
 .stk-origen.transferencia { background: #e0f2fe; color: #075985; }
 .stk-inv-estado { font-size: .72rem; font-weight: 700; border-radius: 999px; padding: 1px 8px; vertical-align: middle; }

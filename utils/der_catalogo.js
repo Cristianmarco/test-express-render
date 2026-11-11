@@ -307,6 +307,21 @@ async function porCodart(codarts) {
   return new Map(rows.map((r) => [r.codart_n, r]));
 }
 
+// Varios articulos por marca + codigo de fabricante ([{ prefijo: 'PH', codigo: '1008' }]),
+// para cruzar con un catalogo que no usa el codigo DER. Clave del Map: "PREFIJO|CODIGO"
+// normalizados. Si hay repetidos gana el que no esta discontinuado.
+async function porPrefijoCodigo(pares) {
+  await esquema;
+  const lista = (pares || []).map((p) => [norm(p.prefijo), norm(p.codigo)]).filter(([p, c]) => p && c);
+  if (!lista.length) return new Map();
+  const { rows } = await db.query(
+    `${SQL_ARTICULO} JOIN (SELECT DISTINCT * FROM unnest($1::text[], $2::text[]) AS q(p, c)) q
+        ON a.prefijo = q.p AND a.codigo_n = q.c
+      ORDER BY a.discontinuado DESC, a.id_art`,
+    [lista.map(([p]) => p), lista.map(([, c]) => c)]);
+  return new Map(rows.map((r) => [`${norm(r.prefijo)}|${r.codigo_n}`, r]));
+}
+
 async function rubros() {
   await esquema;
   const { rows } = await db.query(
@@ -323,5 +338,5 @@ async function ultimaSync() {
 
 module.exports = {
   esquema, DIR_DEFECTO, norm, plano, leerCatalogo, sincronizar,
-  articulo, buscarCodigo, buscarTexto, codigosDe, equivalentesDe, porCodart, rubros, ultimaSync
+  articulo, buscarCodigo, buscarTexto, codigosDe, equivalentesDe, porCodart, porPrefijoCodigo, rubros, ultimaSync
 };

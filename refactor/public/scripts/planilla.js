@@ -157,6 +157,28 @@ const GARANTIA_TEMPLATES = {
 let currentDate = new Date();
 let historialTableMode = 'historial';
 let historialResultadosCache = [];
+// Orden de la lista de resultados del buscador (se recuerda en este navegador)
+let historialOrden = { campo: 'fecha', dir: 'desc' };
+try {
+  const guardado = JSON.parse(localStorage.getItem('planilla.historialOrden') || 'null');
+  if (guardado && ['id', 'cliente', 'equipo', 'fecha'].includes(guardado.campo)) {
+    historialOrden = { campo: guardado.campo, dir: guardado.dir === 'asc' ? 'asc' : 'desc' };
+  }
+} catch (_) {}
+
+function ordenarResultadosHistorial(list) {
+  const { campo, dir } = historialOrden;
+  const clave = (r) => campo === 'fecha'
+    ? `${String(r.fecha || '').slice(0, 10)} ${r.hora_inicio || ''}`
+    : String((campo === 'id' ? r.id_reparacion : r[campo]) || '');
+  const signo = dir === 'asc' ? 1 : -1;
+  return list.slice().sort((a, b) => {
+    const ka = clave(a), kb = clave(b);
+    // Sin dato siempre al final
+    if (!ka.trim() || !kb.trim()) return (!ka.trim()) - (!kb.trim());
+    return signo * ka.localeCompare(kb, 'es', { numeric: true, sensitivity: 'base' });
+  });
+}
 let planillaOrden = 'ingreso';
 let planillaData = [];
 let repuestosFiltro = null;
@@ -246,10 +268,39 @@ async function cargarFichaTecnicaFamilia(familiaId) {
 function setHistorialTableMode(mode) {
   historialTableMode = mode === 'seleccion' ? 'seleccion' : 'historial';
   const head = document.getElementById('historial-head-row');
+  // Anchos de columna de cada vista (la lista de resultados tiene 6 columnas y el
+  // detalle 7; con un solo juego de anchos sobraba una columna vacia a la derecha)
+  const colgroup = document.getElementById('historial-colgroup');
+  if (colgroup) {
+    const anchos = historialTableMode === 'seleccion'
+      ? ['14%', '17%', '33%', '11%', '15%', '10%']
+      : ['110px', '110px', '340px', '120px', '120px', '130px', '150px'];
+    colgroup.innerHTML = anchos.map(w => `<col style="width:${w};">`).join('');
+  }
   if (head) {
+    // En la lista de resultados las columnas con flecha ordenan al hacer clic
+    const th = (campo, titulo) => {
+      const activo = historialOrden.campo === campo;
+      const flecha = activo ? (historialOrden.dir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+      return `<th class="hist-ordenable${activo ? ' activo' : ''}" data-orden="${campo}" title="Ordenar por ${titulo.toLowerCase()}">${titulo} <i class="fas ${flecha}"></i></th>`;
+    };
     head.innerHTML = historialTableMode === 'seleccion'
-      ? `<th>ID Reparacion</th><th>Cliente</th><th>Equipo</th><th>Nro Coche</th><th>Accion</th>`
-      : `<th>Fecha</th><th>Nro Coche</th><th>Trabajo</th><th>Hora Inicio</th><th>Hora Fin</th><th>Tecnico</th><th>Garantia</th>`;
+      ? `${th('id', 'ID Reparacion')}${th('cliente', 'Cliente')}${th('equipo', 'Equipo')}<th>Nro Coche</th>${th('fecha', 'Última reparación')}<th>Accion</th>`
+      : `<th>Fecha</th><th>Nro Coche</th><th>Repuestos</th><th>Hora Inicio</th><th>Hora Fin</th><th>Tecnico</th><th>Garantia</th>`;
+    if (!head._ordenBound) {
+      head._ordenBound = true;
+      head.addEventListener('click', (e) => {
+        const celda = e.target.closest('th[data-orden]');
+        if (!celda || historialTableMode !== 'seleccion') return;
+        const campo = celda.dataset.orden;
+        // Mismo campo: invierte. Otro campo: fecha arranca por la mas reciente, el resto A-Z
+        historialOrden = historialOrden.campo === campo
+          ? { campo, dir: historialOrden.dir === 'asc' ? 'desc' : 'asc' }
+          : { campo, dir: campo === 'fecha' ? 'desc' : 'asc' };
+        try { localStorage.setItem('planilla.historialOrden', JSON.stringify(historialOrden)); } catch (_) {}
+        renderHistorialResultados(historialResultadosCache);
+      });
+    }
   }
   const modal = document.getElementById('modal-historial');
   if (modal) modal.setAttribute('data-mode', historialTableMode);
@@ -297,7 +348,7 @@ function volverAListadoHistorial() {
 function renderHistorialPlaceholder(message, color = '#666') {
   const tbody = document.getElementById('tbody-historial');
   if (!tbody) return;
-  const cols = historialTableMode === 'seleccion' ? 5 : 7;
+  const cols = historialTableMode === 'seleccion' ? 6 : 7;
   tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align:center; padding:10px; color:${color}">${message}</td></tr>`;
 }
 
@@ -307,7 +358,7 @@ function renderHistorialResultados(list) {
   historialResultadosCache = Array.isArray(list) ? list.slice() : [];
   setHistorialTableMode('seleccion');
   setHistorialInfo(null);
-  const rows = (Array.isArray(list) ? list : []).map(r => {
+  const rows = ordenarResultadosHistorial(historialResultadosCache).map(r => {
     const meta = [];
     if (r.id_dota) meta.push(`ID DOTA: ${esc(r.id_dota)}`);
     if (r.nro_pedido_ref) meta.push(`Pedido: ${esc(r.nro_pedido_ref)}`);
@@ -321,10 +372,12 @@ function renderHistorialResultados(list) {
         <td>${esc(r.cliente) || '-'}</td>
         <td>${esc(r.equipo) || '-'}</td>
         <td>${esc(r.coche_numero) || '-'}</td>
+        <td>${r.fecha ? fmtFechaCorta(r.fecha) : '-'}${Number(r.reparaciones) > 1
+          ? `<div class="hist-meta"><span>${r.reparaciones} reparaciones</span></div>` : ''}</td>
         <td class="hist-ver">Ver</td>
       </tr>`;
   }).join('');
-  tbody.innerHTML = rows || `<tr><td colspan="5" style="text-align:center; padding:10px; color:#666">Sin resultados.</td></tr>`;
+  tbody.innerHTML = rows || `<tr><td colspan="6" style="text-align:center; padding:10px; color:#666">Sin resultados.</td></tr>`;
   tbody.querySelectorAll('tr.resultado-clickable').forEach(tr => {
     tr.addEventListener('click', () => cargarHistorial(tr.dataset.id, tr.dataset.familiaId || null));
   });
@@ -1200,6 +1253,49 @@ function bindEnhanceFamilyGroupButtons(){
   }
 }
 
+// Modal de visualizacion de una reparacion. Se abre desde la planilla del dia (boton Ver)
+// o con doble clic en el historial del buscador; con encima: queda por delante del
+// modal desde el que se abrio.
+function mostrarDetalleReparacion(seleccion, encima) {
+  const map = {
+    'detalle-cliente': seleccion.cliente,
+    'detalle-id-reparacion': seleccion.id_reparacion,
+    'detalle-coche': seleccion.coche,
+    'detalle-equipo': seleccion.equipo,
+    'detalle-tecnico': seleccion.tecnico,
+    'detalle-garantia': seleccion.garantia,
+    'detalle-hora-inicio': seleccion.hora_inicio||'-',
+    'detalle-hora-fin': seleccion.hora_fin||'-',
+    'detalle-trabajo': seleccion.trabajo||'-',
+    'detalle-observaciones': seleccion.observaciones||'-',
+    'detalle-id-dota': seleccion.id_dota||'-',
+    'detalle-ultimo-reparador': seleccion.ultimo_reparador_nombre||seleccion.ultimo_reparador||'-',
+    'detalle-estado': formatResolucionLabel(seleccion.resolucion),
+    'detalle-nro-pedido': seleccion.nro_pedido_ref||'-'
+  };
+  Object.entries(map).forEach(([id,val])=>{ const el=document.getElementById(id); if(el) el.textContent=val; });
+  const repuestosEl = document.getElementById('detalle-repuestos');
+  if (repuestosEl) {
+    const lista = Array.isArray(seleccion.repuestos) ? seleccion.repuestos : [];
+    detalleRepuestosActual = lista;
+    repuestosEl.innerHTML = lista.length
+      ? '<ul style="margin:0; padding-left:18px;">' + lista.map(r =>
+          `<li>${esc(r.cantidad)} x (${esc(r.codigo) || '-'}) ${esc(r.descripcion)}</li>`
+        ).join('') + '</ul>'
+      : 'Sin repuestos registrados.';
+  }
+  cargarAuditoriaDetalleRefactor(seleccion);
+  const modal = document.getElementById('modal-detalle');
+  if (!modal) return;
+  if (encima) {
+    const base = parseInt(getComputedStyle(encima).zIndex, 10);
+    modal.style.zIndex = String((Number.isFinite(base) ? base : 1000) + 1);
+  } else {
+    modal.style.zIndex = '';
+  }
+  modal.style.display = 'flex';
+}
+
 // ---------- Actions ----------
 function bindPlanillaActions() {
   const tbody = document.getElementById('tbody-reparaciones');
@@ -1253,35 +1349,7 @@ function bindPlanillaActions() {
 
   if (btnVer) btnVer.onclick = () => {
     if (!seleccion) { alert('Selecciona una reparacion primero.'); return; }
-    const map = {
-      'detalle-cliente': seleccion.cliente,
-      'detalle-id-reparacion': seleccion.id_reparacion,
-      'detalle-coche': seleccion.coche,
-      'detalle-equipo': seleccion.equipo,
-      'detalle-tecnico': seleccion.tecnico,
-      'detalle-garantia': seleccion.garantia,
-      'detalle-hora-inicio': seleccion.hora_inicio||'-',
-      'detalle-hora-fin': seleccion.hora_fin||'-',
-      'detalle-trabajo': seleccion.trabajo||'-',
-      'detalle-observaciones': seleccion.observaciones||'-',
-      'detalle-id-dota': seleccion.id_dota||'-',
-      'detalle-ultimo-reparador': seleccion.ultimo_reparador_nombre||seleccion.ultimo_reparador||'-',
-      'detalle-estado': formatResolucionLabel(seleccion.resolucion),
-      'detalle-nro-pedido': seleccion.nro_pedido_ref||'-'
-    };
-    Object.entries(map).forEach(([id,val])=>{ const el=document.getElementById(id); if(el) el.textContent=val; });
-    const repuestosEl = document.getElementById('detalle-repuestos');
-    if (repuestosEl) {
-      const lista = Array.isArray(seleccion.repuestos) ? seleccion.repuestos : [];
-      detalleRepuestosActual = lista;
-      repuestosEl.innerHTML = lista.length
-        ? '<ul style="margin:0; padding-left:18px;">' + lista.map(r =>
-            `<li>${esc(r.cantidad)} x (${esc(r.codigo) || '-'}) ${esc(r.descripcion)}</li>`
-          ).join('') + '</ul>'
-        : 'Sin repuestos registrados.';
-    }
-    cargarAuditoriaDetalleRefactor(seleccion);
-    const modal = document.getElementById('modal-detalle'); if (modal) modal.style.display='flex';
+    mostrarDetalleReparacion(seleccion);
   };
 
   if (btnAgregar) btnAgregar.onclick = () => {
@@ -1811,7 +1879,9 @@ function bindDatalistPedidosReparacion() {
 // Pedidos de R.Vigentes con pendientes; se elige cuantos equipos de cada uno se
 // terminaron y cada pedido queda como una fila de la planilla con esa cantidad.
 let lotePendientes = [];
-const loteCantidades = new Map(); // vigente_id -> cantidad terminada
+// vigente_id -> { rep: reparados, dev: devueltos sin reparar, motivo }
+// Ej: pedido de 40 poleas con 1 sin reparacion -> { rep: 39, dev: 1, motivo: 'No tiene reparación' }
+const loteCantidades = new Map();
 
 function fechaPlanillaIso() {
   const [d, m, y] = (document.getElementById('fecha-planilla')?.textContent || '').trim().split('/');
@@ -1831,9 +1901,12 @@ function loteVisibles() {
 function actualizarResumenLote() {
   const el = document.getElementById('lote-resumen');
   if (!el) return;
-  const equipos = [...loteCantidades.values()].reduce((t, n) => t + n, 0);
+  const sel = [...loteCantidades.values()];
+  const equipos = sel.reduce((t, s) => t + s.rep, 0);
+  const devueltos = sel.reduce((t, s) => t + s.dev, 0);
   el.textContent = loteCantidades.size
-    ? `${loteCantidades.size} pedido${loteCantidades.size === 1 ? '' : 's'} · ${equipos} equipo${equipos === 1 ? '' : 's'}`
+    ? `${loteCantidades.size} pedido${loteCantidades.size === 1 ? '' : 's'} · ${equipos} reparado${equipos === 1 ? '' : 's'}`
+      + (devueltos ? ` · ${devueltos} devuelto${devueltos === 1 ? '' : 's'} sin reparar` : '')
     : 'Ningún pedido seleccionado';
 }
 
@@ -1845,6 +1918,7 @@ function renderLote() {
   if (todos) todos.checked = lista.length > 0 && lista.every(v => loteCantidades.has(v.id));
   tbody.innerHTML = lista.length ? lista.map(v => {
     const sel = loteCantidades.has(v.id);
+    const s = loteCantidades.get(v.id) || { rep: v.pendientes, dev: 0, motivo: '' };
     return `
       <tr data-id="${v.id}" class="${sel ? 'lote-sel' : ''}">
         <td><input type="checkbox" class="lote-check" ${sel ? 'checked' : ''} /></td>
@@ -1853,18 +1927,29 @@ function renderLote() {
         <td>${esc(v.equipo) || '-'}<div class="lote-sub">${esc(v.codigo)}${v.familia_id ? '' : ' · sin equipo en familias'}</div></td>
         <td>${fmtFechaCorta(v.fecha_ingreso)}</td>
         <td style="text-align:right;"><b>${v.pendientes}</b>${Number(v.cantidad) > Number(v.pendientes) ? `<div class="lote-sub">de ${v.cantidad}</div>` : ''}</td>
-        <td style="text-align:right;"><input type="number" class="lote-cant" min="1" max="${v.pendientes}" step="1"
-          value="${sel ? loteCantidades.get(v.id) : v.pendientes}" ${sel ? '' : 'disabled'} /></td>
+        <td style="text-align:right;"><input type="number" class="lote-cant" min="0" max="${v.pendientes}" step="1"
+          value="${s.rep}" ${sel ? '' : 'disabled'} /></td>
+        <td style="text-align:right;"><input type="number" class="lote-dev" min="0" max="${v.pendientes}" step="1"
+          value="${s.dev}" ${sel ? '' : 'disabled'} title="Devueltos sin reparar" />
+          <input type="text" class="lote-motivo" placeholder="Motivo (ej: no tiene reparación)" maxlength="200"
+            value="${esc(s.motivo)}" style="${sel && s.dev > 0 ? '' : 'display:none;'}" /></td>
       </tr>`;
-  }).join('') : '<tr><td colspan="7" style="text-align:center; padding:10px; color:#666">No hay pendientes con ese filtro.</td></tr>';
+  }).join('') : '<tr><td colspan="8" style="text-align:center; padding:10px; color:#666">No hay pendientes con ese filtro.</td></tr>';
   actualizarResumenLote();
 }
 
-function seleccionarLote(id, marcado, cantidad) {
+// Marca/desmarca un renglon. rep + dev nunca pasan los pendientes: al cargar
+// devueltos, los reparados bajan solos (40 pendientes, 1 devuelto -> 39 reparados).
+function seleccionarLote(id, marcado, rep, dev, motivo) {
   const v = lotePendientes.find(x => x.id === id);
   if (!v) return;
-  if (marcado) loteCantidades.set(id, Math.min(Math.max(1, Math.floor(Number(cantidad)) || v.pendientes), v.pendientes));
-  else loteCantidades.delete(id);
+  if (!marcado) { loteCantidades.delete(id); return; }
+  const pend = Number(v.pendientes) || 0;
+  const prev = loteCantidades.get(id) || { rep: pend, dev: 0, motivo: '' };
+  const num = (x, def) => { const n = Math.floor(Number(x)); return Number.isFinite(n) && n >= 0 ? n : def; };
+  const d = Math.min(num(dev, prev.dev), pend);
+  const r = Math.min(num(rep, prev.rep), pend - d);
+  loteCantidades.set(id, { rep: r, dev: d, motivo: motivo !== undefined ? String(motivo) : prev.motivo });
 }
 
 // Nro de pedido de la tanda: marca todos sus renglones con lo que tienen pendiente
@@ -1880,7 +1965,7 @@ function agregarPedidoLote() {
     input.select();
     return;
   }
-  renglones.forEach(v => seleccionarLote(v.id, true, v.pendientes));
+  renglones.forEach(v => seleccionarLote(v.id, true));
   const equipos = renglones.reduce((t, v) => t + Number(v.pendientes || 0), 0);
   msg.className = 'lote-sub';
   msg.textContent = `Pedido ${nro}: ${equipos} equipo${equipos === 1 ? '' : 's'} (${renglones[0].empresa || '-'})`;
@@ -1915,17 +2000,31 @@ function bindModalLote() {
     if (!tr) return;
     const id = Number(tr.dataset.id);
     const cant = tr.querySelector('.lote-cant');
+    const dev = tr.querySelector('.lote-dev');
+    const motivo = tr.querySelector('.lote-motivo');
     if (e.target.classList.contains('lote-check')) {
-      seleccionarLote(id, e.target.checked, cant?.value);
+      seleccionarLote(id, e.target.checked);
       renderLote();
-    } else if (e.target === cant && loteCantidades.has(id)) {
-      seleccionarLote(id, true, cant.value);
-      cant.value = loteCantidades.get(id);
+    } else if ((e.target === cant || e.target === dev) && loteCantidades.has(id)) {
+      if (e.target === cant) seleccionarLote(id, true, cant.value);
+      else seleccionarLote(id, true, undefined, dev.value);
+      const s = loteCantidades.get(id);
+      cant.value = s.rep;
+      dev.value = s.dev;
+      motivo.style.display = s.dev > 0 ? '' : 'none';
+      if (e.target === dev && s.dev > 0 && !motivo.value.trim()) motivo.focus();
       actualizarResumenLote();
     }
   });
+  // El motivo se guarda al tipear (sin redibujar, para no perder el foco)
+  tbody.addEventListener('input', (e) => {
+    if (!e.target.classList.contains('lote-motivo')) return;
+    const id = Number(e.target.closest('tr[data-id]')?.dataset.id);
+    const s = loteCantidades.get(id);
+    if (s) s.motivo = e.target.value;
+  });
   document.getElementById('lote-check-todos').addEventListener('change', (e) => {
-    loteVisibles().forEach(v => seleccionarLote(v.id, e.target.checked, v.pendientes));
+    loteVisibles().forEach(v => seleccionarLote(v.id, e.target.checked));
     renderLote();
   });
   document.getElementById('lote-equipo').addEventListener('change', renderLote);
@@ -1945,7 +2044,7 @@ async function abrirModalLote() {
   document.getElementById('lote-solo-sel').checked = false;
   document.getElementById('lote-trabajo').value = '';
   document.getElementById('lote-observaciones').value = '';
-  document.getElementById('tbody-lote').innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
+  document.getElementById('tbody-lote').innerHTML = '<tr><td colspan="8" style="text-align:center; padding:10px; color:#888">Cargando...</td></tr>';
   actualizarResumenLote();
   modal.style.display = 'flex';
   cargarTecnicosEnSelect('lote-tecnico');
@@ -1954,7 +2053,7 @@ async function abrirModalLote() {
     llenarDatalistPedidos('lote-pedidos-lista', lotePendientes);
   } catch (err) {
     lotePendientes = [];
-    document.getElementById('tbody-lote').innerHTML = `<tr><td colspan="7" style="text-align:center; padding:10px; color:#c33">${esc(err.message || 'No se pudieron cargar los pendientes')}</td></tr>`;
+    document.getElementById('tbody-lote').innerHTML = `<tr><td colspan="8" style="text-align:center; padding:10px; color:#c33">${esc(err.message || 'No se pudieron cargar los pendientes')}</td></tr>`;
     return;
   }
   // Equipos con pendientes (los que mas tienen primero)
@@ -1977,10 +2076,21 @@ async function guardarLote() {
   if (!fecha) return alert('Elegí la fecha.');
   if (!tecnicoId) return alert('Elegí el técnico.');
   if (!loteCantidades.size) return alert('Elegí al menos un pedido.');
-  const items = [...loteCantidades].map(([vigente_id, cantidad]) => ({ vigente_id, cantidad }));
+  const items = [...loteCantidades]
+    .map(([vigente_id, s]) => ({ vigente_id, cantidad: s.rep, devueltos: s.dev, motivo: s.motivo.trim() }))
+    .filter(i => i.cantidad + i.devueltos > 0);
+  if (!items.length) return alert('Cargá cuántos equipos se repararon o se devolvieron.');
+  const sinMotivo = items.find(i => i.devueltos > 0 && !i.motivo);
+  if (sinMotivo) {
+    const v = lotePendientes.find(x => x.id === sinMotivo.vigente_id);
+    return alert(`Indicá el motivo de los devueltos del pedido ${v ? v.nro_pedido : ''}.`);
+  }
   const equipos = items.reduce((t, i) => t + i.cantidad, 0);
+  const devueltos = items.reduce((t, i) => t + i.devueltos, 0);
+  const filas = items.filter(i => i.cantidad > 0).length;
   const [y, m, d] = fecha.split('-');
-  if (!confirm(`Se van a cargar ${equipos} equipos en ${items.length} fila${items.length === 1 ? '' : 's'} de la planilla del ${d}/${m}/${y} y se descuentan de los pendientes de R.Vigentes. ¿Confirmás?`)) return;
+  const txtDev = devueltos ? `\n${devueltos} equipo${devueltos === 1 ? '' : 's'} quedan como devueltos sin reparar.` : '';
+  if (!confirm(`Se van a cargar ${equipos} equipos reparados en ${filas} fila${filas === 1 ? '' : 's'} de la planilla del ${d}/${m}/${y}.${txtDev}\nTodo se descuenta de los pendientes de R.Vigentes. ¿Confirmás?`)) return;
   const btn = document.getElementById('btn-lote-guardar');
   btn.disabled = true;
   try {
@@ -2002,7 +2112,8 @@ async function guardarLote() {
     const fechaAbierta = document.getElementById('fecha-planilla')?.textContent;
     if (fechaAbierta) abrirModalPlanilla(fechaAbierta);
     marcarDiaConDatos(fecha);
-    alert(`Lote guardado: ${data.equipos} equipos en ${data.creadas.length} fila${data.creadas.length === 1 ? '' : 's'}.`);
+    alert(`Lote guardado: ${data.equipos} equipos en ${data.filas} fila${data.filas === 1 ? '' : 's'}.`
+      + (data.devueltos ? `\n${data.devueltos} devuelto${data.devueltos === 1 ? '' : 's'} sin reparar.` : ''));
   } catch (err) {
     alert(err.message);
   } finally {
@@ -2027,6 +2138,12 @@ function cerrarModalDetalle(){ const m=document.getElementById('modal-detalle');
 
 // Cierre por ESC y clic fuera del contenido
 function cerrarModalesAbiertos(){
+  // El detalle abierto desde el historial va encima: Esc cierra solo el detalle
+  const modalDetalle = document.getElementById('modal-detalle');
+  if (modalDetalle && modalDetalle.style.display === 'flex' && modalDetalle.style.zIndex) {
+    cerrarModalDetalle();
+    return;
+  }
   const modalHistorial = document.getElementById('modal-historial');
   if (
     modalHistorial &&
@@ -2519,18 +2636,57 @@ async function cargarHistorial(id, familiaId){
       }
       return escHtml(normalized);
     };
-    const rows = (Array.isArray(data)?data:[]).map(r => {
+    // Repuestos cargados en la reparacion. Las reparaciones viejas los tenian escritos en
+    // "trabajo": si no hay repuestos cargados se muestra ese texto (en gris).
+    const fmtRepuestosHistorial = (r) => {
+      const lista = Array.isArray(r.repuestos) ? r.repuestos : [];
+      if (lista.length) {
+        return `<div class="historial-trabajo-lista">${lista.map(p =>
+          `<span class="historial-trabajo-item">${escHtml(p.cantidad)} x ${p.codigo ? `(${escHtml(p.codigo)}) ` : ''}${escHtml(p.descripcion)}</span>`).join('')}</div>`;
+      }
+      const trabajo = fmtTrabajoHistorial(r.trabajo);
+      return trabajo === '-' ? '-' : `<div class="historial-trabajo-viejo" title="Trabajo escrito en la reparación (sin repuestos cargados)">${trabajo}</div>`;
+    };
+    const lista = Array.isArray(data) ? data : [];
+    const rows = lista.map((r, idx) => {
       const fecha = fmtFecha(r.fecha);
       const coche = escHtml(fmt(r.coche_numero));
-      const trabajo = fmtTrabajoHistorial(r.trabajo);
+      const repuestos = fmtRepuestosHistorial(r);
       const hi = fmtHora(r.hora_inicio);
       const hf = fmtHora(r.hora_fin);
       const tec = escHtml(fmt(r.tecnico));
       const gar = r.garantia === 'si' ? 'Si' : 'No';
-      return `<tr><td>${fecha}</td><td>${coche}</td><td class="historial-trabajo-cell">${trabajo}</td><td>${hi}</td><td>${hf}</td><td>${tec}</td><td>${gar}</td></tr>`;
+      return `<tr class="historial-rep-row" data-idx="${idx}" title="Doble clic para ver la reparación"><td>${fecha}</td><td>${coche}</td><td class="historial-trabajo-cell">${repuestos}</td><td>${hi}</td><td>${hf}</td><td>${tec}</td><td>${gar}</td></tr>`;
     }).join('');
     if (rows) {
-      if (tbody) tbody.innerHTML = rows;
+      if (tbody) {
+        tbody.innerHTML = rows;
+        // Doble clic: abre la visualizacion de esa reparacion (como desde la planilla del dia)
+        tbody.ondblclick = (e) => {
+          const tr = e.target.closest('tr.historial-rep-row');
+          const r = tr && lista[Number(tr.dataset.idx)];
+          if (!r) return;
+          mostrarDetalleReparacion({
+            id: r.id,
+            id_reparacion: r.id_reparacion,
+            cliente: r.cliente || '-',
+            coche: r.coche_numero || '-',
+            equipo: r.equipo || '-',
+            tecnico: r.tecnico || '-',
+            garantia: r.garantia === 'si' ? 'Si' : 'No',
+            hora_inicio: r.hora_inicio ? fmtHora(r.hora_inicio) : '',
+            hora_fin: r.hora_fin ? fmtHora(r.hora_fin) : '',
+            trabajo: r.trabajo || '',
+            observaciones: r.observaciones || '-',
+            id_dota: r.id_dota || '',
+            ultimo_reparador_nombre: r.ultimo_reparador_nombre || '',
+            ultimo_reparador: r.ultimo_reparador || '',
+            resolucion: r.resolucion || '',
+            nro_pedido_ref: r.nro_pedido_ref || '',
+            repuestos: r.repuestos || []
+          }, modal);
+        };
+      }
     } else {
       renderHistorialPlaceholder('Sin historial disponible.');
     }

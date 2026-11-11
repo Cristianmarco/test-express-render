@@ -61,6 +61,7 @@ const API = {
   compras: { leer: ['compras'], escribir: ['compras'] },
   facturas_compra: { leer: ['compras'], escribir: ['compras'] },
   ordenes_pago: { leer: ['compras'], escribir: ['compras'] },
+  recambios: { leer: ['compras'], escribir: ['compras'] },
   reportes: { leer: ['reportes'], escribir: ['reportes'] },
   estadisticas: { leer: ['reportes'], escribir: ['reportes'] },
 };

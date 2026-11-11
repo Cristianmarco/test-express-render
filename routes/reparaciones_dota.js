@@ -11,6 +11,7 @@ const {
 const { fotosDeRegistro } = require('../utils/fotos_registro');
 const { ETAPAS, esEtapa } = require('../utils/etapas_reparacion');
 const taller = require('../utils/taller');
+const devoluciones = require('../utils/devoluciones_vigentes');
 
 const AUDIT_DOMAIN = 'reparaciones_dota';
 
@@ -131,6 +132,7 @@ router.post('/', async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     await taller.esquema;
+    await devoluciones.esquema;
     const result = await db.query(`
       SELECT r.*,
              c.id     AS cotizacion_id,
@@ -143,7 +145,11 @@ router.get('/', async (req, res, next) => {
                 SELECT te.fase, count(*)::int AS n FROM taller_equipos te
                  WHERE te.vigente_id = r.id AND te.cerrado_en IS NULL GROUP BY te.fase) s) AS taller_fases,
              (SELECT count(*)::int FROM taller_equipos te WHERE te.vigente_id = r.id AND te.cerrado_en IS NULL AND te.demora IS NOT NULL) AS taller_demorados,
-             (SELECT count(*)::int FROM taller_equipos te WHERE te.vigente_id = r.id AND te.cerrado_en IS NOT NULL) AS taller_salidos
+             (SELECT count(*)::int FROM taller_equipos te WHERE te.vigente_id = r.id AND te.cerrado_en IS NOT NULL) AS taller_salidos,
+             -- Devoluciones parciales (equipos del renglon devueltos sin reparar)
+             ${devoluciones.SQL_DEVUELTOS} AS devueltos_parcial,
+             (SELECT string_agg(dv.cantidad || ' el ' || to_char(dv.fecha, 'DD/MM/YYYY') || COALESCE(' - ' || dv.motivo, ''), '; ' ORDER BY dv.fecha, dv.id)
+                FROM reparaciones_dota_devoluciones dv WHERE dv.vigente_id = r.id) AS devueltos_detalle
       FROM reparaciones_dota r
       LEFT JOIN cotizaciones_reparacion c ON c.vigente_id = r.id
       ORDER BY r.fecha_ingreso DESC NULLS LAST, r.id DESC
@@ -167,6 +173,7 @@ router.post('/recalcular', async (req, res, next) => {
   try {
     await db.query("ALTER TABLE equipos_reparaciones ADD COLUMN IF NOT EXISTS nro_pedido_ref text");
     await ensureNuevasColumnas(db);
+    await devoluciones.esquema;
     const nro = (req.body && (req.body.nro_pedido || req.body.nro || '')) || '';
     const nroTrim = String(nro).trim();
     const params = [];
@@ -189,7 +196,7 @@ router.post('/recalcular', async (req, res, next) => {
       calc AS (
         SELECT
           r.id,
-          GREATEST(COALESCE(r.cantidad, 0) - COALESCE(u.usados, 0), 0) AS new_pendientes
+          GREATEST(COALESCE(r.cantidad, 0) - COALESCE(u.usados, 0) - ${devoluciones.SQL_DEVUELTOS}, 0) AS new_pendientes
         FROM reparaciones_dota r
         LEFT JOIN usados u
           ON btrim(r.nro_pedido) = u.nro_pedido
