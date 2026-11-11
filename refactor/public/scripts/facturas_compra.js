@@ -11,8 +11,14 @@
     articulos: new Map(), // valor del datalist -> articulo
     archivo: null,        // { nombre, data }
     ctacteSel: null,
+    ctacteCuenta: 1,
     vencAuto: true,       // el vencimiento lo puso el sistema (se recalcula)
+    cuentas: [1],         // las que ve el usuario (la 2 = compras sin factura)
+    cuenta: 1,            // la del comprobante que se esta cargando
   };
+  const c2 = () => st.cuenta === 2;
+  const veCuenta2 = () => st.cuentas.includes(2);
+  const tagC2 = (c) => (Number(c) === 2 ? ' <span class="fc-c2-tag" title="Cuenta 2: sin factura">C2</span>' : '');
   const IMPORTES = ['neto_21', 'iva_21', 'neto_105', 'iva_105', 'neto_27', 'iva_27', 'no_gravado', 'exento',
     'percepcion_iva', 'percepcion_iibb', 'impuestos_internos', 'otros_tributos'];
   const MEDIOS = { efectivo: 'Efectivo', transferencia: 'Transferencia', cheque: 'Cheque', echeq: 'E-cheq', otro: 'Otro' };
@@ -51,10 +57,14 @@
 
   // ---------- Catalogos ----------
   async function cargarCatalogos(){
-    const [provs, deps, ia, importadores] = await Promise.all([
+    const [provs, deps, ia, importadores, cuentas] = await Promise.all([
       getJson('/api/proveedores'), getJson('/api/depositos').catch(() => []), getJson(`${API}/lector`).catch(() => ({ configurado: false })),
-      getJson(`${API}/importadores`).catch(() => ({})),
+      getJson(`${API}/importadores`).catch(() => ({})), getJson(`${API}/cuentas`).catch(() => ({ cuentas: [1] })),
     ]);
+    st.cuentas = cuentas.cuentas || [1];
+    el('fc-filtro-cuenta').hidden = !veCuenta2();
+    el('fc-cuenta-sel').hidden = !veCuenta2();
+    el('fc-pago-cuenta-wrap').hidden = !veCuenta2();
     st.ia = ia;
     st.importadores = importadores;
     el('fc-leer-ia').title = ia.configurado
@@ -85,6 +95,7 @@
     const params = new URLSearchParams({
       q: el('fc-buscar').value.trim(), proveedor_id: el('fc-filtro-proveedor').value,
       desde: el('fc-desde').value, hasta: el('fc-hasta').value, estado: el('fc-filtro-estado').value,
+      cuenta: veCuenta2() ? el('fc-filtro-cuenta').value : '',
     });
     try {
       const lista = await getJson(`${API}?${params}`);
@@ -93,7 +104,7 @@
         const signo = f.comprobante === 'NC' ? -1 : 1;
         return `<tr data-factura="${f.id}" class="${f.estado === 'anulada' ? 'inactivo' : ''}">
           <td>${fecha(f.fecha)}</td>
-          <td>${esc(f.numero_completo)}${f.estado === 'anulada' ? ' <span class="fc-estado anulada">Anulado</span>' : ''}</td>
+          <td>${esc(f.numero_completo)}${tagC2(f.cuenta)}${f.estado === 'anulada' ? ' <span class="fc-estado anulada">Anulado</span>' : ''}</td>
           <td><span class="cli-nombre">${esc(nombreProv(f))}</span></td>
           <td class="num ${signo < 0 ? 'fc-neg' : ''}"><b>${pesos(signo * f.total)}</b></td>
           <td>${etiquetaPago(f, hoy)}</td>
@@ -113,12 +124,15 @@
     try {
       const mes = hoyIso().slice(0, 7);
       const [saldos, libro] = await Promise.all([getJson(`${API}/cuenta_corriente`), getJson(`${API}/libro_iva?mes=${mes}`)]);
-      const deuda = saldos.filter(s => s.saldo > 0).reduce((a, s) => a + s.saldo, 0);
+      const deudaDe = (c) => saldos.filter(s => s.cuenta === c && s.saldo > 0).reduce((a, s) => a + s.saldo, 0);
+      const deuda = deudaDe(1);
+      const deuda2 = deudaDe(2);
       const hoy = hoyIso();
-      const conVencidas = saldos.filter(s => s.saldo > 0 && s.primer_vencimiento && s.primer_vencimiento < hoy).length;
+      const conVencidas = new Set(saldos.filter(s => s.saldo > 0 && s.primer_vencimiento && s.primer_vencimiento < hoy).map(s => s.id)).size;
       el('fc-stats').innerHTML = `
-        <span class="cli-stat"><b>${libro.comprobantes.length}</b> comprobantes este mes · ${pesos(libro.totales.total)}</span>
-        <span class="cli-stat" title="Saldo total a pagar a proveedores"><b>${pesos(deuda)}</b> a pagar</span>
+        <span class="cli-stat" title="Libro IVA (cuenta 1)"><b>${libro.comprobantes.length}</b> comprobantes este mes · ${pesos(libro.totales.total)}</span>
+        <span class="cli-stat" title="Saldo total a pagar a proveedores${veCuenta2() ? ' (cuenta 1)' : ''}"><b>${pesos(deuda)}</b> a pagar</span>
+        ${deuda2 ? `<span class="cli-stat" title="Saldo a pagar de la cuenta 2 (sin factura)"><b>${pesos(deuda2)}</b> a pagar C2</span>` : ''}
         ${conVencidas ? `<span class="cli-stat alerta" title="Proveedores con facturas vencidas"><b>${conVencidas}</b> con vencidas</span>` : ''}`;
     } catch (e) { console.error(e); }
   }
@@ -372,17 +386,59 @@
     actualizarControl();
   }
 
-  function discrimina(){ const l = el('fc-form').elements.letra.value; return l === 'A' || l === 'M'; }
+  function discrimina(){ if (c2()) return false; const l = el('fc-form').elements.letra.value; return l === 'A' || l === 'M'; }
 
   function actualizarLetra(){
     const a = discrimina();
+    const f = el('fc-form').elements;
     document.querySelectorAll('#fc-form .fc-solo-a').forEach(d => { d.style.display = a ? '' : 'none'; });
     document.querySelectorAll('#fc-form .fc-col-iva').forEach(d => { d.style.display = a ? '' : 'none'; });
-    el('fc-label-no-gravado').textContent = a ? 'No gravado' : 'Importe (sin IVA discriminado)';
-    el('fc-letra-ayuda').textContent = a ? 'Precios sin IVA: calcula neto e IVA por alícuota.'
-      : `Una ${el('fc-form').elements.letra.value} no discrimina IVA: los precios van finales y no generan crédito fiscal.`;
-    if (!a) ['neto_21', 'iva_21', 'neto_105', 'iva_105', 'neto_27', 'iva_27', 'exento'].forEach(k => { el('fc-form').elements[k].value = ''; });
+    el('fc-label-no-gravado').textContent = c2() ? 'Importe *' : a ? 'No gravado' : 'Importe (sin IVA discriminado)';
+    el('fc-letra-ayuda').textContent = c2() ? 'Cuenta 2: sin IVA, los precios van finales.'
+      : a ? 'Precios sin IVA: calcula neto e IVA por alícuota.'
+      : `Una ${f.letra.value} no discrimina IVA: los precios van finales y no generan crédito fiscal.`;
+    if (!a) ['neto_21', 'iva_21', 'neto_105', 'iva_105', 'neto_27', 'iva_27', 'exento'].forEach(k => { f[k].value = ''; });
+    if (c2()) ['percepcion_iva', 'percepcion_iibb', 'impuestos_internos', 'otros_tributos', 'cae'].forEach(k => { f[k].value = ''; });
     actualizarControl();
+  }
+
+  // ---------- Cuenta 1 / cuenta 2 ----------
+  // Cuenta 2: comprobante interno X (sin QR, letra, CAE ni impuestos), numero automatico
+  function ponerCuenta(cuenta){
+    st.cuenta = cuenta === 2 && veCuenta2() ? 2 : 1;
+    const f = el('fc-form').elements;
+    el('fc-cuenta-sel').querySelectorAll('[data-cuenta]').forEach(b => b.classList.toggle('activa', Number(b.dataset.cuenta) === st.cuenta));
+    document.querySelectorAll('#fc-form .fc-no-c2').forEach(d => { d.style.display = c2() ? 'none' : ''; });
+    el('fc-c2-ayuda').hidden = !c2();
+    el('modal-factura-compra').querySelector('.modal-contenido-refactor').classList.toggle('fc-modo-c2', c2());
+    el('modal-factura-compra').querySelector('.modal-titulo-principal').innerHTML = c2()
+      ? '<i class="fas fa-file-lines"></i> Cargar comprobante sin factura <span class="fc-c2-tag">Cuenta 2</span>'
+      : '<i class="fas fa-file-invoice"></i> Cargar comprobante de compra';
+    el('fc-label-numero').textContent = c2() ? 'Número' : 'Número *';
+    el('fc-label-archivo').textContent = c2() ? 'Foto del remito o papel (opcional)' : 'PDF o foto de la factura';
+    if (c2() && !f.punto_venta.value.trim()) f.punto_venta.value = '00001';
+    actualizarLetra();
+    actualizarNumeroX();
+  }
+
+  // Numero que toma el comprobante X si se deja vacio
+  let reqNumero = 0;
+  async function actualizarNumeroX(){
+    const f = el('fc-form').elements;
+    const ayuda = el('fc-numero-ayuda');
+    const pedido = ++reqNumero;
+    if (!c2()) { ayuda.textContent = ''; f.numero.placeholder = '00012345'; return; }
+    f.numero.placeholder = 'Automático';
+    const prov = proveedorDeTexto(el('fc-proveedor').value);
+    if (!prov) { ayuda.textContent = 'Vacío: lo numera el sistema'; return; }
+    try {
+      const pv = parseInt(f.punto_venta.value, 10) || 1;
+      const r = await getJson(`${API}/proximo_x?proveedor_id=${prov.id}&comprobante=${f.comprobante.value}&punto_venta=${pv}`);
+      if (pedido !== reqNumero || !c2()) return;
+      const n = String(r.numero).padStart(8, '0');
+      f.numero.placeholder = n;
+      ayuda.textContent = `Vacío: queda X ${String(r.punto_venta).padStart(5, '0')}-${n}`;
+    } catch (e) { ayuda.textContent = 'Vacío: lo numera el sistema'; }
   }
 
   function calcularImportes(){
@@ -464,6 +520,7 @@
     }
     // Recambios que el proveedor tiene reparandose (para recibirlos con esta factura)
     cargarRecambios();
+    actualizarNumeroX();
   }
 
   // ---------- QR de AFIP ----------
@@ -514,6 +571,8 @@
       info.textContent = 'No se pudo leer el QR. Probá de nuevo, o pegá el link que abre el celular al escanearlo.';
       return;
     }
+    // Un QR de AFIP es una factura de verdad: va a la cuenta 1
+    if (c2()) ponerCuenta(1);
     const f = el('fc-form').elements;
     const tipo = TIPOS_AFIP[Number(q.tipoCmp)];
     if (tipo) { f.comprobante.value = tipo[0]; f.letra.value = tipo[1]; actualizarLetra(); }
@@ -634,7 +693,7 @@
     el('fc-error').textContent = notas.join(' ');
   }
 
-  function nuevaFactura(){
+  function nuevaFactura(cuenta){
     const form = el('fc-form');
     form.reset();
     st.archivo = null;
@@ -656,10 +715,12 @@
     st.recambios = [];
     recambiosDe = null;
     el('fc-recambios').hidden = true;
+    el('fc-numero-ayuda').textContent = '';
     actualizarFaltantes();
-    actualizarLetra();
+    ponerCuenta(cuenta || 1);
     abrirModal('modal-factura-compra');
-    el('fc-qr').focus(); // listo para el lector
+    if (c2()) el('fc-proveedor').focus();
+    else el('fc-qr').focus(); // listo para el lector
   }
 
   async function guardarFactura(e){
@@ -682,8 +743,9 @@
       if (!Number.isInteger(c) || c < 1 || c > tr._recambio.max) { error.textContent = `Recambio ${tr._recambio.numero}: la cantidad tiene que ser entera, de 1 a ${tr._recambio.max}`; return; }
     }
     if (recFilas.length && !f.deposito_id.value) { error.textContent = 'Elegí el depósito donde entran los recambios'; return; }
+    if (!c2() && !f.numero.value.trim()) { error.textContent = 'Falta el número del comprobante'; return; }
     const payload = {
-      proveedor_id: prov.id, comprobante: f.comprobante.value, letra: f.letra.value,
+      proveedor_id: prov.id, cuenta: st.cuenta, comprobante: f.comprobante.value, letra: c2() ? 'X' : f.letra.value,
       punto_venta: f.punto_venta.value, numero: f.numero.value, fecha: f.fecha.value,
       vencimiento: f.vencimiento.value || null, cae: f.cae.value,
       ingresa_stock: f.ingresa_stock.checked, deposito_id: f.deposito_id.value || null,
@@ -696,7 +758,7 @@
     const conStock = payload.ingresa_stock && mercaderia.length;
     const recibidos = items.filter(it => it.recambio_item_id).reduce((t, it) => t + it.cantidad, 0);
     const tipo = { FC: 'la factura', NC: 'la nota de crédito', ND: 'la nota de débito' }[payload.comprobante];
-    if (!confirm(`¿Confirmar ${tipo} de ${nombreProv(prov)} por ${pesos(leerNum(payload.total))}?` +
+    if (!confirm(`¿Confirmar ${tipo}${c2() ? ' de CUENTA 2 (sin factura)' : ''} de ${nombreProv(prov)} por ${pesos(leerNum(payload.total))}?` +
       (conStock ? `\n\n${payload.comprobante === 'NC' ? 'Se descuentan del' : 'Ingresan al'} stock ${mercaderia.length} artículos.` : '') +
       (recibidos ? `\n\nSe reciben ${recibidos} recambio${recibidos === 1 ? '' : 's'} reparado${recibidos === 1 ? '' : 's'} y entran al stock.` : ''))) return;
     const btn = el('fc-guardar');
@@ -723,13 +785,13 @@
       const f = await getJson(`${API}/${id}`);
       const imp = (k, etq) => Number(f[k]) ? `<div><span>${etq}</span>${pesos(f[k])}</div>` : '';
       cont.innerHTML = `
-        <h2 class="modal-titulo-principal"><i class="fas fa-file-invoice"></i> ${esc(f.numero_completo)}
+        <h2 class="modal-titulo-principal"><i class="fas fa-file-invoice"></i> ${esc(f.numero_completo)}${tagC2(f.cuenta)}
           ${f.estado === 'anulada' ? '<span class="fc-estado anulada">Anulado</span>' : ''}</h2>
         <div class="fc-detalle-grid">
           <div><span>Proveedor</span><b>${esc(f.razon_social)}</b>${f.cuit ? ` · ${esc(f.cuit)}` : ''}</div>
           <div><span>Fecha</span>${fecha(f.fecha)}</div>
           <div><span>Vencimiento</span>${fecha(f.vencimiento) || '—'}</div>
-          <div><span>CAE</span>${esc(f.cae || '—')}</div>
+          ${Number(f.cuenta) === 2 ? '<div><span>Cuenta</span>Cuenta 2 · sin factura (no va al Libro IVA)</div>' : `<div><span>CAE</span>${esc(f.cae || '—')}</div>`}
           <div><span>Stock</span>${f.ingresa_stock ? `Ingresó en ${esc(f.deposito || '—')}` : 'No movió stock'}</div>
           <div><span>Cargado por</span>${esc(f.creado_por || '—')} · ${new Date(f.created_at).toLocaleString('es-AR')}</div>
         </div>
@@ -765,11 +827,12 @@
       cerrarModal('modal-factura-detalle');
       cargarComprobantes();
       cargarStats();
-      if (st.ctacteSel) verCtacte(st.ctacteSel);
+      if (st.ctacteSel) verCtacte(st.ctacteSel, st.ctacteCuenta);
     } catch (e) { alert(e.message); }
   }
 
   // ---------- Cuenta corriente ----------
+  // Un renglon por proveedor y cuenta (la cuenta 2 solo con el permiso)
   async function cargarSaldos(){
     const tb = el('fc-saldos');
     tb.innerHTML = `<tr><td colspan="4" class="cli-vacio"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>`;
@@ -777,8 +840,8 @@
       const saldos = await getJson(`${API}/cuenta_corriente`);
       const hoy = hoyIso();
       tb.innerHTML = saldos.length ? saldos.map(s => `
-        <tr data-ctacte="${s.id}" class="${s.id === st.ctacteSel ? 'selected' : ''}">
-          <td><span class="cli-nombre">${esc(nombreProv(s))}</span><span class="cli-sub">${esc(s.codigo)}</span></td>
+        <tr data-ctacte="${s.id}" data-cuenta="${s.cuenta}" class="${s.id === st.ctacteSel && s.cuenta === st.ctacteCuenta ? 'selected' : ''}">
+          <td><span class="cli-nombre">${esc(nombreProv(s))}${tagC2(s.cuenta)}</span><span class="cli-sub">${esc(s.codigo)}</span></td>
           <td class="num ${s.saldo < 0 ? 'fc-neg' : ''}"><b>${pesos(s.saldo)}</b>${s.saldo < 0 ? '<span class="cli-sub">a favor</span>' : ''}</td>
           <td class="${s.saldo > 0 && s.primer_vencimiento && s.primer_vencimiento < hoy ? 'fc-vencida' : ''}">${s.saldo > 0 ? fecha(s.primer_vencimiento) : ''}</td>
           <td>${fecha(s.ultimo_pago)}</td>
@@ -788,18 +851,21 @@
     }
   }
 
-  async function verCtacte(id){
+  async function verCtacte(id, cuenta = 1){
     st.ctacteSel = Number(id);
-    document.querySelectorAll('#fc-saldos tr').forEach(tr => tr.classList.toggle('selected', Number(tr.dataset.ctacte) === st.ctacteSel));
+    st.ctacteCuenta = Number(cuenta) === 2 ? 2 : 1;
+    document.querySelectorAll('#fc-saldos tr').forEach(tr => tr.classList.toggle('selected',
+      Number(tr.dataset.ctacte) === st.ctacteSel && Number(tr.dataset.cuenta) === st.ctacteCuenta));
     const cont = el('fc-ctacte-detalle');
     cont.innerHTML = `<div class="cli-ficha-vacia"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>`;
     try {
-      const cc = await getJson(`${API}/cuenta_corriente/${id}`);
+      const cc = await getJson(`${API}/cuenta_corriente/${id}?cuenta=${st.ctacteCuenta}`);
       const p = cc.proveedor;
       cont.innerHTML = `
         <div class="cli-ficha-head">
-          <div><h3>${esc(nombreProv(p))}</h3><div class="cli-razon">${esc(p.codigo)} · ${esc(p.condicion_pago || 'sin condición de pago')}</div></div>
-          <div class="cli-ficha-acciones"><button type="button" class="cli-btn primario" data-accion="nuevo-pago" data-proveedor="${p.id}"><i class="fas fa-money-bill-wave"></i> Registrar pago</button></div>
+          <div><h3>${esc(nombreProv(p))}${tagC2(cc.cuenta)}</h3><div class="cli-razon">${esc(p.codigo)} · ${esc(p.condicion_pago || 'sin condición de pago')}</div>
+            ${veCuenta2() ? `<div class="fc-cuenta-sel chica">${[1, 2].map(c => `<button type="button" data-ver-cuenta="${c}" class="${c === cc.cuenta ? 'activa' : ''}">Cuenta ${c}</button>`).join('')}</div>` : ''}</div>
+          <div class="cli-ficha-acciones"><button type="button" class="cli-btn primario" data-accion="nuevo-pago" data-proveedor="${p.id}" data-cuenta="${cc.cuenta}"><i class="fas fa-money-bill-wave"></i> Registrar pago</button></div>
         </div>
         <div class="cli-kpis" style="margin-top:12px">
           <div class="cli-kpi ${cc.saldo > 0 ? 'aviso' : ''}"><div class="valor">${pesos(cc.saldo)}</div><div class="etiqueta">${cc.saldo < 0 ? 'saldo a favor' : 'saldo a pagar'}</div></div>
@@ -832,12 +898,13 @@
   }
 
   // ---------- Pagos ----------
-  async function nuevoPago(proveedorId){
+  async function nuevoPago(proveedorId, cuenta){
     const form = el('fc-pago-form');
     form.reset();
     el('fc-pago-error').textContent = '';
     el('fc-pago-saldo').textContent = '';
     form.elements.fecha.value = hoyIso();
+    form.elements.cuenta.value = Number(cuenta) === 2 && veCuenta2() ? '2' : '1';
     const prov = proveedorId && st.proveedores.find(p => p.id === Number(proveedorId));
     el('fc-pago-proveedor').value = prov ? etiquetaProv(prov) : '';
     abrirModal('modal-pago-proveedor');
@@ -849,9 +916,10 @@
     const info = el('fc-pago-saldo');
     if (!prov) { info.textContent = ''; return; }
     try {
-      const cc = await getJson(`${API}/cuenta_corriente/${prov.id}`);
-      info.textContent = cc.saldo > 0 ? `Saldo a pagar: ${pesos(cc.saldo)}${cc.pendientes.some(x => x.vencida) ? ' (tiene vencidas)' : ''}`
-        : cc.saldo < 0 ? `Saldo a favor: ${pesos(-cc.saldo)}` : 'Sin saldo pendiente';
+      const cuenta = el('fc-pago-form').elements.cuenta.value;
+      const cc = await getJson(`${API}/cuenta_corriente/${prov.id}?cuenta=${cuenta}`);
+      info.textContent = (veCuenta2() ? `Cuenta ${cuenta} · ` : '') + (cc.saldo > 0 ? `Saldo a pagar: ${pesos(cc.saldo)}${cc.pendientes.some(x => x.vencida) ? ' (tiene vencidas)' : ''}`
+        : cc.saldo < 0 ? `Saldo a favor: ${pesos(-cc.saldo)}` : 'Sin saldo pendiente');
       const imp = el('fc-pago-form').elements.importe;
       if (!imp.value && cc.saldo > 0) imp.value = String(cc.saldo).replace('.', ',');
     } catch (e) { info.textContent = ''; }
@@ -865,16 +933,17 @@
     if (!prov) { error.textContent = 'Elegí el proveedor de la lista'; return; }
     const importe = leerNum(f.importe.value);
     if (!(importe > 0)) { error.textContent = 'Importe inválido'; return; }
-    if (!confirm(`¿Registrar pago de ${pesos(importe)} a ${nombreProv(prov)}?`)) return;
+    const cuenta = Number(f.cuenta.value) === 2 ? 2 : 1;
+    if (!confirm(`¿Registrar pago de ${pesos(importe)} a ${nombreProv(prov)}${cuenta === 2 ? ' en la CUENTA 2' : ''}?`)) return;
     try {
       await postJson(`${API}/pagos`, {
-        proveedor_id: prov.id, fecha: f.fecha.value, importe: f.importe.value, medio: f.medio.value,
+        proveedor_id: prov.id, cuenta, fecha: f.fecha.value, importe: f.importe.value, medio: f.medio.value,
         referencia: f.referencia.value, observaciones: f.observaciones.value,
       });
       cerrarModal('modal-pago-proveedor');
       cargarStats();
       if (st.pestana === 'comprobantes') cargarComprobantes();
-      if (st.pestana === 'ctacte') { await cargarSaldos(); verCtacte(prov.id); }
+      if (st.pestana === 'ctacte') { await cargarSaldos(); verCtacte(prov.id, cuenta); }
     } catch (err) {
       error.textContent = err.message;
     }
@@ -888,7 +957,7 @@
       cargarStats();
       cargarComprobantes();
       await cargarSaldos();
-      if (st.ctacteSel) verCtacte(st.ctacteSel);
+      if (st.ctacteSel) verCtacte(st.ctacteSel, st.ctacteCuenta);
     } catch (e) { alert(e.message); }
   }
 
@@ -932,9 +1001,13 @@
     el('fc-tabs').addEventListener('click', (e) => { const t = e.target.closest('.cli-tab'); if (t) irPestana(t.dataset.pestana); });
     let t;
     el('fc-buscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(cargarComprobantes, 250); });
-    ['fc-filtro-proveedor', 'fc-desde', 'fc-hasta', 'fc-filtro-estado'].forEach(id => el(id).addEventListener('change', cargarComprobantes));
+    ['fc-filtro-proveedor', 'fc-desde', 'fc-hasta', 'fc-filtro-estado', 'fc-filtro-cuenta'].forEach(id => el(id).addEventListener('change', cargarComprobantes));
     el('fc-libro-mes').addEventListener('change', cargarLibro);
-    el('fc-nueva').addEventListener('click', nuevaFactura);
+    el('fc-nueva').addEventListener('click', () => nuevaFactura(1));
+    el('fc-cuenta-sel').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-cuenta]');
+      if (b) ponerCuenta(Number(b.dataset.cuenta));
+    });
 
     // Clicks generales: abrir comprobante, cuenta corriente, pagos, cerrar modales
     root.addEventListener('click', (e) => {
@@ -944,11 +1017,16 @@
       const anularPagoBtn = e.target.closest('[data-anular-pago]');
       if (anularPagoBtn) { e.stopPropagation(); return anularPago(anularPagoBtn.dataset.anularPago); }
       const pago = e.target.closest('[data-accion="nuevo-pago"]');
-      if (pago) return nuevoPago(pago.dataset.proveedor || (st.pestana === 'ctacte' ? st.ctacteSel : null));
+      if (pago) {
+        const enCtacte = st.pestana === 'ctacte';
+        return nuevoPago(pago.dataset.proveedor || (enCtacte ? st.ctacteSel : null), pago.dataset.cuenta || (enCtacte ? st.ctacteCuenta : 1));
+      }
+      const verCuenta = e.target.closest('[data-ver-cuenta]');
+      if (verCuenta) return verCtacte(st.ctacteSel, Number(verCuenta.dataset.verCuenta));
       const fila = e.target.closest('tr[data-factura]');
       if (fila && !e.target.closest('#modal-factura-detalle')) return verFactura(fila.dataset.factura);
       const cc = e.target.closest('tr[data-ctacte]');
-      if (cc) return verCtacte(cc.dataset.ctacte);
+      if (cc) return verCtacte(cc.dataset.ctacte, Number(cc.dataset.cuenta));
     });
 
     // Formulario de comprobante
@@ -976,10 +1054,11 @@
       if (nc) form.elements.vencimiento.value = '';
       else actualizarProveedor();
       cargarRecambios();
+      actualizarNumeroX();
     });
     form.elements.vencimiento.addEventListener('input', () => { st.vencAuto = false; });
     form.elements.letra.addEventListener('change', actualizarLetra);
-    form.elements.punto_venta.addEventListener('blur', () => { const v = form.elements.punto_venta.value.replace(/\D/g, ''); if (v) form.elements.punto_venta.value = v.padStart(5, '0'); });
+    form.elements.punto_venta.addEventListener('blur', () => { const v = form.elements.punto_venta.value.replace(/\D/g, ''); if (v) form.elements.punto_venta.value = v.padStart(5, '0'); actualizarNumeroX(); });
     form.elements.numero.addEventListener('blur', () => { const v = form.elements.numero.value.replace(/\D/g, ''); if (v) form.elements.numero.value = v.padStart(8, '0'); });
     IMPORTES.concat('total').forEach(k => form.elements[k].addEventListener('input', actualizarControl));
     el('fc-calcular').addEventListener('click', calcularImportes);
@@ -1033,6 +1112,8 @@
     // Pagos
     el('fc-pago-form').addEventListener('submit', guardarPago);
     el('fc-pago-proveedor').addEventListener('change', mostrarSaldoPago);
+    // Otra cuenta: otro saldo (el importe sugerido se vuelve a calcular)
+    el('fc-pago-form').elements.cuenta.addEventListener('change', () => { el('fc-pago-form').elements.importe.value = ''; mostrarSaldoPago(); });
   }
 
   async function init(){

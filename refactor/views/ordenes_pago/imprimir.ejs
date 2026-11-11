@@ -54,7 +54,7 @@
       <img src="/static/images/logo.png" alt="Amorim">
       <div class="titulo">
         <h1>ORDEN DE PAGO</h1>
-        <div>Nº <b><%= String(o.id).padStart(8, '0') %></b></div>
+        <div>Nº <b><%= String(o.id).padStart(8, '0') %></b><%= Number(o.cuenta) === 2 ? ' · C2' : '' %></div>
         <div>Fecha: <b><%= fecha(o.fecha) %></b></div>
       </div>
     </div>

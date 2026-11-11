@@ -1032,8 +1032,15 @@ async function abrirModalVigenteABM(data){
       const rc = await fetch('/api/clientes', { credentials:'include' });
       const clientes = await rc.json();
       const list = Array.isArray(clientes) ? clientes : [];
+      // Dos columnas: codigo (rellenado al mas largo, letra de ancho fijo) y nombre
+      const ancho = Math.max(0, ...list.map(c => String(c.codigo || '').length));
+      selRazon.style.fontFamily = 'Consolas, "Courier New", monospace';
       selRazon.innerHTML = '<option value="">Seleccione cliente</option>' +
-        list.map(c => { const n = (c.razon_social||c.fantasia||'').toString().replace(/"/g,'&quot;'); return `<option value="${c.id}" data-nombre="${n}">${n}</option>`; }).join('');
+        list.map(c => {
+          const nombre = (c.razon_social||c.fantasia||'').toString();
+          const cod = String(c.codigo || '').padEnd(ancho, ' ');
+          return `<option value="${c.id}" data-nombre="${nombre.replace(/"/g,'&quot;')}">${esc(cod)}   ${esc(nombre)}</option>`;
+        }).join('');
     } catch { selRazon.innerHTML = '<option value="">Error al cargar</option>'; }
   }
 

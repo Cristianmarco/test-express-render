@@ -7,7 +7,14 @@
 // NC y lo que la orden pago de mas) se imputa a las facturas que vencen primero.
 // Stock: una FC/ND con "ingresa_stock" da ENTRADA de sus renglones con articulo; una NC
 // con "ingresa_stock" es una devolucion y da SALIDA. Anular revierte el movimiento.
+//
+// Cuenta 1 / cuenta 2: la cuenta 2 es la mercaderia que viene sin factura (proveedores
+// informales). Sus comprobantes son letra X, sin IVA ni CAE, numerados por el sistema si
+// el papel no trae numero; nunca van al Libro IVA. Comprobantes, pagos y ordenes de pago
+// llevan su cuenta y cada proveedor tiene un saldo por cuenta. Solo la ven los usuarios
+// con la seccion 'compras_cuenta2' (ver cuentasDe).
 const db = require('../db');
+const permisos = require('./permisos');
 // Columnas origen / factura_compra_id / usuario de movimientos_stock
 const { esquema: esquemaStock } = require('./stock');
 // Recambios que vuelven reparados con la factura (se carga al usarlo)
@@ -15,6 +22,8 @@ const recambios = () => require('./recambios');
 
 const COMPROBANTES = { FC: 'Factura', NC: 'Nota de crédito', ND: 'Nota de débito' };
 const LETRAS = ['A', 'B', 'C', 'M'];
+const LETRA_CUENTA2 = 'X';
+const CUENTAS = [1, 2];
 const ALICUOTAS = [21, 10.5, 27, 0];
 const MEDIOS_PAGO = ['efectivo', 'transferencia', 'cheque', 'echeq', 'otro'];
 // Campos de importes de la factura (el total los suma a todos)
@@ -28,7 +37,7 @@ const esquema = (async () => {
       id serial PRIMARY KEY,
       proveedor_id integer NOT NULL REFERENCES proveedores(id),
       comprobante text NOT NULL DEFAULT 'FC' CHECK (comprobante IN ('FC', 'NC', 'ND')),
-      letra text NOT NULL CHECK (letra IN ('A', 'B', 'C', 'M')),
+      letra text NOT NULL CHECK (letra IN ('A', 'B', 'C', 'M', 'X')),
       punto_venta integer NOT NULL,
       numero bigint NOT NULL,
       fecha date NOT NULL,
@@ -153,6 +162,25 @@ const esquema = (async () => {
       ADD COLUMN IF NOT EXISTS ultimo_costo numeric(14,4),
       ADD COLUMN IF NOT EXISTS ultimo_costo_at date,
       ADD COLUMN IF NOT EXISTS ultimo_costo_factura_id integer`);
+  // Cuenta 1 (oficial) / 2 (sin factura)
+  for (const tabla of ['facturas_compra', 'pagos_proveedor', 'ordenes_pago']) {
+    await db.query(`ALTER TABLE ${tabla} ADD COLUMN IF NOT EXISTS cuenta smallint NOT NULL DEFAULT 1 CHECK (cuenta IN (1, 2))`);
+  }
+  // La letra X (comprobantes de cuenta 2) en las tablas creadas antes
+  await db.query(`
+    DO $$
+    DECLARE c record;
+    BEGIN
+      FOR c IN SELECT conname, pg_get_constraintdef(oid) AS def FROM pg_constraint
+                WHERE conrelid = 'facturas_compra'::regclass AND contype = 'c'
+                  AND pg_get_constraintdef(oid) LIKE '%letra%' LOOP
+        IF c.def NOT LIKE '%''X''%' THEN
+          EXECUTE format('ALTER TABLE facturas_compra DROP CONSTRAINT %I', c.conname);
+          ALTER TABLE facturas_compra ADD CONSTRAINT facturas_compra_letra_check
+            CHECK (letra IN ('A', 'B', 'C', 'M', 'X'));
+        END IF;
+      END LOOP;
+    END $$`);
 })().catch(err => console.error('No se pudo preparar el esquema de facturas de compra:', err.message));
 
 class ErrorFactura extends Error {
@@ -185,6 +213,13 @@ function iso(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 const usuarioDe = (req) => (req.session && req.session.user && req.session.user.email) || null;
+// Cuentas que ve el usuario: la 2 solo con la seccion 'compras_cuenta2' (el admin la ve siempre)
+const cuentasDe = (req) => (permisos.tieneSeccion(req.session && req.session.user, 'compras_cuenta2') ? [1, 2] : [1]);
+const cuentaDe = (v) => (Number(v) === 2 ? 2 : 1);
+// Corta con 404 si el usuario no ve esa cuenta (como si no existiera)
+function exigirCuenta(req, cuenta, queEs = 'Comprobante no encontrado') {
+  if (!cuentasDe(req).includes(cuentaDe(cuenta))) throw new ErrorFactura(404, queEs);
+}
 const numeroComprobante = (f) => `${f.comprobante} ${f.letra} ${String(f.punto_venta).padStart(5, '0')}-${String(f.numero).padStart(8, '0')}`;
 const numeroOrden = (id) => `OP ${String(id).padStart(8, '0')}`;
 
@@ -212,23 +247,31 @@ function prepararFactura(body) {
   const f = {};
   f.proveedor_id = Number(body.proveedor_id);
   if (!f.proveedor_id) throw new ErrorFactura(400, 'Elegí el proveedor');
+  f.cuenta = cuentaDe(body.cuenta);
+  const c2 = f.cuenta === 2;
   f.comprobante = String(body.comprobante || 'FC').toUpperCase();
   if (!COMPROBANTES[f.comprobante]) throw new ErrorFactura(400, 'Tipo de comprobante inválido');
-  f.letra = String(body.letra || '').toUpperCase();
-  if (!LETRAS.includes(f.letra)) throw new ErrorFactura(400, 'Letra inválida (A, B, C o M)');
+  // Cuenta 2: siempre letra X; la X no se usa en la cuenta 1
+  f.letra = c2 ? LETRA_CUENTA2 : String(body.letra || '').toUpperCase();
+  if (!c2 && !LETRAS.includes(f.letra)) throw new ErrorFactura(400, 'Letra inválida (A, B, C o M)');
   f.punto_venta = parseInt(body.punto_venta, 10);
   f.numero = parseInt(body.numero, 10);
+  // En la cuenta 2 el numero es opcional (lo pone el sistema) y el punto de venta va 1 si no se escribe
+  if (c2 && !(f.punto_venta > 0)) f.punto_venta = 1;
+  if (c2 && !(f.numero > 0)) f.numero = null;
   if (!(f.punto_venta > 0 && f.punto_venta < 100000)) throw new ErrorFactura(400, 'Punto de venta inválido');
-  if (!(f.numero > 0 && f.numero < 1e8)) throw new ErrorFactura(400, 'Número de comprobante inválido');
+  if (f.numero !== null && !(f.numero > 0 && f.numero < 1e8)) throw new ErrorFactura(400, 'Número de comprobante inválido');
   f.fecha = String(body.fecha || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f.fecha)) throw new ErrorFactura(400, 'Fecha inválida');
   f.vencimiento = /^\d{4}-\d{2}-\d{2}$/.test(String(body.vencimiento || '')) ? String(body.vencimiento).slice(0, 10) : null;
   if (f.vencimiento && f.vencimiento < f.fecha) throw new ErrorFactura(400, 'El vencimiento no puede ser anterior a la fecha');
-  f.cae = String(body.cae || '').replace(/\D/g, '') || null;
+  f.cae = c2 ? null : String(body.cae || '').replace(/\D/g, '') || null;
   if (f.cae && f.cae.length !== 14) throw new ErrorFactura(400, 'El CAE tiene 14 dígitos');
   for (const k of IMPORTES) {
     f[k] = n2(importe(body[k]));
     if (f[k] < 0) throw new ErrorFactura(400, 'Los importes van en positivo (la nota de crédito ya resta)');
+    // Cuenta 2: sin impuestos, todo es el importe del comprobante
+    if (c2 && k !== 'no_gravado' && f[k]) throw new ErrorFactura(400, 'Un comprobante de cuenta 2 no lleva IVA ni impuestos: cargá solo el importe');
   }
   const discrimina = f.letra === 'A' || f.letra === 'M';
   if (!discrimina && (f.iva_21 || f.iva_105 || f.iva_27 || f.neto_21 || f.neto_105 || f.neto_27)) {
@@ -300,13 +343,27 @@ async function moverStock(client, factura, items, signo, observacion, req) {
   }
 }
 
+// Siguiente numero interno de un comprobante X del proveedor (cuenta los anulados, asi un
+// numero no se repite)
+async function proximoNumeroX(client, proveedorId, comprobante, puntoVenta) {
+  const { rows } = await (client || db).query(
+    `SELECT COALESCE(max(numero), 0)::bigint + 1 AS n FROM facturas_compra
+      WHERE proveedor_id = $1 AND comprobante = $2 AND letra = $3 AND punto_venta = $4`,
+    [proveedorId, comprobante, LETRA_CUENTA2, puntoVenta || 1]
+  );
+  return Number(rows[0].n);
+}
+
 // Alta (en una transaccion abierta por quien llama). Devuelve { id, avisos }
 async function crearFactura(client, req, body) {
   await esquema;
   const { f, items } = prepararFactura(body);
   const avisos = [];
-  const prov = await client.query('SELECT id, razon_social, condicion_pago, cuit FROM proveedores WHERE id = $1', [f.proveedor_id]);
+  if (!cuentasDe(req).includes(f.cuenta)) throw new ErrorFactura(403, 'No tenés permiso para cargar comprobantes de cuenta 2');
+  // FOR UPDATE: dos cargas de cuenta 2 a la vez no toman el mismo numero
+  const prov = await client.query('SELECT id, razon_social, condicion_pago, cuit FROM proveedores WHERE id = $1 FOR UPDATE', [f.proveedor_id]);
   if (!prov.rowCount) throw new ErrorFactura(400, 'El proveedor no existe');
+  if (f.numero === null) f.numero = await proximoNumeroX(client, f.proveedor_id, f.comprobante, f.punto_venta);
   // CUIT leido del QR de AFIP: se guarda en la ficha si no tenia; si tiene otro, se avisa
   const cuitQr = String(body.cuit_qr || '').replace(/\D/g, '');
   if (cuitQr.length === 11) {
@@ -355,7 +412,7 @@ async function crearFactura(client, req, body) {
     for (const it of deRecambio) it.producto_id = productos.get(it.recambio_item_id);
   }
 
-  const cols = ['proveedor_id', 'comprobante', 'letra', 'punto_venta', 'numero', 'fecha', 'vencimiento', 'cae', ...IMPORTES,
+  const cols = ['proveedor_id', 'cuenta', 'comprobante', 'letra', 'punto_venta', 'numero', 'fecha', 'vencimiento', 'cae', ...IMPORTES,
     'total', 'ingresa_stock', 'deposito_id', 'orden_compra_id', 'observaciones'];
   const { rows } = await client.query(
     `INSERT INTO facturas_compra (${cols.join(', ')}, creado_por)
@@ -413,6 +470,7 @@ async function anularFactura(client, req, id, motivo) {
   const { rows } = await client.query('SELECT * FROM facturas_compra WHERE id = $1 FOR UPDATE', [id]);
   if (!rows.length) throw new ErrorFactura(404, 'Comprobante no encontrado');
   const f = rows[0];
+  exigirCuenta(req, f.cuenta);
   if (f.estado === 'anulada') throw new ErrorFactura(409, 'El comprobante ya está anulado');
   const enOrden = await client.query(
     `SELECT o.id FROM ordenes_pago_facturas opf JOIN ordenes_pago o ON o.id = opf.orden_id
@@ -435,7 +493,7 @@ async function anularFactura(client, req, id, motivo) {
 
 // Movimientos de la cuenta corriente de un proveedor con saldo acumulado, y las facturas
 // con saldo pendiente (los pagos y NC se imputan a las facturas mas viejas primero)
-async function cuentaCorriente(proveedorId) {
+async function cuentaCorriente(proveedorId, cuenta = 1) {
   await esquema;
   const { rows: movs } = await db.query(
     `SELECT 'comprobante' AS tipo, f.id, f.fecha, f.vencimiento, f.comprobante, f.letra, f.punto_venta, f.numero,
@@ -443,17 +501,17 @@ async function cuentaCorriente(proveedorId) {
             CASE WHEN f.comprobante = 'NC' THEN f.total ELSE 0 END AS haber,
             NULL AS medio, NULL AS referencia, f.created_at
        FROM facturas_compra f
-      WHERE f.proveedor_id = $1 AND f.estado = 'confirmada'
+      WHERE f.proveedor_id = $1 AND f.cuenta = $2 AND f.estado = 'confirmada'
      UNION ALL
      SELECT 'pago', p.id, p.fecha, NULL, NULL, NULL, NULL, NULL, 0, p.importe, p.medio, p.referencia, p.created_at
        FROM pagos_proveedor p
-      WHERE p.proveedor_id = $1 AND p.estado = 'confirmado'
+      WHERE p.proveedor_id = $1 AND p.cuenta = $2 AND p.estado = 'confirmado'
      UNION ALL
      SELECT 'orden', o.id, o.fecha, NULL, NULL, NULL, NULL, NULL, 0, o.total, NULL, NULL, o.created_at
        FROM ordenes_pago o
-      WHERE o.proveedor_id = $1 AND o.estado = 'confirmada'
+      WHERE o.proveedor_id = $1 AND o.cuenta = $2 AND o.estado = 'confirmada'
       ORDER BY 3, created_at`,
-    [proveedorId]
+    [proveedorId, cuentaDe(cuenta)]
   );
   const aplicadas = await imputadoPorOrdenes([proveedorId]);
   let saldo = 0;
@@ -499,26 +557,28 @@ async function estadoPagos(proveedorIds) {
   const ids = [...new Set(proveedorIds.map(Number).filter(Boolean))];
   if (!ids.length) return new Map();
   const { rows } = await db.query(
-    `SELECT f.proveedor_id, f.id, f.fecha, f.vencimiento,
+    `SELECT f.proveedor_id, f.cuenta, f.id, f.fecha, f.vencimiento,
             CASE WHEN f.comprobante = 'NC' THEN 0 ELSE f.total END::float8 AS debe,
             CASE WHEN f.comprobante = 'NC' THEN f.total ELSE 0 END::float8 AS haber
        FROM facturas_compra f
       WHERE f.proveedor_id = ANY($1) AND f.estado = 'confirmada'
      UNION ALL
-     SELECT p.proveedor_id, NULL, p.fecha, NULL, 0, p.importe::float8
+     SELECT p.proveedor_id, p.cuenta, NULL, p.fecha, NULL, 0, p.importe::float8
        FROM pagos_proveedor p
       WHERE p.proveedor_id = ANY($1) AND p.estado = 'confirmado'
      UNION ALL
-     SELECT o.proveedor_id, NULL, o.fecha, NULL, 0, o.total::float8
+     SELECT o.proveedor_id, o.cuenta, NULL, o.fecha, NULL, 0, o.total::float8
        FROM ordenes_pago o
       WHERE o.proveedor_id = ANY($1) AND o.estado = 'confirmada'`,
     [ids]
   );
   const aplicadas = await imputadoPorOrdenes(ids);
+  // Cada cuenta del proveedor se imputa por separado
   const porProveedor = new Map();
   for (const r of rows) {
-    if (!porProveedor.has(r.proveedor_id)) porProveedor.set(r.proveedor_id, []);
-    porProveedor.get(r.proveedor_id).push({ ...r, fecha: iso(r.fecha), vencimiento: iso(r.vencimiento) });
+    const clave = `${r.proveedor_id}|${r.cuenta}`;
+    if (!porProveedor.has(clave)) porProveedor.set(clave, []);
+    porProveedor.get(clave).push({ ...r, fecha: iso(r.fecha), vencimiento: iso(r.vencimiento) });
   }
   const estado = new Map();
   for (const movs of porProveedor.values()) {
@@ -527,27 +587,29 @@ async function estadoPagos(proveedorIds) {
   return estado;
 }
 
-// Saldos de todos los proveedores con movimientos
-async function saldos() {
+// Saldos de todos los proveedores con movimientos, uno por proveedor y cuenta
+async function saldos(cuentas = [1]) {
   await esquema;
   const { rows } = await db.query(
     `WITH mov AS (
-       SELECT proveedor_id, CASE WHEN comprobante = 'NC' THEN -total ELSE total END AS importe,
+       SELECT proveedor_id, cuenta, CASE WHEN comprobante = 'NC' THEN -total ELSE total END AS importe,
               CASE WHEN comprobante <> 'NC' THEN vencimiento END AS vencimiento
          FROM facturas_compra WHERE estado = 'confirmada'
        UNION ALL
-       SELECT proveedor_id, -importe, NULL FROM pagos_proveedor WHERE estado = 'confirmado'
+       SELECT proveedor_id, cuenta, -importe, NULL FROM pagos_proveedor WHERE estado = 'confirmado'
        UNION ALL
-       SELECT proveedor_id, -total, NULL FROM ordenes_pago WHERE estado = 'confirmada'
+       SELECT proveedor_id, cuenta, -total, NULL FROM ordenes_pago WHERE estado = 'confirmada'
      )
-     SELECT p.id, p.codigo, p.razon_social, p.fantasia, sum(m.importe)::numeric(14,2) AS saldo,
+     SELECT p.id, p.codigo, p.razon_social, p.fantasia, m.cuenta, sum(m.importe)::numeric(14,2) AS saldo,
             min(m.vencimiento) AS primer_vencimiento,
-            (SELECT max(fecha) FROM facturas_compra f WHERE f.proveedor_id = p.id AND f.estado = 'confirmada') AS ultima_factura,
-            GREATEST((SELECT max(fecha) FROM pagos_proveedor x WHERE x.proveedor_id = p.id AND x.estado = 'confirmado'),
-                     (SELECT max(fecha) FROM ordenes_pago x WHERE x.proveedor_id = p.id AND x.estado = 'confirmada')) AS ultimo_pago
+            (SELECT max(fecha) FROM facturas_compra f WHERE f.proveedor_id = p.id AND f.cuenta = m.cuenta AND f.estado = 'confirmada') AS ultima_factura,
+            GREATEST((SELECT max(fecha) FROM pagos_proveedor x WHERE x.proveedor_id = p.id AND x.cuenta = m.cuenta AND x.estado = 'confirmado'),
+                     (SELECT max(fecha) FROM ordenes_pago x WHERE x.proveedor_id = p.id AND x.cuenta = m.cuenta AND x.estado = 'confirmada')) AS ultimo_pago
        FROM mov m JOIN proveedores p ON p.id = m.proveedor_id
-      GROUP BY p.id
-      ORDER BY sum(m.importe) DESC`
+      WHERE m.cuenta = ANY($1)
+      GROUP BY p.id, m.cuenta
+      ORDER BY sum(m.importe) DESC`,
+    [cuentas]
   );
   return rows.map((r) => ({ ...r, saldo: Number(r.saldo) }));
 }
@@ -561,7 +623,7 @@ async function libroIva(mes) {
             p.razon_social, p.cuit, ${IMPORTES.map((k) => `(CASE WHEN f.comprobante = 'NC' THEN -1 ELSE 1 END * f.${k})::float8 AS ${k}`).join(', ')},
             (CASE WHEN f.comprobante = 'NC' THEN -1 ELSE 1 END * f.total)::float8 AS total
        FROM facturas_compra f JOIN proveedores p ON p.id = f.proveedor_id
-      WHERE f.estado = 'confirmada' AND to_char(f.fecha, 'YYYY-MM') = $1
+      WHERE f.estado = 'confirmada' AND f.cuenta = 1 AND to_char(f.fecha, 'YYYY-MM') = $1
       ORDER BY f.fecha, p.razon_social, f.punto_venta, f.numero`,
     [mes]
   );
@@ -570,6 +632,7 @@ async function libroIva(mes) {
 }
 
 module.exports = {
-  esquema, ErrorFactura, COMPROBANTES, LETRAS, ALICUOTAS, MEDIOS_PAGO, IMPORTES,
+  esquema, ErrorFactura, COMPROBANTES, LETRAS, ALICUOTAS, MEDIOS_PAGO, IMPORTES, CUENTAS, LETRA_CUENTA2,
+  cuentasDe, cuentaDe, exigirCuenta, proximoNumeroX,
   crearFactura, anularFactura, cuentaCorriente, estadoPagos, saldos, TOLERANCIA, libroIva, numeroComprobante, numeroOrden, importe, n2, usuarioDe, diasDePago, iso,
 };

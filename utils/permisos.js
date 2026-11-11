@@ -16,6 +16,8 @@ const SECCIONES = [
   { id: 'productos', label: 'Productos' },
   { id: 'fichas', label: 'Fichas técnicas' },
   { id: 'compras', label: 'Compras' },
+  // No es una pantalla: deja ver y cargar la cuenta 2 (compras sin factura) dentro de Compras
+  { id: 'compras_cuenta2', label: 'Compras: cuenta 2' },
   { id: 'stock', label: 'Stock' },
   { id: 'proveedores', label: 'Proveedores' },
   { id: 'planilla', label: 'Planilla diaria' },

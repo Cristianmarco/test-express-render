@@ -7,6 +7,11 @@
     <div class="cli-toolbar">
       <input type="search" id="op-buscar" placeholder="Buscar proveedor, número, observación..." autocomplete="off" />
       <select id="op-filtro-proveedor"><option value="">Todos los proveedores</option></select>
+      <select id="op-filtro-cuenta" hidden title="Cuenta">
+        <option value="">Cuentas 1 y 2</option>
+        <option value="1">Cuenta 1</option>
+        <option value="2">Cuenta 2</option>
+      </select>
       <input type="date" id="op-desde" title="Desde" />
       <input type="date" id="op-hasta" title="Hasta" />
       <select id="op-filtro-estado">
@@ -34,6 +39,11 @@
       <span class="cerrar" data-cerrar>&times;</span>
       <h2 class="modal-titulo-principal"><i class="fas fa-money-check-dollar"></i> Nueva orden de pago</h2>
       <form id="op-form" autocomplete="off" novalidate>
+        <!-- Cuenta que se paga: solo con el permiso de cuenta 2 -->
+        <div class="fc-cuenta-sel" id="op-cuenta-sel" hidden>
+          <button type="button" data-cuenta="1" class="activa"><i class="fas fa-file-invoice"></i> Cuenta 1 <small>con factura</small></button>
+          <button type="button" data-cuenta="2"><i class="fas fa-file-lines"></i> Cuenta 2 <small>sin factura</small></button>
+        </div>
         <div class="cli-form-grid">
           <div style="grid-column: span 2;">
             <label>Proveedor *</label>

@@ -16,6 +16,11 @@
       <div class="cli-toolbar">
         <input type="search" id="fc-buscar" placeholder="Buscar proveedor, número, observación..." autocomplete="off" />
         <select id="fc-filtro-proveedor"><option value="">Todos los proveedores</option></select>
+        <select id="fc-filtro-cuenta" hidden title="Cuenta">
+          <option value="">Cuentas 1 y 2</option>
+          <option value="1">Cuenta 1</option>
+          <option value="2">Cuenta 2</option>
+        </select>
         <input type="date" id="fc-desde" title="Desde" />
         <input type="date" id="fc-hasta" title="Hasta" />
         <select id="fc-filtro-estado">
@@ -72,7 +77,13 @@
       <span class="cerrar" data-cerrar>&times;</span>
       <h2 class="modal-titulo-principal"><i class="fas fa-file-invoice"></i> Cargar comprobante de compra</h2>
       <form id="fc-form" autocomplete="off" novalidate>
-        <div class="fc-qr">
+        <!-- Cuenta 1 (con factura) / cuenta 2 (sin factura): solo con el permiso de cuenta 2 -->
+        <div class="fc-cuenta-sel" id="fc-cuenta-sel" hidden>
+          <button type="button" data-cuenta="1" class="activa"><i class="fas fa-file-invoice"></i> Cuenta 1 <small>con factura</small></button>
+          <button type="button" data-cuenta="2"><i class="fas fa-file-lines"></i> Cuenta 2 <small>sin factura</small></button>
+        </div>
+        <div class="fc-c2-ayuda" id="fc-c2-ayuda" hidden><i class="fas fa-circle-info"></i> Comprobante interno X: sin IVA ni CAE, no va al Libro IVA. Suma a la cuenta 2 del proveedor y la mercadería entra al stock igual.</div>
+        <div class="fc-qr fc-no-c2">
           <i class="fas fa-qrcode"></i>
           <input id="fc-qr" placeholder="Escaneá el QR de la factura con el lector (o pegá el link de AFIP)" autocomplete="off" />
           <div class="cli-ayuda" id="fc-qr-info">Completa tipo, número, fecha, total, CAE y busca el proveedor por CUIT.</div>
@@ -90,24 +101,24 @@
               <label>Tipo</label>
               <select name="comprobante"><option value="FC">Factura</option><option value="NC">Nota de crédito</option><option value="ND">Nota de débito</option></select>
             </div>
-            <div>
+            <div class="fc-no-c2">
               <label>Letra</label>
               <select name="letra"><option>A</option><option>B</option><option>C</option><option>M</option></select>
             </div>
           </div>
           <div class="cli-form-grid">
             <div><label>Punto de venta *</label><input name="punto_venta" inputmode="numeric" maxlength="5" placeholder="00003" /></div>
-            <div><label>Número *</label><input name="numero" inputmode="numeric" maxlength="8" placeholder="00012345" /></div>
+            <div><label id="fc-label-numero">Número *</label><input name="numero" inputmode="numeric" maxlength="8" placeholder="00012345" /><div class="cli-ayuda" id="fc-numero-ayuda"></div></div>
             <div><label>Fecha *</label><input name="fecha" type="date" /></div>
             <div><label>Vencimiento</label><input name="vencimiento" type="date" /><div class="cli-ayuda" id="fc-venc-ayuda"></div></div>
-            <div><label>CAE</label><input name="cae" inputmode="numeric" maxlength="14" /></div>
+            <div class="fc-no-c2"><label>CAE</label><input name="cae" inputmode="numeric" maxlength="14" /></div>
           </div>
           <div class="cli-form-grid">
             <div style="grid-column: span 2;">
-              <label>PDF o foto de la factura</label>
+              <label id="fc-label-archivo">PDF o foto de la factura</label>
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <input type="file" id="fc-archivo" accept="application/pdf,image/jpeg,image/png,image/webp" style="flex:1;min-width:220px" />
-                <button type="button" class="cli-btn primario" id="fc-leer-ia" disabled title="Completa encabezado, impuestos y renglones leyendo el archivo">
+                <button type="button" class="cli-btn primario fc-no-c2" id="fc-leer-ia" disabled title="Completa encabezado, impuestos y renglones leyendo el archivo">
                   <i class="fas fa-wand-magic-sparkles"></i> Leer con IA</button>
               </div>
               <div class="cli-ayuda" id="fc-archivo-info">Queda guardado con el comprobante.</div>
@@ -142,7 +153,7 @@
         <fieldset>
           <legend>Importes</legend>
           <div style="margin-bottom:8px"><button type="button" class="cli-btn" id="fc-calcular"><i class="fas fa-calculator"></i> Calcular desde los renglones</button>
-            <button type="button" class="cli-btn" id="fc-desde-total" title="Neto e IVA 21% a partir del total, descontando percepciones y otros importes ya cargados"><i class="fas fa-percent"></i> Desglosar IVA desde el total</button>
+            <button type="button" class="cli-btn fc-no-c2" id="fc-desde-total" title="Neto e IVA 21% a partir del total, descontando percepciones y otros importes ya cargados"><i class="fas fa-percent"></i> Desglosar IVA desde el total</button>
             <span class="cli-ayuda" id="fc-letra-ayuda"></span></div>
           <div class="cli-form-grid fc-importes">
             <div class="fc-solo-a"><label>Neto 21%</label><input name="neto_21" inputmode="decimal" /></div>
@@ -153,10 +164,10 @@
             <div class="fc-solo-a"><label>IVA 27%</label><input name="iva_27" inputmode="decimal" /></div>
             <div><label id="fc-label-no-gravado">No gravado</label><input name="no_gravado" inputmode="decimal" /></div>
             <div class="fc-solo-a"><label>Exento</label><input name="exento" inputmode="decimal" /></div>
-            <div><label>Percepción IVA</label><input name="percepcion_iva" inputmode="decimal" /></div>
-            <div><label>Percepción IIBB</label><input name="percepcion_iibb" inputmode="decimal" /></div>
-            <div><label>Impuestos internos</label><input name="impuestos_internos" inputmode="decimal" /></div>
-            <div><label>Otros tributos</label><input name="otros_tributos" inputmode="decimal" /></div>
+            <div class="fc-no-c2"><label>Percepción IVA</label><input name="percepcion_iva" inputmode="decimal" /></div>
+            <div class="fc-no-c2"><label>Percepción IIBB</label><input name="percepcion_iibb" inputmode="decimal" /></div>
+            <div class="fc-no-c2"><label>Impuestos internos</label><input name="impuestos_internos" inputmode="decimal" /></div>
+            <div class="fc-no-c2"><label>Otros tributos</label><input name="otros_tributos" inputmode="decimal" /></div>
           </div>
           <div class="fc-total-box">
             <div><label>Total del comprobante *</label><input name="total" inputmode="decimal" placeholder="Como figura en la factura" /></div>
@@ -197,6 +208,10 @@
             <label>Proveedor *</label>
             <input id="fc-pago-proveedor" list="fc-proveedores-lista" placeholder="Escribí el nombre o el código" />
             <div class="cli-ayuda" id="fc-pago-saldo"></div>
+          </div>
+          <div id="fc-pago-cuenta-wrap" hidden>
+            <label>Cuenta *</label>
+            <select name="cuenta"><option value="1">Cuenta 1</option><option value="2">Cuenta 2 (sin factura)</option></select>
           </div>
           <div><label>Fecha *</label><input name="fecha" type="date" /></div>
           <div><label>Importe *</label><input name="importe" inputmode="decimal" /></div>

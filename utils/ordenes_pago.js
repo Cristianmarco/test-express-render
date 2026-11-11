@@ -15,19 +15,23 @@ const ErrorOrden = fc.ErrorFactura;
 const texto = (v, max) => String(v == null ? '' : v).trim().slice(0, max) || null;
 const esFecha = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 
-// Facturas/ND del proveedor con saldo pendiente (ya descontado lo de otras ordenes y pagos)
-async function pendientes(proveedorId) {
-  const cc = await fc.cuentaCorriente(proveedorId);
+// Facturas/ND del proveedor con saldo pendiente en esa cuenta (ya descontado lo de otras
+// ordenes y pagos)
+async function pendientes(proveedorId, cuenta = 1) {
+  const cc = await fc.cuentaCorriente(proveedorId, cuenta);
   return { pendientes: cc.pendientes, saldo: cc.saldo, a_favor: cc.a_favor };
 }
 
-// body: { proveedor_id, fecha, observaciones, facturas: [{ factura_id, importe }], medios: [{ medio, importe, banco, referencia, fecha_cobro }] }
+// body: { proveedor_id, cuenta, fecha, observaciones, facturas: [{ factura_id, importe }], medios: [{ medio, importe, banco, referencia, fecha_cobro }] }
+// Una orden es de una sola cuenta y solo paga facturas de esa cuenta.
 async function crear(client, req, body) {
   await fc.esquema;
   const b = body || {};
   const proveedorId = Number(b.proveedor_id);
+  const cuenta = fc.cuentaDe(b.cuenta);
   const fecha = String(b.fecha || '').slice(0, 10);
   if (!proveedorId) throw new ErrorOrden(400, 'Elegí el proveedor');
+  if (!fc.cuentasDe(req).includes(cuenta)) throw new ErrorOrden(403, 'No tenés permiso para la cuenta 2');
   if (!esFecha(fecha)) throw new ErrorOrden(400, 'Fecha inválida');
 
   const facturas = (Array.isArray(b.facturas) ? b.facturas : [])
@@ -62,11 +66,11 @@ async function crear(client, req, body) {
   const prov = await client.query('SELECT id FROM proveedores WHERE id = $1 FOR UPDATE', [proveedorId]);
   if (!prov.rowCount) throw new ErrorOrden(400, 'El proveedor no existe');
   if (facturas.length) {
-    const { pendientes: abiertas } = await pendientes(proveedorId);
+    const { pendientes: abiertas } = await pendientes(proveedorId, cuenta);
     const porId = new Map(abiertas.map((f) => [f.id, f]));
     for (const f of facturas) {
       const p = porId.get(f.factura_id);
-      if (!p) throw new ErrorOrden(409, 'Una de las facturas elegidas ya no tiene saldo pendiente o no es de este proveedor');
+      if (!p) throw new ErrorOrden(409, 'Una de las facturas elegidas ya no tiene saldo pendiente o no es de este proveedor y cuenta');
       if (f.importe - p.pendiente > fc.TOLERANCIA) {
         throw new ErrorOrden(400, `${p.numero_completo}: se quiere pagar $ ${f.importe.toFixed(2)} y le quedan $ ${p.pendiente.toFixed(2)}`);
       }
@@ -74,9 +78,9 @@ async function crear(client, req, body) {
   }
 
   const { rows } = await client.query(
-    `INSERT INTO ordenes_pago (proveedor_id, fecha, total, imputado, observaciones, creado_por)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-    [proveedorId, fecha, total, imputado, texto(b.observaciones, 1000), fc.usuarioDe(req)]
+    `INSERT INTO ordenes_pago (proveedor_id, cuenta, fecha, total, imputado, observaciones, creado_por)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [proveedorId, cuenta, fecha, total, imputado, texto(b.observaciones, 1000), fc.usuarioDe(req)]
   );
   const id = rows[0].id;
   for (const f of facturas) {
@@ -89,26 +93,27 @@ async function crear(client, req, body) {
       [id, m.medio, m.importe, m.banco, m.referencia, m.fecha_cobro, m.orden]
     );
   }
-  return { id, numero: fc.numeroOrden(id), total, imputado, a_cuenta: fc.n2(total - imputado) };
+  return { id, numero: fc.numeroOrden(id), cuenta, total, imputado, a_cuenta: fc.n2(total - imputado) };
 }
 
 async function anular(client, req, id, motivo) {
   await fc.esquema;
   const { rows } = await client.query(
     `UPDATE ordenes_pago SET estado = 'anulada', anulada_at = now(), anulada_por = $2, anulada_motivo = $3
-      WHERE id = $1 AND estado = 'confirmada' RETURNING id, proveedor_id, total`,
-    [id, fc.usuarioDe(req), texto(motivo, 500)]
+      WHERE id = $1 AND estado = 'confirmada' AND cuenta = ANY($4) RETURNING id, proveedor_id, cuenta, total`,
+    [id, fc.usuarioDe(req), texto(motivo, 500), fc.cuentasDe(req)]
   );
   if (!rows.length) throw new ErrorOrden(409, 'La orden de pago no existe o ya está anulada');
   return { ...rows[0], numero: fc.numeroOrden(id) };
 }
 
-// filtros: { proveedor_id, desde, hasta, estado, q }
-async function listar(filtros = {}) {
+// filtros: { proveedor_id, desde, hasta, estado, q, cuenta }; cuentas: las que ve el usuario
+async function listar(filtros = {}, cuentas = [1]) {
   await fc.esquema;
   const cond = [];
   const params = [];
   const add = (sql, v) => { params.push(v); cond.push(sql.replace('?', `$${params.length}`)); };
+  add('o.cuenta = ANY(?)', cuentas.filter((c) => !filtros.cuenta || c === Number(filtros.cuenta)));
   if (Number(filtros.proveedor_id)) add('o.proveedor_id = ?', Number(filtros.proveedor_id));
   if (esFecha(filtros.desde)) add('o.fecha >= ?', filtros.desde);
   if (esFecha(filtros.hasta)) add('o.fecha <= ?', filtros.hasta);
@@ -119,7 +124,7 @@ async function listar(filtros = {}) {
           OR o.id::text = ltrim(regexp_replace($${params.length}, '\\D', '', 'g'), '0'))`, `%${q}%`);
   }
   const { rows } = await db.query(
-    `SELECT o.id, o.fecha, o.total::float8, o.imputado::float8, o.estado, o.observaciones, o.creado_por,
+    `SELECT o.id, o.cuenta, o.fecha, o.total::float8, o.imputado::float8, o.estado, o.observaciones, o.creado_por,
             o.anulada_motivo, p.id AS proveedor_id, p.codigo, p.razon_social, p.fantasia,
             (SELECT count(*)::int FROM ordenes_pago_facturas x WHERE x.orden_id = o.id) AS facturas,
             (SELECT string_agg(DISTINCT m.medio, ',') FROM ordenes_pago_medios m WHERE m.orden_id = o.id) AS medios
@@ -132,14 +137,15 @@ async function listar(filtros = {}) {
   return rows.map((r) => ({ ...r, fecha: fc.iso(r.fecha), numero: fc.numeroOrden(r.id), medios: r.medios ? r.medios.split(',') : [] }));
 }
 
-async function obtener(id) {
+// cuentas: las que ve el usuario (una orden de otra cuenta no se encuentra)
+async function obtener(id, cuentas = [1]) {
   await fc.esquema;
   const { rows } = await db.query(
     `SELECT o.*, o.total::float8 AS total, o.imputado::float8 AS imputado,
             p.codigo, p.razon_social, p.fantasia, p.cuit, p.condicion_iva, p.direccion, p.localidad, p.provincia, p.codigo_postal
        FROM ordenes_pago o JOIN proveedores p ON p.id = o.proveedor_id
-      WHERE o.id = $1`,
-    [id]
+      WHERE o.id = $1 AND o.cuenta = ANY($2)`,
+    [id, cuentas]
   );
   if (!rows.length) return null;
   const o = rows[0];

@@ -5,7 +5,10 @@
 (function () {
   const VIEW = 'ordenes_pago';
   const API = '/api/ordenes_pago';
-  const st = { proveedores: [], pendientes: [], proveedor: null };
+  // cuentas: las que ve el usuario (la 2 = compras sin factura); cuenta: la de la orden nueva
+  const st = { proveedores: [], pendientes: [], proveedor: null, cuentas: [1], cuenta: 1 };
+  const veCuenta2 = () => st.cuentas.includes(2);
+  const tagC2 = (c) => (Number(c) === 2 ? ' <span class="fc-c2-tag" title="Cuenta 2: sin factura">C2</span>' : '');
   const MEDIOS = { transferencia: 'Transferencia', efectivo: 'Efectivo', cheque: 'Cheque', echeq: 'E-cheq', otro: 'Otro' };
   const CON_BANCO = ['transferencia', 'cheque', 'echeq'];
   const CON_FECHA = ['cheque', 'echeq'];
@@ -57,6 +60,7 @@
     const qs = new URLSearchParams({
       q: el('op-buscar').value.trim(), proveedor_id: el('op-filtro-proveedor').value,
       desde: el('op-desde').value, hasta: el('op-hasta').value, estado: el('op-filtro-estado').value,
+      cuenta: veCuenta2() ? el('op-filtro-cuenta').value : '',
     });
     tb.innerHTML = '<tr><td colspan="7" class="cli-vacio"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>';
     try {
@@ -64,7 +68,7 @@
       tb.innerHTML = lista.length ? lista.map(o => `
         <tr data-orden="${o.id}">
           <td>${fecha(o.fecha)}</td>
-          <td><b>${esc(o.numero)}</b>${o.estado === 'anulada' ? ' <span class="fc-estado anulada">Anulada</span>' : ''}</td>
+          <td><b>${esc(o.numero)}</b>${tagC2(o.cuenta)}${o.estado === 'anulada' ? ' <span class="fc-estado anulada">Anulada</span>' : ''}</td>
           <td>${esc(nombreProv(o))}</td>
           <td>${o.medios.map(m => esc(MEDIOS[m] || m)).join(', ')}</td>
           <td class="num">${o.facturas || '—'}</td>
@@ -92,9 +96,21 @@
     el('op-facturas').innerHTML = '<div class="cli-ayuda">Elegí el proveedor para ver sus facturas pendientes.</div>';
     el('op-medios').innerHTML = '';
     agregarMedio();
+    ponerCuenta(1, false);
     recalcular();
     abrirModal('modal-orden-pago');
     if (prov) cargarPendientes(); else el('op-proveedor').focus();
+  }
+
+  // Cada orden paga una sola cuenta: al cambiarla cambian las facturas pendientes
+  function ponerCuenta(cuenta, recargar = true){
+    st.cuenta = cuenta === 2 && veCuenta2() ? 2 : 1;
+    el('op-cuenta-sel').querySelectorAll('[data-cuenta]').forEach(b => b.classList.toggle('activa', Number(b.dataset.cuenta) === st.cuenta));
+    const modal = el('modal-orden-pago');
+    modal.querySelector('.modal-contenido-refactor').classList.toggle('fc-modo-c2', st.cuenta === 2);
+    modal.querySelector('.modal-titulo-principal').innerHTML = '<i class="fas fa-money-check-dollar"></i> Nueva orden de pago' +
+      (st.cuenta === 2 ? ' <span class="fc-c2-tag">Cuenta 2</span>' : '');
+    if (recargar) cargarPendientes();
   }
 
   async function cargarPendientes(){
@@ -111,10 +127,12 @@
     }
     cont.innerHTML = '<div class="cli-ayuda"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>';
     try {
-      const d = await getJson(`${API}/pendientes/${prov.id}`);
-      if (st.proveedor !== prov) return;
+      const cuenta = st.cuenta;
+      const d = await getJson(`${API}/pendientes/${prov.id}?cuenta=${cuenta}`);
+      if (st.proveedor !== prov || st.cuenta !== cuenta) return;
       st.pendientes = d.pendientes;
       info.textContent = [d.proveedor.razon_social, d.proveedor.cuit ? `CUIT ${d.proveedor.cuit}` : null,
+        veCuenta2() ? `cuenta ${cuenta}` : null,
         d.saldo > 0 ? `saldo a pagar ${pesos(d.saldo)}` : d.saldo < 0 ? `saldo a favor ${pesos(-d.saldo)}` : 'sin saldo'].filter(Boolean).join(' · ');
       const hoy = hoyIso();
       cont.innerHTML = d.pendientes.length ? `
@@ -225,7 +243,7 @@
     const total = r2(medios.reduce((a, m) => a + m.importe, 0));
     const fac = r2(facturas.reduce((a, f) => a + f.importe, 0));
     const aCuenta = r2(total - fac);
-    if (!confirm(`¿Confirmar la orden de pago a ${nombreProv(prov)} por ${pesos(total)}?` +
+    if (!confirm(`¿Confirmar la orden de pago${st.cuenta === 2 ? ' de CUENTA 2' : ''} a ${nombreProv(prov)} por ${pesos(total)}?` +
       (facturas.length ? `\n${facturas.length} factura${facturas.length === 1 ? '' : 's'}: ${pesos(fac)}` : '\nSin facturas: todo queda a cuenta') +
       (facturas.length && aCuenta > 0.05 ? `\nQueda a cuenta: ${pesos(aCuenta)}` : ''))) return;
     // La ventana se abre ahora (con el clic) para que el navegador no la bloquee
@@ -233,7 +251,7 @@
     const btn = el('op-guardar');
     btn.disabled = true;
     try {
-      const r = await postJson(API, { proveedor_id: prov.id, fecha: el('op-form').elements.fecha.value, observaciones: el('op-form').elements.observaciones.value, facturas, medios });
+      const r = await postJson(API, { proveedor_id: prov.id, cuenta: st.cuenta, fecha: el('op-form').elements.fecha.value, observaciones: el('op-form').elements.observaciones.value, facturas, medios });
       if (ventana) ventana.location = `/ordenes_pago/${r.id}/imprimir`;
       cerrarModal('modal-orden-pago');
       cargarLista();
@@ -252,7 +270,7 @@
     try {
       const o = await getJson(`${API}/${id}`);
       cont.innerHTML = `
-        <h2 class="modal-titulo-principal"><i class="fas fa-money-check-dollar"></i> ${esc(o.numero)}
+        <h2 class="modal-titulo-principal"><i class="fas fa-money-check-dollar"></i> ${esc(o.numero)}${tagC2(o.cuenta)}
           ${o.estado === 'anulada' ? '<span class="fc-estado anulada">Anulada</span>' : ''}</h2>
         <div class="fc-detalle-grid">
           <div><span>Proveedor</span>${esc(o.razon_social)}${o.cuit ? ` · CUIT ${esc(o.cuit)}` : ''}</div>
@@ -297,7 +315,11 @@
   function bind(root){
     let timer;
     el('op-buscar').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(cargarLista, 300); });
-    ['op-filtro-proveedor', 'op-desde', 'op-hasta', 'op-filtro-estado'].forEach(id => el(id).addEventListener('change', cargarLista));
+    ['op-filtro-proveedor', 'op-desde', 'op-hasta', 'op-filtro-estado', 'op-filtro-cuenta'].forEach(id => el(id).addEventListener('change', cargarLista));
+    el('op-cuenta-sel').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-cuenta]');
+      if (b && Number(b.dataset.cuenta) !== st.cuenta) ponerCuenta(Number(b.dataset.cuenta));
+    });
     el('op-nueva').addEventListener('click', () => nuevaOrden(el('op-filtro-proveedor').value || null));
     el('op-proveedor').addEventListener('change', cargarPendientes);
     el('op-agregar-medio').addEventListener('click', () => { agregarMedio().querySelector('.op-medio-importe').focus(); recalcular(); });
@@ -359,6 +381,9 @@
       bind(root);
     }
     try { await cargarProveedores(); } catch (e) { console.error(e); }
+    try { st.cuentas = (await getJson(`${API}/cuentas`)).cuentas || [1]; } catch (e) { st.cuentas = [1]; }
+    el('op-filtro-cuenta').hidden = !veCuenta2();
+    el('op-cuenta-sel').hidden = !veCuenta2();
     cargarLista();
   }
 

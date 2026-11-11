@@ -35,26 +35,33 @@ async function enTransaccion(fn) {
 // GET /?proveedor_id=&desde=&hasta=&estado=&q=
 router.get('/', async (req, res, next) => {
   try {
-    res.json(await op.listar(req.query));
+    res.json(await op.listar(req.query, fc.cuentasDe(req)));
   } catch (err) {
     next(err);
   }
 });
 
-// Facturas/ND pendientes del proveedor, para elegir que se paga
+// Cuentas que ve el usuario (la 2 = compras sin factura)
+router.get('/cuentas', (req, res) => {
+  res.json({ cuentas: fc.cuentasDe(req) });
+});
+
+// Facturas/ND pendientes del proveedor en la cuenta (?cuenta=1|2), para elegir que se paga
 router.get('/pendientes/:proveedorId(\\d+)', async (req, res, next) => {
   try {
     const { rows } = await db.query('SELECT id, codigo, razon_social, fantasia, condicion_pago, cuit FROM proveedores WHERE id = $1', [req.params.proveedorId]);
     if (!rows.length) return res.status(404).json({ error: 'Proveedor no encontrado' });
-    res.json({ proveedor: rows[0], ...(await op.pendientes(Number(req.params.proveedorId))) });
+    const cuenta = fc.cuentaDe(req.query.cuenta);
+    fc.exigirCuenta(req, cuenta, 'Cuenta no encontrada');
+    res.json({ proveedor: rows[0], cuenta, ...(await op.pendientes(Number(req.params.proveedorId), cuenta)) });
   } catch (err) {
-    next(err);
+    responderError(res, next, err);
   }
 });
 
 router.get('/:id(\\d+)', async (req, res, next) => {
   try {
-    const orden = await op.obtener(Number(req.params.id));
+    const orden = await op.obtener(Number(req.params.id), fc.cuentasDe(req));
     if (!orden) return res.status(404).json({ error: 'Orden de pago no encontrada' });
     res.json(orden);
   } catch (err) {
@@ -67,7 +74,7 @@ router.post('/', async (req, res, next) => {
     const out = await enTransaccion(async (client) => {
       const r = await op.crear(client, req, req.body);
       await insertDomainAudit(client, req, 'ordenes_pago', r.id, 'alta', {
-        proveedor_id: req.body && req.body.proveedor_id, total: r.total, imputado: r.imputado,
+        proveedor_id: req.body && req.body.proveedor_id, cuenta: r.cuenta, total: r.total, imputado: r.imputado,
         facturas: (req.body && req.body.facturas) || [], medios: (req.body && req.body.medios) || [],
       });
       return r;
@@ -98,7 +105,7 @@ router.post('/:id(\\d+)/anular', async (req, res, next) => {
 paginas.get('/:id(\\d+)/imprimir', async (req, res, next) => {
   try {
     if (!permisos.tieneSeccion(req.session.user, 'compras')) return res.status(403).send('No tenés acceso a las órdenes de pago');
-    const orden = await op.obtener(Number(req.params.id));
+    const orden = await op.obtener(Number(req.params.id), fc.cuentasDe(req));
     if (!orden) return res.status(404).send('Orden de pago no encontrada');
     res.render('ordenes_pago/imprimir', { orden });
   } catch (err) {

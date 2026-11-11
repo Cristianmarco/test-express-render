@@ -40,11 +40,14 @@ async function enTransaccion(fn) {
 router.get('/', async (req, res, next) => {
   try {
     await fc.esquema;
-    const { desde, hasta, proveedor_id, estado, q } = req.query;
+    const { desde, hasta, proveedor_id, estado, q, cuenta } = req.query;
     const cond = [];
     const params = [];
     // add(sql, valor): $? en sql es el numero del parametro (puede repetirse)
     const add = (sql, v) => { params.push(v); cond.push(sql.replace(/\$\?/g, `$${params.length}`)); };
+    // Solo las cuentas que ve el usuario; con ?cuenta=1|2, esa sola
+    const cuentas = fc.cuentasDe(req).filter((c) => !cuenta || c === Number(cuenta));
+    add('f.cuenta = ANY($?)', cuentas);
     if (/^\d{4}-\d{2}-\d{2}$/.test(desde || '')) add('f.fecha >= $?', desde);
     if (/^\d{4}-\d{2}-\d{2}$/.test(hasta || '')) add('f.fecha <= $?', hasta);
     if (Number(proveedor_id)) add('f.proveedor_id = $?', Number(proveedor_id));
@@ -54,7 +57,7 @@ router.get('/', async (req, res, next) => {
         `%${String(q).trim()}%`);
     }
     const { rows } = await db.query(
-      `SELECT f.id, f.fecha, f.vencimiento, f.comprobante, f.letra, f.punto_venta, f.numero, f.total, f.estado,
+      `SELECT f.id, f.cuenta, f.fecha, f.vencimiento, f.comprobante, f.letra, f.punto_venta, f.numero, f.total, f.estado,
               f.ingresa_stock, f.proveedor_id, p.razon_social, p.fantasia, p.codigo AS proveedor_codigo,
               (SELECT count(*)::int FROM facturas_compra_items i WHERE i.factura_id = f.id) AS renglones,
               EXISTS (SELECT 1 FROM facturas_compra_archivos a WHERE a.factura_id = f.id) AS tiene_archivo
@@ -105,6 +108,26 @@ router.get('/articulos', async (req, res, next) => {
 
 router.get('/lector', (req, res) => {
   res.json({ configurado: lector.configurado(), modelo: lector.MODELO });
+});
+
+// Cuentas que ve el usuario (la 2 = compras sin factura)
+router.get('/cuentas', (req, res) => {
+  res.json({ cuentas: fc.cuentasDe(req) });
+});
+
+// Numero que va a tomar el proximo comprobante X (cuenta 2) del proveedor
+router.get('/proximo_x', async (req, res, next) => {
+  try {
+    await fc.esquema;
+    fc.exigirCuenta(req, 2);
+    const proveedorId = Number(req.query.proveedor_id);
+    if (!proveedorId) return res.json({ numero: null });
+    const comprobante = fc.COMPROBANTES[String(req.query.comprobante || '').toUpperCase()] ? String(req.query.comprobante).toUpperCase() : 'FC';
+    const puntoVenta = parseInt(req.query.punto_venta, 10) > 0 ? parseInt(req.query.punto_venta, 10) : 1;
+    res.json({ numero: await fc.proximoNumeroX(null, proveedorId, comprobante, puntoVenta), punto_venta: puntoVenta });
+  } catch (err) {
+    responderError(res, next, err);
+  }
 });
 
 // Lee el PDF / foto con IA y devuelve los datos para el formulario, con el proveedor
@@ -254,6 +277,7 @@ router.get('/:id(\\d+)', async (req, res, next) => {
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Comprobante no encontrado' });
+    fc.exigirCuenta(req, rows[0].cuenta);
     const items = await db.query(
       `SELECT i.*, p.codigo AS producto_codigo,
               CASE WHEN ri.envio_id IS NOT NULL THEN 'RC-' || lpad(ri.envio_id::text, 8, '0') END AS recambio_envio
@@ -266,7 +290,7 @@ router.get('/:id(\\d+)', async (req, res, next) => {
     const f = rows[0];
     res.json({ ...f, fecha: fc.iso(f.fecha), vencimiento: fc.iso(f.vencimiento), numero_completo: fc.numeroComprobante(f), items: items.rows });
   } catch (err) {
-    next(err);
+    responderError(res, next, err);
   }
 });
 
@@ -283,7 +307,9 @@ router.get('/recambios_pendientes/:proveedorId(\\d+)', async (req, res, next) =>
 router.get('/:id(\\d+)/archivo', async (req, res, next) => {
   try {
     await fc.esquema;
-    const { rows } = await db.query('SELECT nombre, mime, data FROM facturas_compra_archivos WHERE factura_id = $1', [req.params.id]);
+    const { rows } = await db.query(
+      `SELECT a.nombre, a.mime, a.data FROM facturas_compra_archivos a JOIN facturas_compra f ON f.id = a.factura_id
+        WHERE a.factura_id = $1 AND f.cuenta = ANY($2)`, [req.params.id, fc.cuentasDe(req)]);
     if (!rows.length) return res.status(404).end();
     res.setHeader('Content-Type', rows[0].mime);
     res.setHeader('Content-Disposition', `inline; filename="${String(rows[0].nombre || 'factura').replace(/[^\w.-]+/g, '_')}"`);
@@ -300,7 +326,7 @@ router.post('/', async (req, res, next) => {
       const out = await fc.crearFactura(client, req, req.body || {});
       const b = req.body || {};
       await insertDomainAudit(client, req, 'facturas_compra', out.id, 'alta', {
-        numero: out.numero, proveedor_id: Number(b.proveedor_id), total: b.total,
+        numero: out.numero, cuenta: fc.cuentaDe(b.cuenta), proveedor_id: Number(b.proveedor_id), total: b.total,
         renglones: Array.isArray(b.items) ? b.items.length : 0, ingresa_stock: b.ingresa_stock !== false,
       });
       return out;
@@ -331,7 +357,7 @@ router.post('/:id(\\d+)/anular', async (req, res, next) => {
 // Saldos de todos los proveedores
 router.get('/cuenta_corriente', async (req, res, next) => {
   try {
-    res.json((await fc.saldos()).map((s) => ({ ...s, primer_vencimiento: fc.iso(s.primer_vencimiento), ultima_factura: fc.iso(s.ultima_factura), ultimo_pago: fc.iso(s.ultimo_pago) })));
+    res.json((await fc.saldos(fc.cuentasDe(req))).map((s) => ({ ...s, primer_vencimiento: fc.iso(s.primer_vencimiento), ultima_factura: fc.iso(s.ultima_factura), ultimo_pago: fc.iso(s.ultimo_pago) })));
   } catch (err) {
     next(err);
   }
@@ -341,10 +367,12 @@ router.get('/cuenta_corriente/:proveedorId(\\d+)', async (req, res, next) => {
   try {
     const { rows } = await db.query('SELECT id, codigo, razon_social, fantasia, condicion_pago FROM proveedores WHERE id = $1', [req.params.proveedorId]);
     if (!rows.length) return res.status(404).json({ error: 'Proveedor no encontrado' });
-    const cc = await fc.cuentaCorriente(Number(req.params.proveedorId));
-    res.json({ proveedor: rows[0], ...cc });
+    const cuenta = fc.cuentaDe(req.query.cuenta);
+    fc.exigirCuenta(req, cuenta, 'Cuenta no encontrada');
+    const cc = await fc.cuentaCorriente(Number(req.params.proveedorId), cuenta);
+    res.json({ proveedor: rows[0], cuenta, ...cc });
   } catch (err) {
-    next(err);
+    responderError(res, next, err);
   }
 });
 
@@ -360,16 +388,18 @@ router.post('/pagos', async (req, res, next) => {
     if (!(importe > 0)) throw new fc.ErrorFactura(400, 'El importe tiene que ser mayor a 0');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) throw new fc.ErrorFactura(400, 'Fecha inválida');
     if (!fc.MEDIOS_PAGO.includes(medio)) throw new fc.ErrorFactura(400, 'Medio de pago inválido');
+    const cuenta = fc.cuentaDe(b.cuenta);
+    if (!fc.cuentasDe(req).includes(cuenta)) throw new fc.ErrorFactura(403, 'No tenés permiso para la cuenta 2');
     const out = await enTransaccion(async (client) => {
       const prov = await client.query('SELECT 1 FROM proveedores WHERE id = $1', [proveedorId]);
       if (!prov.rowCount) throw new fc.ErrorFactura(400, 'El proveedor no existe');
       const { rows } = await client.query(
-        `INSERT INTO pagos_proveedor (proveedor_id, fecha, importe, medio, referencia, observaciones, creado_por)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [proveedorId, fecha, importe, medio, String(b.referencia || '').trim().slice(0, 200) || null,
+        `INSERT INTO pagos_proveedor (proveedor_id, cuenta, fecha, importe, medio, referencia, observaciones, creado_por)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [proveedorId, cuenta, fecha, importe, medio, String(b.referencia || '').trim().slice(0, 200) || null,
           String(b.observaciones || '').trim().slice(0, 1000) || null, fc.usuarioDe(req)]
       );
-      await insertDomainAudit(client, req, 'pagos_proveedor', rows[0].id, 'alta', { proveedor_id: proveedorId, fecha, importe, medio, referencia: b.referencia || null });
+      await insertDomainAudit(client, req, 'pagos_proveedor', rows[0].id, 'alta', { proveedor_id: proveedorId, cuenta, fecha, importe, medio, referencia: b.referencia || null });
       return rows[0];
     });
     res.status(201).json({ mensaje: 'Pago registrado', id: out.id });
@@ -387,8 +417,8 @@ router.post('/pagos/:id(\\d+)/anular', async (req, res, next) => {
       const { rows } = await client.query(
         `UPDATE pagos_proveedor SET estado = 'anulado', anulado_at = now(), anulado_por = $2,
                 observaciones = concat_ws(' | ', observaciones, 'Anulado: ' || $3)
-          WHERE id = $1 AND estado = 'confirmado' RETURNING id, importe, proveedor_id`,
-        [req.params.id, fc.usuarioDe(req), motivo]
+          WHERE id = $1 AND estado = 'confirmado' AND cuenta = ANY($4) RETURNING id, importe, proveedor_id, cuenta`,
+        [req.params.id, fc.usuarioDe(req), motivo, fc.cuentasDe(req)]
       );
       if (!rows.length) throw new fc.ErrorFactura(409, 'El pago no existe o ya está anulado');
       await insertDomainAudit(client, req, 'pagos_proveedor', rows[0].id, 'anulacion', { ...rows[0], motivo });
