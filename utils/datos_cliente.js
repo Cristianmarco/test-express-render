@@ -42,6 +42,35 @@ const esquemaClientes = (async () => {
       creado_at timestamptz NOT NULL DEFAULT now()
     )`);
   await db.query('CREATE INDEX IF NOT EXISTS cliente_contactos_cliente_idx ON cliente_contactos (cliente_id)');
+  // Rubros / perfil del cliente (colectivos, larga distancia, cargas...): una lista editable
+  // y cada cliente con uno o varios (clientes.rubros = ids). Sirve para elegir a quien
+  // mandarle cada oferta en Marketing.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS clientes_rubros (
+      id serial PRIMARY KEY,
+      nombre text NOT NULL,
+      orden integer NOT NULL DEFAULT 0,
+      creado_at timestamptz NOT NULL DEFAULT now()
+    )`);
+  await db.query('CREATE UNIQUE INDEX IF NOT EXISTS clientes_rubros_nombre_uq ON clientes_rubros (lower(nombre))');
+  await db.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS rubros integer[] NOT NULL DEFAULT '{}'`);
+  // Rubros iniciales (solo la primera vez, con la tabla vacia)
+  await db.query(`
+    INSERT INTO clientes_rubros (nombre, orden)
+    SELECT v.nombre, v.orden FROM (VALUES
+      ('Colectivos (pasajeros urbanos)', 1),
+      ('Pasajeros de larga distancia', 2),
+      ('Transporte de cargas', 3),
+      ('Logística y distribución', 4),
+      ('Flota de utilitarios', 5),
+      ('Maquinaria agrícola', 6),
+      ('Maquinaria vial / construcción', 7),
+      ('Taller mecánico', 8),
+      ('Electricista del automotor', 9),
+      ('Casa de repuestos', 10),
+      ('Particular', 11)
+    ) AS v(nombre, orden)
+    WHERE NOT EXISTS (SELECT 1 FROM clientes_rubros)`);
 })().catch(err => console.error('No se pudo preparar el esquema de clientes:', err.message));
 
 // { ids, grupo, nombre } de un cliente (vacio si no existe)
@@ -259,7 +288,8 @@ async function presupuestos(alc, { borradores = false } = {}) {
 // Las licitaciones en curso traen el avance (reparados de la cantidad).
 async function resumen(alc) {
   await taller.esquema;
-  const [taller, licitaciones, garantiasPend, porResponder] = await Promise.all([
+  // (enTaller: no pisar el modulo "taller" de arriba)
+  const [enTaller, licitaciones, garantiasPend, porResponder] = await Promise.all([
     db.query(
       `SELECT COALESCE(sum(rd.pendientes), 0)::int AS en_taller,
               COALESCE(sum(CASE WHEN EXISTS (SELECT 1 FROM taller_equipos te WHERE te.vigente_id = rd.id)
@@ -289,7 +319,7 @@ async function resumen(alc) {
       [alc.ids, alc.nombre])
   ]);
   return {
-    ...taller.rows[0],
+    ...enTaller.rows[0],
     garantias_pendientes: Number(garantiasPend.rows[0].pendientes),
     presupuestos_por_responder: porResponder.rows[0].por_responder,
     licitaciones: licitaciones.rows

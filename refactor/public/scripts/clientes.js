@@ -10,7 +10,12 @@
     pestana: 'resumen',
     datosPestana: {},  // cache de la ficha abierta: { vigentes: [...], ... }
     editando: null,    // cliente en edicion (null = alta)
+    rubros: [],        // lista de rubros [{ id, nombre, clientes }]
   };
+  // Chips con los rubros de un cliente
+  const rubroNombre = (id) => (st.rubros.find(r => r.id === Number(id)) || {}).nombre;
+  const chipsRubros = (c) => (c.rubros || []).map(rubroNombre).filter(Boolean)
+    .map(n => `<span class="cli-chip rubro">${esc(n)}</span>`).join('');
 
   function el(id){ return document.getElementById(id); }
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -77,13 +82,25 @@
     if (!tbody) return;
     tbody.innerHTML = `<tr><td colspan="5" class="cli-vacio"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>`;
     try {
-      st.lista = await getJson('/api/clientes?resumen=1');
+      const [lista] = await Promise.all([getJson('/api/clientes?resumen=1'), cargarRubros()]);
+      st.lista = lista;
       renderStats();
       renderLista();
     } catch (e) {
       console.error(e);
       tbody.innerHTML = `<tr><td colspan="5" class="cli-vacio" style="color:#c33">Error al cargar: ${esc(e.message)}</td></tr>`;
     }
+  }
+
+  // Lista de rubros y el filtro (conserva lo elegido)
+  async function cargarRubros(){
+    try { st.rubros = await getJson('/api/clientes/rubros'); } catch (e) { console.error(e); st.rubros = []; }
+    const sel = el('cli-filtro-rubro');
+    if (!sel) return;
+    const actual = sel.value;
+    sel.innerHTML = '<option value="">Todos los rubros</option><option value="sin">Sin rubro</option>' +
+      st.rubros.map(r => `<option value="${r.id}">${esc(r.nombre)}</option>`).join('');
+    sel.value = actual && Array.from(sel.options).some(o => o.value === actual) ? actual : '';
   }
 
   function renderStats(){
@@ -93,14 +110,20 @@
     const internos = activos.filter(c => c.categoria === 'interno').length;
     const incompletos = activos.filter(incompleto).length;
     const enTaller = activos.filter(c => c.en_taller > 0 && !c.grupo_id).length;
+    const sinRubro = activos.filter(c => !(c.rubros || []).length).length;
     cont.innerHTML = `
       <span class="cli-stat"><b>${activos.length}</b> activos</span>
       <span class="cli-stat"><b>${activos.length - internos}</b> externos</span>
       <span class="cli-stat"><b>${internos}</b> internos</span>
       <span class="cli-stat" title="Clientes (o grupos) con equipos en el taller"><b>${enTaller}</b> con equipos en taller</span>
-      ${incompletos ? `<span class="cli-stat alerta" id="cli-stat-incompletos" title="Sin email o sin teléfono. Clic para filtrarlos"><b>${incompletos}</b> fichas incompletas</span>` : ''}`;
+      ${incompletos ? `<span class="cli-stat alerta" id="cli-stat-incompletos" title="Sin email o sin teléfono. Clic para filtrarlos"><b>${incompletos}</b> fichas incompletas</span>` : ''}
+      ${sinRubro ? `<span class="cli-stat alerta" id="cli-stat-sin-rubro" title="Activos sin rubro cargado. Clic para filtrarlos"><b>${sinRubro}</b> sin rubro</span>` : ''}`;
     el('cli-stat-incompletos')?.addEventListener('click', () => {
       el('cli-filtro-incompletos').checked = true;
+      renderLista();
+    });
+    el('cli-stat-sin-rubro')?.addEventListener('click', () => {
+      el('cli-filtro-rubro').value = 'sin';
       renderLista();
     });
   }
@@ -111,13 +134,16 @@
     const tipo = el('cli-filtro-tipo')?.value || '';
     const estado = el('cli-filtro-estado')?.value || 'activos';
     const soloIncompletos = !!el('cli-filtro-incompletos')?.checked;
+    const rubro = el('cli-filtro-rubro')?.value || '';
     const out = st.lista.filter(c => {
       if (tipo && c.categoria !== tipo) return false;
+      if (rubro === 'sin' && (c.rubros || []).length) return false;
+      if (rubro && rubro !== 'sin' && !(c.rubros || []).includes(Number(rubro))) return false;
       if (estado === 'activos' && c.activo === false) return false;
       if (estado === 'inactivos' && c.activo !== false) return false;
       if (soloIncompletos && !incompleto(c)) return false;
       if (!q) return true;
-      const texto = norm([c.codigo, c.razon_social, c.fantasia, c.localidad, c.provincia, c.mail, c.grupo_nombre].join(' '));
+      const texto = norm([c.codigo, c.razon_social, c.fantasia, c.localidad, c.provincia, c.mail, c.grupo_nombre, c.rubros_nombres].join(' '));
       if (texto.includes(q)) return true;
       return qDig.length >= 4 && String(c.documento || '').replace(/\D/g, '').includes(qDig);
     });
@@ -155,6 +181,7 @@
           ${incompleto(c) ? '<i class="fas fa-triangle-exclamation cli-incompleto" title="Ficha incompleta: falta email o teléfono"></i>' : ''}
           <span class="cli-sub">
             <span class="cli-chip ${esc(c.categoria)}">${c.categoria === 'interno' ? 'Interno' : 'Externo'}</span>
+            ${chipsRubros(c)}
             ${c.empresas_grupo ? `<span class="cli-chip grupo">Grupo · ${c.empresas_grupo} empresas</span>` : ''}
             ${c.grupo_nombre ? `<span class="cli-chip grupo">de ${esc(c.grupo_nombre)}</span>` : ''}
             ${c.activo === false ? '<span class="cli-chip inactivo">Inactivo</span>' : ''}
@@ -215,6 +242,7 @@
           <div class="cli-chips">
             <span class="cli-chip ${esc(c.categoria)}">${c.categoria === 'interno' ? 'Interno' : 'Externo'}</span>
             ${c.activo === false ? '<span class="cli-chip inactivo">Inactivo</span>' : ''}
+            ${chipsRubros(c)}
             ${c.condicion_iva ? `<span class="cli-chip iva">${esc(c.condicion_iva)}</span>` : ''}
             ${c.grupo_nombre ? `<span class="cli-chip grupo">Grupo ${esc(c.grupo_nombre)}</span>` : ''}
             ${c.empresas_grupo.length ? `<span class="cli-chip grupo">Empresa madre · ${c.empresas_grupo.length} empresas</span>` : ''}
@@ -580,6 +608,9 @@
     sel.disabled = !!(cliente && cliente.empresas_grupo && cliente.empresas_grupo.length);
     sel.title = sel.disabled ? 'Es empresa madre de otras: no puede pertenecer a otro grupo' : '';
 
+    pintarRubrosForm(c.rubros || []);
+    el('cli-rubro-nuevo').value = '';
+
     const body = el('cli-contactos-body');
     body.innerHTML = '';
     (c.contactos || []).forEach(x => body.appendChild(filaContacto(x)));
@@ -587,6 +618,52 @@
     actualizarAyudaCuit();
     el('modal-cliente-ref').style.display = 'flex';
     (cliente ? form.elements.razon_social : form.elements.codigo).focus();
+  }
+
+  // ---------- Rubros en el formulario ----------
+  const rubrosMarcados = () => Array.from(document.querySelectorAll('#cli-rubros input[type="checkbox"]:checked')).map(i => Number(i.value));
+
+  function pintarRubrosForm(marcados){
+    const set = new Set((marcados || []).map(Number));
+    el('cli-rubros').innerHTML = st.rubros.length ? st.rubros.map(r => `
+      <label class="cli-rubro ${set.has(r.id) ? 'marcado' : ''}">
+        <input type="checkbox" value="${r.id}" ${set.has(r.id) ? 'checked' : ''}>
+        <span>${esc(r.nombre)}</span>
+        <button type="button" data-rubro-editar="${r.id}" title="Cambiar el nombre o eliminar el rubro"><i class="fas fa-pen"></i></button>
+      </label>`).join('') : '<div class="cli-ayuda">Todavía no hay rubros: agregá el primero.</div>';
+  }
+
+  async function agregarRubro(){
+    const inp = el('cli-rubro-nuevo');
+    const nombre = inp.value.trim();
+    if (!nombre) { inp.focus(); return; }
+    const marcados = rubrosMarcados();
+    try {
+      const r = await getJson('/api/clientes/rubros', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre }) });
+      await cargarRubros();
+      pintarRubrosForm([...marcados, r.id]);
+      inp.value = '';
+    } catch (e) { el('cli-form-error').textContent = e.message; }
+  }
+
+  // Renombrar (o vaciar el nombre para eliminarlo)
+  async function editarRubro(id){
+    const r = st.rubros.find(x => x.id === Number(id));
+    if (!r) return;
+    const nombre = prompt(`Nuevo nombre para "${r.nombre}".\nDejalo vacío para ELIMINAR el rubro (lo tienen ${r.clientes} cliente${r.clientes === 1 ? '' : 's'} activos).`, r.nombre);
+    if (nombre === null) return;
+    const marcados = rubrosMarcados();
+    try {
+      if (!nombre.trim()) {
+        if (!confirm(`¿Eliminar el rubro "${r.nombre}"? Se le saca a todos los clientes que lo tienen.`)) return;
+        await getJson(`/api/clientes/rubros/${r.id}`, { method: 'DELETE' });
+      } else if (nombre.trim() !== r.nombre) {
+        await getJson(`/api/clientes/rubros/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre }) });
+      }
+      await cargarRubros();
+      pintarRubrosForm(marcados.filter(m => st.rubros.some(x => x.id === m)));
+      renderLista();
+    } catch (e) { el('cli-form-error').textContent = e.message; }
   }
 
   function actualizarAyudaCuit(){
@@ -606,6 +683,7 @@
     ['razon_social','fantasia','domicilio','localidad','provincia','telefono','mail','web','documento','notas','categoria','condicion_iva']
       .forEach(k => { payload[k] = f[k].value.trim(); });
     payload.activo = f.activo.checked;
+    payload.rubros = rubrosMarcados();
     if (!el('cli-grupo-select').disabled) payload.grupo_id = f.grupo_id.value ? Number(f.grupo_id.value) : null;
     payload.contactos = Array.from(el('cli-contactos-body').querySelectorAll('tr')).map(tr => {
       const x = {};
@@ -645,7 +723,18 @@
 
     let t;
     el('cli-buscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(renderLista, 120); });
-    ['cli-filtro-tipo', 'cli-filtro-estado', 'cli-filtro-incompletos'].forEach(id => el(id).addEventListener('change', renderLista));
+    ['cli-filtro-tipo', 'cli-filtro-estado', 'cli-filtro-incompletos', 'cli-filtro-rubro'].forEach(id => el(id).addEventListener('change', renderLista));
+    // Rubros del formulario
+    el('cli-rubro-agregar').addEventListener('click', agregarRubro);
+    el('cli-rubro-nuevo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); agregarRubro(); } });
+    el('cli-rubros').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-rubro-editar]');
+      if (b) { e.preventDefault(); editarRubro(b.dataset.rubroEditar); }
+    });
+    el('cli-rubros').addEventListener('change', (e) => {
+      const lab = e.target.closest('.cli-rubro');
+      if (lab) lab.classList.toggle('marcado', e.target.checked);
+    });
 
     root.querySelector('.cli-tabla thead').addEventListener('click', (e) => {
       const th = e.target.closest('th[data-orden]');

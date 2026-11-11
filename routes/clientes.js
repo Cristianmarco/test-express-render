@@ -39,6 +39,7 @@ const SQL_LISTADO_RESUMEN = `
   )
   SELECT c.*, g.razon_social AS grupo_nombre, g.codigo AS grupo_codigo,
          (SELECT count(*)::int FROM clientes h WHERE h.grupo_id = c.id) AS empresas_grupo,
+         (SELECT string_agg(r.nombre, ', ' ORDER BY r.orden, r.nombre) FROM clientes_rubros r WHERE r.id = ANY(c.rubros)) AS rubros_nombres,
          t.en_taller, p.reparados_12m, p.ultima_reparacion, ct.contactos, up.usuarios_portal
     FROM clientes c
     JOIN alc ON alc.id = c.id
@@ -95,6 +96,7 @@ router.get('/exportar', requireSeccionClientes, async (req, res, next) => {
       { header: 'Razón social', key: 'razon_social', width: 38 },
       { header: 'Fantasía', key: 'fantasia', width: 24 },
       { header: 'Tipo', key: 'categoria', width: 9 },
+      { header: 'Rubros', key: 'rubros_nombres', width: 30 },
       { header: 'Activo', key: 'activo', width: 8 },
       { header: 'Grupo', key: 'grupo_nombre', width: 18 },
       { header: 'CUIT', key: 'documento', width: 15 },
@@ -135,6 +137,79 @@ router.get('/exportar', requireSeccionClientes, async (req, res, next) => {
     res.end();
   } catch (err) {
     next(err);
+  }
+});
+
+// ---------- Rubros (perfil del cliente) ----------
+// La lista la leen todas las pantallas (Marketing elige a quien mandar); cambiarla es
+// de la seccion Clientes (permisos de /api/clientes).
+
+router.get('/rubros', async (req, res, next) => {
+  try {
+    await datos.esquemaClientes;
+    const { rows } = await db.query(
+      `SELECT r.id, r.nombre, r.orden,
+              (SELECT count(*)::int FROM clientes c WHERE r.id = ANY(c.rubros) AND c.activo) AS clientes
+         FROM clientes_rubros r ORDER BY r.orden, r.nombre`);
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+const nombreRubro = (v) => String(v || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+
+router.post('/rubros', async (req, res, next) => {
+  try {
+    await datos.esquemaClientes;
+    const nombre = nombreRubro(req.body && req.body.nombre);
+    if (!nombre) throw new ErrorCliente(400, 'Escribí el nombre del rubro');
+    const existe = await db.query('SELECT id, nombre FROM clientes_rubros WHERE lower(nombre) = lower($1)', [nombre]);
+    if (existe.rowCount) return res.json({ ...existe.rows[0], existente: true });
+    const { rows } = await db.query(
+      `INSERT INTO clientes_rubros (nombre, orden)
+       VALUES ($1, (SELECT COALESCE(max(orden), 0) + 1 FROM clientes_rubros)) RETURNING id, nombre, orden`, [nombre]);
+    await insertDomainAudit(db, req, 'clientes_rubros', rows[0].id, 'alta', { nombre });
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    responderError(res, next, err);
+  }
+});
+
+router.put('/rubros/:id(\\d+)', async (req, res, next) => {
+  try {
+    await datos.esquemaClientes;
+    const nombre = nombreRubro(req.body && req.body.nombre);
+    if (!nombre) throw new ErrorCliente(400, 'Escribí el nombre del rubro');
+    const dup = await db.query('SELECT 1 FROM clientes_rubros WHERE lower(nombre) = lower($1) AND id <> $2', [nombre, req.params.id]);
+    if (dup.rowCount) throw new ErrorCliente(409, `Ya existe el rubro "${nombre}"`);
+    const { rows } = await db.query('UPDATE clientes_rubros SET nombre = $2 WHERE id = $1 RETURNING id, nombre', [req.params.id, nombre]);
+    if (!rows.length) throw new ErrorCliente(404, 'Rubro no encontrado');
+    await insertDomainAudit(db, req, 'clientes_rubros', rows[0].id, 'modificacion', { nombre });
+    res.json(rows[0]);
+  } catch (err) {
+    responderError(res, next, err);
+  }
+});
+
+// Borra el rubro y se lo saca a los clientes que lo tenian
+router.delete('/rubros/:id(\\d+)', async (req, res, next) => {
+  const client = await db.connect();
+  try {
+    await datos.esquemaClientes;
+    const id = Number(req.params.id);
+    await client.query('BEGIN');
+    const { rows } = await client.query('DELETE FROM clientes_rubros WHERE id = $1 RETURNING nombre', [id]);
+    if (!rows.length) throw new ErrorCliente(404, 'Rubro no encontrado');
+    const r = await client.query('UPDATE clientes SET rubros = array_remove(rubros, $1) WHERE $1 = ANY(rubros)', [id]);
+    await insertDomainAudit(client, req, 'clientes_rubros', id, 'baja', { nombre: rows[0].nombre, clientes: r.rowCount });
+    await client.query('COMMIT');
+    res.json({ mensaje: `Rubro "${rows[0].nombre}" eliminado`, clientes: r.rowCount });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    responderError(res, next, err);
+  } finally {
+    client.release();
   }
 });
 
@@ -214,6 +289,14 @@ async function prepararCliente(body, { alta, actual }) {
     campos.condicion_iva = iva || null;
   }
   if ('activo' in body) campos.activo = body.activo !== false && body.activo !== 'false';
+  if ('rubros' in body) {
+    const ids = [...new Set((Array.isArray(body.rubros) ? body.rubros : []).map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+    if (ids.length) {
+      const { rows } = await db.query('SELECT id FROM clientes_rubros WHERE id = ANY($1)', [ids]);
+      if (rows.length !== ids.length) throw new ErrorCliente(400, 'Uno de los rubros elegidos ya no existe: recargá la pantalla');
+    }
+    campos.rubros = ids;
+  }
   if ('documento' in body) {
     const doc = normalizarDocumento(body.documento);
     if (!doc.ok) throw new ErrorCliente(400, doc.error);

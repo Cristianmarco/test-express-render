@@ -44,6 +44,16 @@
 .cli-chip.inactivo { background: #f3f4f6; color: #6b7280; }
 .cli-chip.grupo { background: #fef3c7; color: #92400e; }
 .cli-chip.iva { background: #ecfdf5; color: #065f46; }
+.cli-chip.rubro { background: #f3e8ff; color: #6b21a8; }
+/* Rubros en el formulario del cliente: casillas como chips */
+.cli-rubros { display: flex; flex-wrap: wrap; gap: 6px; }
+.cli-rubros .cli-rubro { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 5px 6px 5px 10px; border: 1px solid #d8b4fe; border-radius: 999px; background: #fff; color: #4c1d95; font-size: .85rem; font-weight: 500; cursor: pointer; user-select: none; }
+.cli-rubros .cli-rubro.marcado { background: #7e22ce; border-color: #7e22ce; color: #fff; }
+.cli-rubros .cli-rubro input[type="checkbox"] { width: auto; margin: 0; accent-color: #7e22ce; }
+.cli-rubros .cli-rubro button { border: 0; background: none; color: inherit; opacity: .45; cursor: pointer; padding: 0 4px; font-size: .75rem; width: auto; }
+.cli-rubros .cli-rubro button:hover { opacity: 1; }
+.cli-rubro-nuevo { display: flex; gap: 8px; margin-top: 10px; }
+.cli-rubro-nuevo input { flex: 1; }
 .cli-incompleto { color: #d97706; margin-left: 4px; }
 
 .cli-acciones-lista { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
