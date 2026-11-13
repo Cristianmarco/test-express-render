@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="/static/css/fichas.css?v=<%= Date.now() %>">
     <link rel="stylesheet" href="/static/css/producto-ficha.css?v=<%= Date.now() %>">
     <link rel="stylesheet" href="/static/css/clientes.css?v=<%= Date.now() %>">
+    <link rel="stylesheet" href="/static/css/marketing.css?v=<%= Date.now() %>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="icon" type="image/png" href="/static/images/logo.png?v=<%= Date.now() %>" />
 </head>
@@ -82,6 +83,8 @@
                 </li><% } %>
                 <% if (puede('planilla')) { %><li><a href="#" class="menu-link" data-view="planilla"><i class="fa fa-calendar-check"></i> Planilla
                         diaria</a></li><% } %>
+
+                <% if (puede('marketing')) { %><li><a href="#" class="menu-link" data-view="marketing"><i class="fa fa-bullhorn"></i> Marketing</a></li><% } %>
 
                 <li class="menu-section">Operaciones</li>
                 <% if (puede('reportes')) { %><li><a href="#" class="menu-link" data-view="reportes"><i class="fa fa-chart-pie"></i> Reportes</a></li><% } %>
@@ -152,6 +155,7 @@
     <script src="/static/scripts/fotos_editor.js?v=<%= Date.now() %>" defer></script>
     <script src="/static/scripts/producto_ficha.js?v=<%= Date.now() %>" defer></script>
     <script src="/static/scripts/productos.js?v=<%= Date.now() %>" defer></script>
+    <script src="/static/scripts/precios_auto.js?v=<%= Date.now() %>" defer></script>
     <script src="/static/scripts/proveedores.js?v=<%= Date.now() %>" defer></script>
     <script src="/static/scripts/configuracion.js?v=<%= Date.now() %>" defer></script>
     <script src="/static/scripts/clientes.js?v=<%= Date.now() %>" defer></script>

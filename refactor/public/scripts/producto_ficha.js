@@ -738,7 +738,9 @@
     actualizado_proveedor: 'Actualizado desde proveedor',
     ficha_editada: 'Ficha editada',
     foto_agregada: 'Foto agregada',
-    foto_eliminada: 'Foto eliminada'
+    foto_eliminada: 'Foto eliminada',
+    precio_auto: 'Precio actualizado automáticamente',
+    precio_aprobado: 'Cambio de precio aprobado'
   };
 
   async function cargarHistorial(root) {
@@ -748,7 +750,7 @@
       const items = await api(`/api/productos/${root._pf.id}/historial`);
       zona.innerHTML = items.length ? items.map((h) => {
         const det = h.detail || {};
-        const extra = det.secciones ? `Secciones: ${det.secciones.join(', ')}` : (det.precio_lista ? `Precio de lista: ${pesos(det.precio_lista)}` : '');
+        const extra = det.secciones ? `Secciones: ${det.secciones.join(', ')}` : (det.precio_lista ? `Precio de lista: ${det.precio_lista_antes ? `${pesos(det.precio_lista_antes)} → ` : ''}${pesos(det.precio_lista)}${det.variacion_pct != null ? ` (${det.variacion_pct > 0 ? '+' : ''}${det.variacion_pct}% en costo)` : ''}${det.proveedor ? ` · ${det.proveedor}` : ''}` : '');
         return `<div class="pf-historial-item"><b>${esc(ACCIONES_HISTORIAL[h.action] || h.action)}</b>
           <div class="cuando">${esc(fechaHora(h.created_at))} · ${esc(h.actor_email || '-')}</div>${extra ? `<div class="pf-nota">${esc(extra)}</div>` : ''}</div>`;
       }).join('') : '<div class="pf-vacio">Sin cambios registrados.</div>';

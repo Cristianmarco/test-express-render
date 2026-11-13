@@ -123,6 +123,8 @@ app.use('/api/garantias_dota', requireLogin, garantiasDotaRouter);
 app.use('/api/garantias/report', requireLogin, garantiaReportRouter);
 app.use('/api/dashboard', requireLogin, dashboardRouter);
 // Ficha completa / fotos / importacion de proveedores (antes que el router general por las rutas /importar y /fotos)
+// Cambios de precios automaticos desde los proveedores
+app.use('/api/productos/precios_auto', requireLogin, require('./routes/precios_auto'));
 app.use('/api/productos', requireLogin, require('./routes/productos_ficha'));
 app.use('/api/productos', requireLogin, productosRouter);
 app.use("/api/familias", requireLogin, require("./routes/familia"));
@@ -152,6 +154,8 @@ app.use('/ordenes_pago', requireLogin, ordenesPago.paginas);
 const recambios = require('./routes/recambios');
 app.use('/api/recambios', requireLogin, recambios.router);
 app.use('/recambios', requireLogin, recambios.paginas);
+// Marketing: ofertas para mandar a los clientes
+app.use('/api/marketing', requireLogin, require('./routes/marketing'));
 
 
 // ============================
@@ -222,6 +226,8 @@ app.use(
 
 // Portal de clientes (antes del refactor para capturar /portal/*)
 app.use("/portal", portalRouter);
+// Paginas publicas de las ofertas de Marketing (sin login: se abren desde el mail)
+app.use("/m", require("./routes/marketing_publico"));
 
 // ✅ El router refactor maneja su propia protección interna
 app.use("/refactor", refactorRouter);

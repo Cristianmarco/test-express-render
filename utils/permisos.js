@@ -21,6 +21,7 @@ const SECCIONES = [
   { id: 'stock', label: 'Stock' },
   { id: 'proveedores', label: 'Proveedores' },
   { id: 'planilla', label: 'Planilla diaria' },
+  { id: 'marketing', label: 'Marketing' },
   { id: 'reportes', label: 'Reportes' },
   { id: 'configuracion', label: 'Configuración' },
 ];
@@ -65,6 +66,7 @@ const API = {
   ordenes_pago: { leer: ['compras'], escribir: ['compras'] },
   recambios: { leer: ['compras'], escribir: ['compras'] },
   reportes: { leer: ['reportes'], escribir: ['reportes'] },
+  marketing: { leer: ['marketing'], escribir: ['marketing'] },
   estadisticas: { leer: ['reportes'], escribir: ['reportes'] },
 };
 

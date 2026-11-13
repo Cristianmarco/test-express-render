@@ -1,0 +1,133 @@
+<section class="cli-section" id="mk-root">
+  <div class="cli-top">
+    <h2><i class="fas fa-bullhorn"></i> Marketing</h2>
+    <div class="cli-stats" id="mk-stats"></div>
+  </div>
+  <p class="cli-ayuda" style="margin:-4px 0 12px">Armá ofertas a partir de un producto (con las fotos del proveedor), elegí a qué rubros de clientes van dirigidas, descargalas como imagen para WhatsApp o redes y mandá una prueba por mail para ver cómo llega y cómo se pide.</p>
+
+  <div class="rc-tabs mk-tabs">
+    <button type="button" class="rc-tab activa" data-mk-tab="ofertas"><i class="fas fa-bullhorn"></i> Ofertas</button>
+    <button type="button" class="rc-tab" data-mk-tab="pedidos"><i class="fas fa-inbox"></i> Pedidos recibidos <span class="mk-badge" id="mk-badge-pedidos" hidden></span></button>
+  </div>
+
+  <div class="mk-layout" data-mk-panel="ofertas">
+    <!-- Listado de ofertas -->
+    <div class="cli-card mk-lista-card">
+      <div class="cli-toolbar">
+        <select id="mk-filtro-estado" title="Estado">
+          <option value="">Activas</option>
+          <option value="borrador">Borradores</option>
+          <option value="lista">Listas</option>
+          <option value="archivada">Archivadas</option>
+          <option value="todas">Todas</option>
+        </select>
+        <button type="button" class="cli-btn primario" id="mk-nueva"><i class="fas fa-plus"></i> Nueva oferta</button>
+      </div>
+      <div id="mk-lista" class="mk-lista"></div>
+    </div>
+
+    <!-- Editor -->
+    <div class="cli-card mk-editor" id="mk-editor">
+      <div class="cli-ficha-vacia" id="mk-vacio"><i class="fas fa-bullhorn"></i> Elegí una oferta o creá una nueva</div>
+
+      <div id="mk-form-wrap" hidden>
+        <div class="mk-editor-grid">
+          <form id="mk-form" autocomplete="off" novalidate>
+            <fieldset class="mk-bloque">
+              <legend>Producto</legend>
+              <div class="mk-buscador">
+                <input type="search" id="mk-prod-buscar" placeholder="Buscar por código, descripción o equivalencia..." />
+                <div id="mk-prod-resultados" class="mk-prod-resultados" hidden></div>
+              </div>
+              <div id="mk-prod-elegido" class="mk-prod-elegido" hidden></div>
+              <div id="mk-fotos" class="mk-fotos"></div>
+            </fieldset>
+
+            <fieldset class="mk-bloque">
+              <legend>Texto</legend>
+              <label>Título *<input name="titulo" maxlength="120" placeholder="Ej: ¡Oferta de la semana!" /></label>
+              <label>Bajada<input name="bajada" maxlength="200" placeholder="Ej: Alternadores reparados con garantía" /></label>
+              <label>Nombre del producto<input name="producto_nombre" maxlength="200" /></label>
+              <label>Descripción<textarea name="descripcion" rows="3" maxlength="1500" placeholder="Características, aplicaciones, qué incluye..."></textarea></label>
+            </fieldset>
+
+            <fieldset class="mk-bloque">
+              <legend>Precio y vigencia</legend>
+              <div class="mk-fila">
+                <label>Precio oferta<input name="precio" inputmode="decimal" placeholder="0,00" /></label>
+                <label>Precio anterior<input name="precio_anterior" inputmode="decimal" placeholder="opcional" /></label>
+                <label>Leyenda<input name="leyenda_precio" maxlength="60" placeholder="+ IVA" /></label>
+              </div>
+              <div class="mk-fila">
+                <label>Válida hasta<input type="date" name="vigencia_hasta" /></label>
+                <label>Texto del botón<input name="boton_texto" maxlength="40" placeholder="¡Lo quiero!" /></label>
+              </div>
+              <label>Condiciones<textarea name="condiciones" rows="2" maxlength="600" placeholder="Ej: Hasta agotar stock. Envíos a todo el país."></textarea></label>
+            </fieldset>
+
+            <fieldset class="mk-bloque">
+              <legend>Diseño</legend>
+              <div class="mk-plantillas" id="mk-plantillas"></div>
+            </fieldset>
+
+            <fieldset class="mk-bloque">
+              <legend>Destinatarios</legend>
+              <p class="mk-ayuda">Rubros de clientes a los que va dirigida (sin ninguno marcado: todos los clientes activos).</p>
+              <div class="cli-rubros" id="mk-rubros"></div>
+              <div class="mk-destinatarios" id="mk-destinatarios"></div>
+            </fieldset>
+
+            <div class="mk-acciones">
+              <select name="estado" title="Estado">
+                <option value="borrador">Borrador</option>
+                <option value="lista">Lista para enviar</option>
+                <option value="archivada">Archivada</option>
+              </select>
+              <button type="submit" class="cli-btn primario"><i class="fas fa-floppy-disk"></i> Guardar</button>
+              <button type="button" class="cli-btn" id="mk-descargar"><i class="fas fa-image"></i> Descargar imagen</button>
+              <button type="button" class="cli-btn" id="mk-duplicar"><i class="fas fa-copy"></i> Duplicar</button>
+              <button type="button" class="cli-btn peligro" id="mk-eliminar"><i class="fas fa-trash"></i></button>
+            </div>
+            <div class="mk-error" id="mk-error"></div>
+
+            <fieldset class="mk-bloque" id="mk-envio-bloque">
+              <legend>Enviar por mail</legend>
+              <div id="mk-config-aviso" class="mk-aviso" hidden></div>
+              <div class="mk-prueba">
+                <input type="email" id="mk-prueba-mail" placeholder="Tu mail para la prueba" />
+                <button type="button" class="cli-btn" id="mk-prueba-enviar"><i class="fas fa-paper-plane"></i> Enviar prueba</button>
+              </div>
+              <div id="mk-prueba-res" class="mk-ayuda"></div>
+              <div id="mk-envios-resumen" class="mk-ayuda"></div>
+            </fieldset>
+          </form>
+
+          <div class="mk-preview-col">
+            <div class="mk-preview-titulo">Vista previa</div>
+            <div class="mk-preview" id="mk-preview"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pedidos recibidos desde las paginas de las ofertas -->
+  <div class="cli-card" data-mk-panel="pedidos" hidden>
+    <div class="cli-toolbar">
+      <select id="mk-ped-estado">
+        <option value="">Todos los estados</option>
+        <option value="nuevo">Nuevos</option>
+        <option value="contactado">Contactados</option>
+        <option value="vendido">Vendidos</option>
+        <option value="descartado">Descartados</option>
+      </select>
+      <label><input type="checkbox" id="mk-ped-pruebas"> Ver pedidos de prueba</label>
+    </div>
+    <div class="cli-tabla-wrap">
+      <table class="cli-tabla">
+        <thead><tr><th>Fecha</th><th>Oferta</th><th>Cliente / contacto</th><th class="num">Cant.</th><th>Comentario</th><th>Estado</th></tr></thead>
+        <tbody id="mk-ped-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>

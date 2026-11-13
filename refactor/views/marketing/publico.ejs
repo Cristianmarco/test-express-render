@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title><%= envio ? envio.oferta.titulo : (typeof titulo !== 'undefined' ? titulo : 'Oferta') %></title>
+  <link rel="icon" type="image/png" href="/static/images/logo.png" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f4f6; font-family: Arial, Helvetica, sans-serif; color: #111827; }
+    .envoltura { max-width: 640px; margin: 0 auto; padding: 18px 12px 40px; }
+    .aviso-prueba { background: #fef3c7; color: #92400e; font-size: 13px; text-align: center; padding: 8px; border-radius: 8px; margin-bottom: 12px; }
+    .tarjeta { background: #fff; border-radius: 14px; box-shadow: 0 4px 18px rgba(0,0,0,.08); padding: 20px; margin-top: 16px; }
+    .tarjeta h2 { margin: 0 0 4px; font-size: 20px; }
+    .tarjeta p.sub { margin: 0 0 14px; color: #6b7280; font-size: 14px; }
+    label { display: block; font-size: 13px; color: #374151; margin-bottom: 10px; }
+    input, textarea { display: block; width: 100%; margin-top: 4px; padding: 11px 12px; font: inherit; font-size: 16px; border: 1px solid #d1d5db; border-radius: 10px; background: #fff; }
+    input:focus, textarea:focus { outline: 2px solid #93c5fd; border-color: #3b82f6; }
+    .fila { display: flex; gap: 10px; }
+    .fila label { flex: 1; }
+    .cantidad { max-width: 140px; }
+    button { width: 100%; padding: 14px; font-size: 17px; font-weight: 700; color: #fff; background: #1d4ed8; border: 0; border-radius: 999px; cursor: pointer; margin-top: 6px; }
+    button:hover { filter: brightness(1.08); }
+    button.secundario { background: #6b7280; }
+    .error { background: #fee2e2; color: #991b1b; padding: 10px 12px; border-radius: 10px; font-size: 14px; margin-bottom: 12px; }
+    .ok { text-align: center; }
+    .ok .icono { font-size: 46px; color: #15803d; }
+    .mensaje { text-align: center; padding: 40px 20px; }
+    .chico { font-size: 12px; color: #9ca3af; text-align: center; margin-top: 18px; }
+    @media (max-width: 480px) { .fila { flex-direction: column; gap: 0; } .cantidad { max-width: none; } }
+  </style>
+</head>
+<body>
+  <div class="envoltura">
+  <% if (modo === 'mensaje') { %>
+    <div class="tarjeta mensaje">
+      <img src="/static/images/logo.png" alt="" style="height:40px" />
+      <h2 style="margin-top:14px"><%= titulo %></h2>
+      <p class="sub"><%= texto %></p>
+    </div>
+  <% } else if (modo === 'baja') { %>
+    <div class="tarjeta mensaje">
+      <img src="/static/images/logo.png" alt="" style="height:40px" />
+      <h2 style="margin-top:14px">¿Dejar de recibir ofertas?</h2>
+      <p class="sub">No te vamos a mandar más ofertas por mail<%= envio.cliente_nombre ? ' a ' + envio.cliente_nombre : '' %>.</p>
+      <form method="post"><button type="submit" class="secundario">Sí, no quiero recibir más ofertas</button></form>
+    </div>
+  <% } else { %>
+    <% if (envio.prueba) { %><div class="aviso-prueba">Página de prueba: el pedido queda marcado como prueba.</div><% } %>
+    <%- html %>
+
+    <% if (modo === 'gracias') { %>
+      <div class="tarjeta ok">
+        <div class="icono">✔</div>
+        <h2>¡Recibimos tu pedido!</h2>
+        <p class="sub">Te vamos a contactar a la brevedad para confirmarlo.</p>
+      </div>
+    <% } else if (!envio.vigente) { %>
+      <div class="tarjeta mensaje">
+        <h2>Esta oferta ya no está vigente</h2>
+        <p class="sub">Escribinos respondiendo el mail y te pasamos el precio actual.</p>
+      </div>
+    <% } else { %>
+      <form class="tarjeta" method="post" id="pedido" novalidate>
+        <h2>Pedí esta oferta</h2>
+        <p class="sub">Completá tus datos y te contactamos para confirmar el pedido.</p>
+        <% if (error) { %><div class="error"><%= error %></div><% } %>
+        <label class="cantidad">Cantidad<input type="number" name="cantidad" min="1" max="9999" value="<%= valores.cantidad || 1 %>" required /></label>
+        <div class="fila">
+          <label>Tu nombre *<input name="nombre" maxlength="120" value="<%= valores.nombre || '' %>" required autocomplete="name" /></label>
+          <label>Empresa<input name="empresa" maxlength="160" value="<%= valores.empresa || '' %>" autocomplete="organization" /></label>
+        </div>
+        <div class="fila">
+          <label>Teléfono / WhatsApp<input type="tel" name="telefono" maxlength="60" value="<%= valores.telefono || '' %>" autocomplete="tel" /></label>
+          <label>Mail<input type="email" name="email" maxlength="160" value="<%= valores.email || '' %>" autocomplete="email" /></label>
+        </div>
+        <label>Comentario<textarea name="comentario" rows="3" maxlength="1000" placeholder="Ej: lo necesito para el lunes, envío a..."><%= valores.comentario || '' %></textarea></label>
+        <button type="submit">Enviar pedido</button>
+      </form>
+      <script>
+        document.getElementById('pedido').addEventListener('submit', function (e) {
+          var b = this.querySelector('button');
+          if (b.disabled) { e.preventDefault(); return; }
+          b.disabled = true; b.textContent = 'Enviando...';
+        });
+      </script>
+    <% } %>
+    <p class="chico">Precios sujetos a disponibilidad de stock.</p>
+  <% } %>
+  </div>
+</body>
+</html>

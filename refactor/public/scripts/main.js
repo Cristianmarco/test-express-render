@@ -178,6 +178,9 @@ window.closeTab = closeTab;
     case "recambios":
       cargarScript("/static/scripts/recambios.js");
       break;
+    case "marketing":
+      cargarScript("/static/scripts/marketing.js");
+      break;
     default:
       try { console.log(`No hay script especifico para ${view}`); } catch {}
   }
