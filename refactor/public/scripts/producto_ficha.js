@@ -1101,11 +1101,21 @@
           if (x.tipo === 'cotas') {
             const v = f[x.id] || {};
             return `<div class="pfi-campo ancho"><span>${esc(x.nombre)}${x.ayuda ? ` <small>(${esc(x.ayuda)})</small>` : ''}</span>
-              <div class="pfi-cotas">${x.cotas.map((k) => `<label>${esc(k)}<input name="${esc(x.id)}.${esc(k)}" inputmode="decimal" value="${esc(v[k] || '')}"></label>`).join('')}</div></div>`;
+              <div class="pfi-cotas">${x.cotas.map((k) => {
+                // Nombre de la cota si no es la misma letra ("A" -> "Ø exterior")
+                const et = x.etiquetas && x.etiquetas[k] && x.etiquetas[k] !== k ? x.etiquetas[k] : '';
+                return `<label title="${esc(et || k)}">${esc(k === 'vias' ? 'Vías' : k)}${et && k !== 'vias' ? ` <small>${esc(et)}</small>` : ''}<input name="${esc(x.id)}.${esc(k)}" inputmode="decimal" value="${esc(v[k] || '')}"></label>`;
+              }).join('')}</div></div>`;
           }
           return `<label class="pfi-campo">${esc(x.nombre)}${x.ayuda ? ` <small>(${esc(x.ayuda)})</small>` : ''}
             <input name="${esc(x.id)}" value="${esc(typeof f[x.id] === 'string' ? f[x.id] : '')}" placeholder="${x.ejemplo ? `ej: ${esc(x.ejemplo)}` : ''}"></label>`;
         }).join('') || '<div class="pf-nota">Esta categoría no tiene datos para filtrar: se lista completa.</div>';
+        // Plano con las cotas y planilla original (categorias "Por medidas" de Dipra)
+        if (c.plano || c.planilla) {
+          zonaCampos.insertAdjacentHTML('beforeend', `<div class="pfi-campo ancho pf-nota">
+            ${c.plano ? `<a href="${esc(c.plano)}" target="_blank" rel="noopener"><i class="fas fa-ruler-combined"></i> Ver el plano (qué es cada cota)</a>` : ''}
+            ${c.planilla ? ` · <a href="${esc(c.planilla)}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i> Planilla original</a>` : ''}</div>`);
+        }
       };
 
       const leerFiltros = () => {

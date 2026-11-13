@@ -728,6 +728,7 @@
 .pfi-cotas { display: flex; gap: 8px; flex-wrap: wrap; }
 .pfi-cotas label { flex-direction: row; align-items: center; gap: 6px; font-weight: 700; color: #334155; }
 .pfi-cotas input { width: 80px; }
+.pfi-cotas label small { font-weight: 400; color: #64748b; font-size: .78em; }
 .pfi-avanzada-acciones { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 600px) { .pfi-avanzada { grid-template-columns: 1fr; } }
 .pfi-detalle { font-size: 0.82rem; color: #0f766e; margin-top: 2px; }

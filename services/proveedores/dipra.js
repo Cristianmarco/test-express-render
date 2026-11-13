@@ -9,6 +9,8 @@
 const cheerio = require('cheerio');
 const { descuentoProveedor } = require('../../utils/proveedores_config');
 const ExcelJS = require('exceljs');
+// Busqueda por medidas en las planillas de Dipra (categorias "med|...")
+const medidas = require('./dipra_medidas');
 
 const BASE = 'https://dipra.com.ar';
 const HOST_RE = /^(www\.)?dipra\.com\.ar$/i;
@@ -290,7 +292,17 @@ function campoDipra(id) {
 
 // Categorias del sitio y, dentro de cada una, los tipos de producto con sus campos
 // ("MOTORES DE ARRANQUE › TAPA PORTA ESCOBILLAS": escobillas, medida_porta...)
+// Las categorias "Por medidas" (planillas) van primero y no dependen de la pagina de Dipra
 async function categoriasAvanzadas() {
+  let web = [];
+  let error = null;
+  try { web = await categoriasDelSitio(); } catch (e) { error = e; }
+  const lista = [...medidas.categorias(), ...web];
+  if (!lista.length && error) throw error;
+  return lista;
+}
+
+async function categoriasDelSitio() {
   if (categoriasCache && Date.now() - categoriasCache.at < CATEGORIAS_TTL_MS) return categoriasCache.lista;
   const r = await pedirTexto('productos.php');
   const $ = cheerio.load(r.text);
@@ -394,6 +406,7 @@ function valorEnFicha(campos, campo) {
 // categoria: "8|TAPA PORTA ESCOBILLAS"
 // filtros: { escobillas: "13,3x17,5", medida_porta: { A: "85", B: "13.5" }, marca_vehiculo: "FORD" }
 async function buscarAvanzado({ categoria, filtros }) {
+  if (String(categoria || '').startsWith('med|')) return buscarPorMedidas(String(categoria).slice(4), filtros || {});
   const [idCat, tipo] = String(categoria || '').split('|');
   if (!/^\d+$/.test(idCat || '')) throw new Error('Elegí una categoría de Dipra');
 
@@ -448,6 +461,31 @@ async function buscarAvanzado({ categoria, filtros }) {
   const conPrecio = await conPrecios(items);
   // La medida encontrada va primero en el detalle
   return conPrecio.map((r, i) => (items[i].medidas ? { ...r, detalle: [items[i].medidas, r.detalle].filter(Boolean).join(' · ') } : r));
+}
+
+// Busqueda en las planillas de medidas: no consulta la pagina. Cada resultado se abre
+// buscando su codigo en Dipra al elegirlo (importar_desde), como los catalogos de fabricante.
+async function buscarPorMedidas(familia, filtros) {
+  const r = medidas.buscar(familia, filtros);
+  let l = null;
+  try { l = await listaDePrecios(); } catch (_) { /* sin lista se muestran igual */ }
+  const desc = descuentoDipra();
+  return r.items.map((it, i) => {
+    const p = l ? l.precios.get(codigoNorm(it.codigo)) : null;
+    return {
+      id: it.codigo,
+      url: null,
+      importar_desde: { proveedor: 'dipra', q: it.codigo },
+      codigo: it.codigo,
+      descripcion: (p && p.descripcion) || r.familia.nombre,
+      detalle: [it.medidas, it.diferencia ? `diferencia total ${String(it.diferencia).replace('.', ',')} mm` : '',
+        i === r.items.length - 1 && r.total > r.items.length ? `(se muestran los ${r.items.length} más parecidos de ${r.total}: completá más cotas)` : '']
+        .filter(Boolean).join(' · '),
+      foto: null,
+      precio_lista: p ? p.precio : null,
+      precio_costo: p ? Math.round(p.precio * (1 - desc / 100) * 100) / 100 : null,
+    };
+  });
 }
 
 // Recorre las paginas hasta que no haya mas (la siguiente a la ultima repite la ultima)
@@ -568,7 +606,7 @@ module.exports = {
   leerFicha,
   descargarImagen,
   urlFicha,
-  AYUDA_AVANZADA: `Completá uno o más datos (se buscan todos juntos). Las medidas buscan el texto dentro del dato (ej: "13.3 x 17.5" encuentra "4.7/10.3 x 13.3 x 17.5"); las cotas del porta se comparan con ±${TOLERANCIA_MM} mm. Sin datos lista toda la categoría.`,
+  AYUDA_AVANZADA: `Las categorías "Por medidas" buscan por cotas en las planillas de Dipra (instantáneo, con tolerancia; mirá el plano para saber qué es cada letra). En las demás: completá uno o más datos (se buscan todos juntos). Las medidas buscan el texto dentro del dato (ej: "13.3 x 17.5" encuentra "4.7/10.3 x 13.3 x 17.5"); las cotas del porta se comparan con ±${TOLERANCIA_MM} mm. Sin datos lista toda la categoría.`,
   categoriasAvanzadas,
   buscarAvanzado
 };
